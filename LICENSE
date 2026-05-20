@@ -1,0 +1,144 @@
+SMITHERY SOURCE-AVAILABLE LICENSE
+Version 1.1 (2026)
+
+Copyright (c) 2026 YoItSoul
+
+This license governs the use of the accompanying software, including its
+source code, compiled artifacts, assets, and documentation (collectively,
+the "Software"). By accessing, viewing, copying, modifying, contributing
+to, or otherwise using the Software, you ("You") agree to be bound by the
+terms set out below. If You do not agree, You must not use the Software.
+
+This license is intentionally contributor-friendly. Standard collaborative
+workflows — forking on GitHub or another Git hosting service, branching,
+modifying, opening pull requests, discussing changes, and keeping your
+fork up to date — are all expressly permitted. What is NOT permitted is
+distributing the Software (or any version derived from it) to end users
+outside of the upstream project.
+
+
+1. GRANT OF RIGHTS
+
+  1.1. Viewing. You may view the source code of the Software in any
+       repository in which the copyright holder ("Licensor") has made it
+       publicly available.
+
+  1.2. Forking and Modification. You may create one or more forks of the
+       Software — including public forks on Git hosting services such as
+       GitHub, GitLab, Codeberg, or similar — and modify the Software in
+       those forks for the purposes of:
+         (a) preparing contributions to be submitted back to the upstream
+             repository,
+         (b) experimentation, research, and learning,
+         (c) personal evaluation, or
+         (d) any other development activity that does not result in
+             distribution to end users.
+       There is no time limit on how long Your fork may exist, and no
+       requirement that every commit produce a pull request. Maintaining
+       a public fork as part of the standard Git workflow is expressly
+       permitted and encouraged.
+
+  1.3. Pull Requests and Patches. You may submit pull requests, patches,
+       suggestions, issue reports, and other contributions to the upstream
+       repository through any channel made available by the Licensor.
+
+  1.4. Private Use. You may build, compile, install, and run the Software
+       (or Your fork of it) on devices You personally own or control, for
+       Your own use during development, experimentation, or evaluation.
+
+
+2. RESTRICTIONS
+
+  2.1. No End-User Distribution. You may not publish, host for download,
+       broadcast, sell, lease, rent, or otherwise make the Software (or
+       any version derived from it) available to end users for use,
+       whether for free or for consideration. The fork-for-development
+       activities in Section 1.2 are not "distribution to end users" and
+       are not restricted by this Section.
+
+  2.2. No Repackaging. You may not include the Software, or any compiled
+       artifact derived from it, in any modpack, asset pack, distribution
+       bundle, software collection, launcher, or similar aggregation
+       intended for use by third parties.
+
+  2.3. No Competing Releases. You may not release or promote a fork as a
+       standalone product for end-user use, even with attribution. Forks
+       are a development workflow under this License, not a publishing
+       channel.
+
+  2.4. No Sublicensing. You may not sublicense the Software, or grant
+       rights in it to third parties beyond those granted by this License.
+
+  2.5. No Removal of Notices. You may not remove, alter, or obscure any
+       copyright, license, or attribution notices contained in the
+       Software. Your fork must keep this License file intact.
+
+
+3. CONTRIBUTIONS
+
+  3.1. By submitting any contribution (including but not limited to code,
+       assets, documentation, bug reports, design proposals, or pull
+       request commits) to a repository designated by the Licensor, You
+       irrevocably grant the Licensor a perpetual, worldwide,
+       non-exclusive, royalty-free, fully paid-up, transferable, and
+       sublicensable license to use, reproduce, modify, adapt, prepare
+       derivative works of, publicly display, publicly perform,
+       sublicense, and distribute Your contribution as part of the
+       Software, under this License or under any other license the
+       Licensor chooses.
+
+  3.2. You retain ownership of Your contribution. The license in
+       Section 3.1 is in addition to Your retained rights, not a
+       transfer of them.
+
+  3.3. You represent and warrant that You have all rights necessary to
+       grant the license in Section 3.1, and that Your contribution does
+       not knowingly infringe the rights of any third party.
+
+  3.4. Contributions, once merged, become part of the Software and are
+       thereafter governed by this License for all subsequent uses.
+
+
+4. RESERVATION OF RIGHTS
+
+  All rights not expressly granted to You under this License are reserved
+  by the Licensor.
+
+
+5. TERMINATION
+
+  Your rights under Sections 1.2 through 1.4 terminate automatically and
+  without notice upon any material breach of Sections 2.1 through 2.5.
+  Upon termination, You must immediately cease distribution and destroy
+  any materials You distributed in violation of this License. The right
+  to view the source code (Section 1.1) and the contribution license
+  granted to the Licensor (Section 3.1) survive termination.
+
+
+6. WARRANTY DISCLAIMER
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+  NONINFRINGEMENT.
+
+
+7. LIMITATION OF LIABILITY
+
+  IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR
+  OTHER LIABILITY — WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE
+  — ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+  OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+8. SEVERABILITY
+
+  If any provision of this License is held to be unenforceable, the
+  remaining provisions shall remain in full force and effect.
+
+
+9. ENTIRE AGREEMENT
+
+  This License constitutes the entire agreement between You and the
+  Licensor concerning the Software and supersedes any prior agreements
+  on the same subject.
