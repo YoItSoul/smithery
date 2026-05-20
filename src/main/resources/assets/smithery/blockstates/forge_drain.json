@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "smithery:block/forge_drain" }
+  }
+}

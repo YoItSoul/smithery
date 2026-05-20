@@ -1,0 +1,70 @@
+package com.soul.smithery.api.registry;
+
+import net.minecraft.resources.Identifier;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+
+/**
+ * Thread-safe, insertion-ordered registry of identified values.
+ *
+ * Iteration order matches insertion order (LinkedHashMap). This is intentional and load-bearing
+ * for the forge's alloy conflict tiebreaker, which uses insertion order to decide which of two
+ * equal-complexity alloys claims fluids first.
+ */
+public class SimpleRegistry<T> {
+    private final String registryName;
+    private final Function<T, Identifier> idFn;
+    private final Map<Identifier, T> map = new LinkedHashMap<>();
+
+    public SimpleRegistry(String registryName, Function<T, Identifier> idFn) {
+        this.registryName = registryName;
+        this.idFn = idFn;
+    }
+
+    public synchronized T register(T value) {
+        Objects.requireNonNull(value);
+        Identifier id = idFn.apply(value);
+        Objects.requireNonNull(id, registryName + " value missing id");
+        if (map.containsKey(id)) {
+            throw new IllegalStateException(registryName + " already contains " + id);
+        }
+        map.put(id, value);
+        return value;
+    }
+
+    /** Replace an existing entry (used by datapack overrides). No-op if missing. */
+    public synchronized boolean replace(T value) {
+        Identifier id = idFn.apply(value);
+        if (!map.containsKey(id)) return false;
+        map.put(id, value);
+        return true;
+    }
+
+    /** Remove an entry. Returns true if it was present. */
+    public synchronized boolean remove(Identifier id) {
+        return map.remove(id) != null;
+    }
+
+    public synchronized T get(Identifier id) { return map.get(id); }
+    public synchronized Optional<T> getOptional(Identifier id) { return Optional.ofNullable(map.get(id)); }
+    public synchronized boolean contains(Identifier id) { return map.containsKey(id); }
+    public synchronized int size() { return map.size(); }
+
+    /** Snapshot of all values in insertion order. */
+    public synchronized Collection<T> all() {
+        return Collections.unmodifiableCollection(new java.util.ArrayList<>(map.values()));
+    }
+
+    /** Snapshot of all ids in insertion order. */
+    public synchronized Collection<Identifier> ids() {
+        return Collections.unmodifiableCollection(new java.util.ArrayList<>(map.keySet()));
+    }
+
+    public String registryName() { return registryName; }
+}

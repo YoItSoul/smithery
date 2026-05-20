@@ -1,0 +1,34 @@
+package com.soul.smithery.api.material;
+
+import net.minecraft.resources.Identifier;
+
+import java.util.Objects;
+
+/**
+ * A registered Material. Pairs an ID with a (mutable-by-override) stat block.
+ *
+ * Stats are held in a separate object so datapack overrides can replace them at resource reload
+ * without invalidating Material identity (existing references to the Material remain valid; only
+ * stats change).
+ */
+public final class Material {
+    private final Identifier id;
+    private volatile MaterialStats stats;
+
+    public Material(Identifier id, MaterialStats stats) {
+        this.id = Objects.requireNonNull(id);
+        this.stats = Objects.requireNonNull(stats);
+    }
+
+    public Identifier id() { return id; }
+    public MaterialStats stats() { return stats; }
+
+    /** Replace this material's stat block (used by datapack overrides). */
+    public void overrideStats(MaterialStats newStats) {
+        this.stats = Objects.requireNonNull(newStats);
+    }
+
+    @Override public boolean equals(Object o) { return o instanceof Material m && m.id.equals(id); }
+    @Override public int hashCode() { return id.hashCode(); }
+    @Override public String toString() { return "Material[" + id + "]"; }
+}
