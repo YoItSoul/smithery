@@ -43,5 +43,10 @@ repo/
 .claude/
 
 ### Regenerable / scratch assets ###
-# Reference texture exports — recreate via tools/grayscale_exported.ps1 etc.
+# Reference texture exports — recreated locally as needed.
 exported/
+
+### Local scripting ###
+# PowerShell and Python files are kept out of the repo — local helpers only.
+*.ps1
+*.py
