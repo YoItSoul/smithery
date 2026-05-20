@@ -2,6 +2,7 @@
     "itemGroup.smithery.parts":  "Smithery Parts",
     "itemGroup.smithery.tools":  "Smithery Tools",
     "itemGroup.smithery.forge":  "Smithery Forge",
+    "block.smithery.furnace_bricks":  "Furnace Bricks",
     "block.smithery.forge_controller":  "Forge Controller",
     "block.smithery.forge_fuel_port":  "Forge Fuel Port",
     "block.smithery.forge_drain":  "Forge Drain",

@@ -3,6 +3,7 @@ package com.soul.smithery.api;
 import com.soul.smithery.api.alloy.AlloyDefinition;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.material.MaterialStats;
+import com.soul.smithery.api.melting.MeltingRecipe;
 import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.registry.SimpleRegistry;
@@ -11,7 +12,9 @@ import com.soul.smithery.api.tool.ToolType;
 import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Modder-facing entry point.
@@ -44,6 +47,13 @@ public final class SmitheryAPI {
     public static final SimpleRegistry<SynergyDefinition> SYNERGIES =
             new SimpleRegistry<>("Synergy", SynergyDefinition::id);
 
+    /**
+     * Melting recipes keyed by input item id. Each input item produces exactly one recipe;
+     * later registrations of the same input replace earlier ones (so datapack overrides win
+     * over built-in defaults). Lookup is O(1) by item id.
+     */
+    public static final Map<Identifier, MeltingRecipe> MELTING_RECIPES = new HashMap<>();
+
     // ---- Convenience registration ----
 
     public static PartType registerPartType(PartType pt) { return PART_TYPES.register(pt); }
@@ -51,6 +61,17 @@ public final class SmitheryAPI {
     public static Modifier registerModifier(Modifier m) { return MODIFIERS.register(m); }
     public static AlloyDefinition registerAlloy(AlloyDefinition a) { return ALLOYS.register(a); }
     public static SynergyDefinition registerSynergy(SynergyDefinition s) { return SYNERGIES.register(s); }
+
+    /** Register or replace the melting recipe for {@code recipe.inputItemId()}. */
+    public static MeltingRecipe registerMeltingRecipe(MeltingRecipe recipe) {
+        MELTING_RECIPES.put(recipe.inputItemId(), recipe);
+        return recipe;
+    }
+
+    public static MeltingRecipe registerMeltingRecipe(String inputItem, String material, int mb) {
+        return registerMeltingRecipe(new MeltingRecipe(
+                Identifier.parse(inputItem), Identifier.parse(material), mb));
+    }
 
     public static Material registerMaterial(Identifier id, MaterialStats stats) {
         return MATERIALS.register(new Material(id, stats));

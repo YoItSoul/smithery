@@ -1,22 +1,37 @@
 package com.soul.smithery.block.entity;
 
+import com.soul.smithery.api.SmitheryAPI;
+import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.material.MaterialStats;
+import com.soul.smithery.api.melting.MeltingRecipe;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import com.soul.smithery.registry.SmitheryBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * State + behavior for the Forge multiblock. For this first cut we just hold the validated
@@ -41,11 +56,51 @@ public class ForgeControllerBlockEntity extends BlockEntity {
     /** How often (in server ticks) we passively re-validate the structure as a catch-all. */
     private static final int VALIDATION_TICK_INTERVAL = 40; // 2 seconds
 
+    // Heat simulation constants. Tunable — exposed as server config later.
+    private static final float HEAT_AMBIENT_C       = 20.0f;
+    private static final float HEAT_TARGET_LAVA_C   = 1650.0f;
+    private static final float HEAT_RATE_PER_TICK   = 0.0030f; // toward target each tick when fueled
+    private static final float COOL_RATE_PER_TICK   = 0.0010f; // toward ambient each tick when unfueled
+    /** Closed-top bonus: heats 1.2x faster, cools 1.2x slower. Matches design intent. */
+    private static final float CLOSED_TOP_FACTOR    = 1.2f;
+    /** Skip setChanged() unless the temperature moved by at least this much, to cut save churn. */
+    private static final float TEMP_DIRTY_THRESHOLD = 0.25f;
+
+    /** Lava mB consumed per tick when fueled. ~0.1 mB/tick × 20 tps = 2 mB/sec = 1 bucket / 500s. */
+    private static final float FUEL_CONSUMPTION_PER_TICK = 0.1f;
+
+    /** Melt rate constants. melt_rate = BASE × (1 + SCALE × (T_forge - T_melt) / T_melt). */
+    private static final float MELT_BASE_RATE_MB_PER_TICK = 1.0f;
+    private static final float MELT_TEMP_SCALE            = 2.0f;
+
     private ValidationResult lastValidation = ValidationResult.invalid("not yet validated");
 
-    // ---- Persistent state (placeholders until simulation lands) ----
-    private float temperatureC = 20f;       // Ambient °C; will be driven by fuel/RF later.
+    // ---- Persistent state ----
+    private float temperatureC = HEAT_AMBIENT_C;
+    private float lastSavedTemperatureC = HEAT_AMBIENT_C;
     private int   ticksSinceValidation = 0;
+    private boolean fueledLastTick = false;
+    /** Accumulates sub-mB fuel debt so int-storage ports get drained at the correct rate. */
+    private float fuelConsumptionAccumulator = 0f;
+    /** Total lava mB across all fuel ports, computed on the last tick — for tooltips/UI. */
+    private int totalFuelMb = 0;
+    private int totalFuelCapacityMb = 0;
+
+    /**
+     * Molten fluid storage. Keyed by material id. The controller is the "sacred block" —
+     * destruction of the controller is the only way to lose stored fluid. If the surrounding
+     * shell becomes invalid, the storage is locked (no input or output) but the fluid stays
+     * in this map until the structure is repaired. Insertion-ordered so display order is
+     * stable across saves.
+     */
+    private final Map<Identifier, Integer> fluidStorage = new LinkedHashMap<>();
+
+    /**
+     * Per-ItemEntity melting progress in mB. When progress >= recipe.outputMb, one item is
+     * consumed and progress resets. Entries are cleaned up when the entity is gone, the
+     * recipe disappears, or the entity leaves the interior.
+     */
+    private final Map<UUID, Float> meltProgress = new HashMap<>();
 
     public ForgeControllerBlockEntity(BlockPos pos, BlockState state) {
         super(SmitheryBlockEntities.FORGE_CONTROLLER.get(), pos, state);
@@ -53,10 +108,79 @@ public class ForgeControllerBlockEntity extends BlockEntity {
 
     public ValidationResult lastValidation() { return lastValidation; }
     public float temperatureC() { return temperatureC; }
+    public boolean isFueled() { return fueledLastTick; }
+    public int totalFuelMb() { return totalFuelMb; }
+    public int totalFuelCapacityMb() { return totalFuelCapacityMb; }
+    public float targetTemperatureC() {
+        return fueledLastTick ? HEAT_TARGET_LAVA_C : HEAT_AMBIENT_C;
+    }
+
+    // ---- Fluid storage ----
 
     /**
-     * Server-side tick driver. Currently only re-validates the structure on a cadence; the
-     * heat / fluid / alloy simulation hooks in here once those subsystems exist.
+     * True if ports + melting may currently read/write the fluid storage. When the multiblock
+     * structure is invalid, the storage is locked but the contents are preserved.
+     */
+    public boolean canAccessFluids() { return lastValidation.valid; }
+
+    /** Capacity in mB derived from the last validation. Zero while invalid. */
+    public int fluidCapacityMb() {
+        return lastValidation.valid ? lastValidation.capacityMb() : 0;
+    }
+
+    /** Sum of all stored fluid mB. Includes locked contents while structure is invalid. */
+    public int totalStoredFluidMb() {
+        int sum = 0;
+        for (int v : fluidStorage.values()) sum += v;
+        return sum;
+    }
+
+    public int remainingFluidCapacityMb() {
+        return Math.max(0, fluidCapacityMb() - totalStoredFluidMb());
+    }
+
+    public int storedFluidMb(Identifier materialId) {
+        return fluidStorage.getOrDefault(materialId, 0);
+    }
+
+    /** Read-only view of the stored fluids in insertion order. */
+    public Map<Identifier, Integer> fluidStorageView() {
+        return Collections.unmodifiableMap(fluidStorage);
+    }
+
+    /**
+     * Add {@code mb} of {@code materialId} to storage. Capped by remaining capacity.
+     * Returns the amount actually added. No-op (returns 0) while the structure is invalid.
+     */
+    public int addFluid(Identifier materialId, int mb) {
+        if (!canAccessFluids() || mb <= 0) return 0;
+        int toAdd = Math.min(mb, remainingFluidCapacityMb());
+        if (toAdd <= 0) return 0;
+        fluidStorage.merge(materialId, toAdd, Integer::sum);
+        setChanged();
+        return toAdd;
+    }
+
+    /**
+     * Drain up to {@code mb} of {@code materialId} from storage. Returns the amount actually
+     * drained. No-op (returns 0) while the structure is invalid.
+     */
+    public int drainFluid(Identifier materialId, int mb) {
+        if (!canAccessFluids() || mb <= 0) return 0;
+        int have = fluidStorage.getOrDefault(materialId, 0);
+        int toDrain = Math.min(mb, have);
+        if (toDrain <= 0) return 0;
+        int remaining = have - toDrain;
+        if (remaining <= 0) fluidStorage.remove(materialId);
+        else                 fluidStorage.put(materialId, remaining);
+        setChanged();
+        return toDrain;
+    }
+
+    /**
+     * Server-side tick driver. Re-validates on a cadence, then runs the heat simulation
+     * against the validated structure. Fluid melting and alloy resolution hook in here
+     * once those subsystems exist.
      */
     public void serverTick(ServerLevel level, BlockPos pos, BlockState state) {
         ticksSinceValidation++;
@@ -64,8 +188,172 @@ public class ForgeControllerBlockEntity extends BlockEntity {
             ticksSinceValidation = 0;
             validateStructure();
         }
-        // TODO: heat update, fluid melting, alloy resolution
+
+        if (!lastValidation.valid) {
+            fueledLastTick = false;
+            // No simulation while broken — but let any leftover heat decay toward ambient
+            // anyway so we don't get frozen at 1500°C after a wall is broken mid-burn.
+            decayTemperature(false);
+            return;
+        }
+
+        // Tally fuel across all ports for UI + consumption.
+        java.util.List<ForgeFuelPortBlockEntity> ports = collectFuelPorts(level);
+        totalFuelMb = 0;
+        totalFuelCapacityMb = 0;
+        for (ForgeFuelPortBlockEntity p : ports) {
+            totalFuelMb += p.lavaMb();
+            totalFuelCapacityMb += ForgeFuelPortBlockEntity.CAPACITY_MB;
+        }
+        fueledLastTick = totalFuelMb > 0;
+
+        // Consume fuel while heating or holding temp. Accumulate sub-mB consumption since
+        // ports only store ints, then drain the first non-empty port when the debt rolls over.
+        if (fueledLastTick) {
+            fuelConsumptionAccumulator += FUEL_CONSUMPTION_PER_TICK;
+            while (fuelConsumptionAccumulator >= 1f && !ports.isEmpty()) {
+                fuelConsumptionAccumulator -= 1f;
+                for (ForgeFuelPortBlockEntity p : ports) {
+                    if (p.lavaMb() > 0) { p.drainLava(1); totalFuelMb--; break; }
+                }
+            }
+        }
+
+        float target = fueledLastTick ? HEAT_TARGET_LAVA_C : HEAT_AMBIENT_C;
+        boolean heating = target > temperatureC;
+        float rate = heating ? HEAT_RATE_PER_TICK : COOL_RATE_PER_TICK;
+        if (!lastValidation.openTop) {
+            // Closed top: 1.2x heating rate, cooling at 1/1.2 the open-top rate.
+            rate *= heating ? CLOSED_TOP_FACTOR : (1f / CLOSED_TOP_FACTOR);
+        }
+        temperatureC += (target - temperatureC) * rate;
+        if (temperatureC < HEAT_AMBIENT_C) temperatureC = HEAT_AMBIENT_C;
+
+        markIfTemperatureMoved();
+
+        // ---- Item melting ----
+        meltItemsInInterior(level);
     }
+
+    /**
+     * Find ItemEntities inside the validated interior, attempt to melt them per their
+     * registered MeltingRecipe. The temperature-excess-ratio formula in the design doc
+     * scales per-tick progress; once enough mB has accumulated, one item is consumed and
+     * its molten contents land in fluid storage.
+     */
+    private void meltItemsInInterior(ServerLevel level) {
+        if (SmitheryAPI.MELTING_RECIPES.isEmpty()) return;
+
+        AABB interiorBox = computeInteriorAabb();
+        if (interiorBox == null) return;
+        List<ItemEntity> entities = level.getEntitiesOfClass(ItemEntity.class, interiorBox);
+        if (entities.isEmpty()) {
+            if (!meltProgress.isEmpty()) meltProgress.clear();
+            return;
+        }
+
+        // Track which entities we still see this tick so we can prune progress for any that
+        // left the interior or were destroyed elsewhere.
+        Set<UUID> live = new HashSet<>(entities.size());
+
+        for (ItemEntity entity : entities) {
+            // Confirm the entity's footprint actually overlaps an interior block (AABB query
+            // may include positions adjacent to the interior in non-rectangular forges).
+            BlockPos foot = BlockPos.containing(entity.position());
+            if (!lastValidation.interior.contains(foot)) continue;
+
+            ItemStack stack = entity.getItem();
+            if (stack.isEmpty()) continue;
+
+            Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            MeltingRecipe recipe = SmitheryAPI.MELTING_RECIPES.get(itemId);
+            if (recipe == null) continue;
+
+            Material material = SmitheryAPI.MATERIALS.get(recipe.outputMaterialId());
+            if (material == null) continue;
+            MaterialStats stats = material.stats();
+            if (temperatureC < stats.meltingTemp()) continue; // too cold for this material
+
+            // No room in the tank for this material? Don't make progress (don't waste heat).
+            if (remainingFluidCapacityMb() <= 0) continue;
+
+            live.add(entity.getUUID());
+            float meltRate = MELT_BASE_RATE_MB_PER_TICK
+                    * (1f + MELT_TEMP_SCALE * (temperatureC - stats.meltingTemp()) / stats.meltingTemp());
+
+            float progress = meltProgress.getOrDefault(entity.getUUID(), 0f) + meltRate;
+            while (progress >= recipe.outputMb()) {
+                int added = addFluid(recipe.outputMaterialId(), recipe.outputMb());
+                if (added <= 0) break; // tank filled mid-batch — stash the rest for next tick
+                progress -= recipe.outputMb();
+                consumeOneItem(entity);
+                if (entity.getItem().isEmpty()) break;
+            }
+            meltProgress.put(entity.getUUID(), progress);
+        }
+
+        // Prune stale entries.
+        if (meltProgress.size() != live.size()) {
+            Iterator<UUID> it = meltProgress.keySet().iterator();
+            while (it.hasNext()) {
+                if (!live.contains(it.next())) it.remove();
+            }
+        }
+    }
+
+    private AABB computeInteriorAabb() {
+        if (lastValidation.interior.isEmpty()) return null;
+        int xMin = Integer.MAX_VALUE, xMax = Integer.MIN_VALUE;
+        int yMin = Integer.MAX_VALUE, yMax = Integer.MIN_VALUE;
+        int zMin = Integer.MAX_VALUE, zMax = Integer.MIN_VALUE;
+        for (BlockPos p : lastValidation.interior) {
+            if (p.getX() < xMin) xMin = p.getX(); if (p.getX() > xMax) xMax = p.getX();
+            if (p.getY() < yMin) yMin = p.getY(); if (p.getY() > yMax) yMax = p.getY();
+            if (p.getZ() < zMin) zMin = p.getZ(); if (p.getZ() > zMax) zMax = p.getZ();
+        }
+        return new AABB(xMin, yMin, zMin, xMax + 1, yMax + 1, zMax + 1);
+    }
+
+    private static void consumeOneItem(ItemEntity entity) {
+        ItemStack stack = entity.getItem();
+        stack.shrink(1);
+        if (stack.isEmpty()) {
+            entity.discard();
+        } else {
+            entity.setItem(stack); // re-sync (no-op on most builds but safe)
+        }
+    }
+
+    private java.util.List<ForgeFuelPortBlockEntity> collectFuelPorts(ServerLevel level) {
+        java.util.List<ForgeFuelPortBlockEntity> out = new java.util.ArrayList<>();
+        for (BlockPos s : lastValidation.shell) {
+            if (level.getBlockState(s).is(SmitheryBlocks.FORGE_FUEL_PORT.get())
+                    && level.getBlockEntity(s) instanceof ForgeFuelPortBlockEntity fp) {
+                out.add(fp);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Force a passive cool-down regardless of validation state. Called when the structure is
+     * invalid so any stored heat dissipates instead of being held forever.
+     */
+    private void decayTemperature(boolean closedTop) {
+        float rate = COOL_RATE_PER_TICK;
+        if (closedTop) rate /= CLOSED_TOP_FACTOR;
+        temperatureC += (HEAT_AMBIENT_C - temperatureC) * rate;
+        if (temperatureC < HEAT_AMBIENT_C) temperatureC = HEAT_AMBIENT_C;
+        markIfTemperatureMoved();
+    }
+
+    private void markIfTemperatureMoved() {
+        if (Math.abs(temperatureC - lastSavedTemperatureC) >= TEMP_DIRTY_THRESHOLD) {
+            lastSavedTemperatureC = temperatureC;
+            setChanged();
+        }
+    }
+
 
     /**
      * Re-validate the structure. Called on placement, neighbor change, and on load.
@@ -239,9 +527,7 @@ public class ForgeControllerBlockEntity extends BlockEntity {
 
     /** True if the block at this state may participate as a forge shell. */
     public static boolean isShellBlock(BlockState state) {
-        return state.is(Blocks.DEEPSLATE_BRICKS)
-                || state.is(Blocks.CRACKED_DEEPSLATE_BRICKS)
-                || state.is(Blocks.POLISHED_DEEPSLATE)
+        return state.is(SmitheryBlocks.FURNACE_BRICKS.get())
                 || state.is(SmitheryBlocks.FORGE_CONTROLLER.get())
                 || state.is(SmitheryBlocks.FORGE_FUEL_PORT.get())
                 || state.is(SmitheryBlocks.FORGE_DRAIN.get());
@@ -258,13 +544,33 @@ public class ForgeControllerBlockEntity extends BlockEntity {
     @Override
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
-        temperatureC = input.getFloatOr("temperatureC", 20f);
+        temperatureC = input.getFloatOr("temperatureC", HEAT_AMBIENT_C);
+
+        fluidStorage.clear();
+        Optional<ValueInput.ValueInputList> fluids = input.childrenList("fluids");
+        if (fluids.isPresent()) {
+            for (ValueInput entry : fluids.get()) {
+                Optional<String> idStr = entry.getString("id");
+                int mb = entry.getInt("mb").orElse(0);
+                if (idStr.isEmpty() || mb <= 0) continue;
+                Identifier id = Identifier.tryParse(idStr.get());
+                if (id != null) fluidStorage.put(id, mb);
+            }
+        }
     }
 
     @Override
     protected void saveAdditional(ValueOutput output) {
         super.saveAdditional(output);
         output.putFloat("temperatureC", temperatureC);
+
+        ValueOutput.ValueOutputList fluids = output.childrenList("fluids");
+        for (Map.Entry<Identifier, Integer> e : fluidStorage.entrySet()) {
+            if (e.getValue() <= 0) continue;
+            ValueOutput entry = fluids.addChild();
+            entry.putString("id", e.getKey().toString());
+            entry.putInt("mb", e.getValue());
+        }
     }
 
     /**

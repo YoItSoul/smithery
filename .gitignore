@@ -50,3 +50,7 @@ exported/
 # PowerShell and Python files are kept out of the repo — local helpers only.
 *.ps1
 *.py
+
+### Reference assets from other mods (extracted locally for inspiration) ###
+# Not part of the project and must not be shipped.
+reference/

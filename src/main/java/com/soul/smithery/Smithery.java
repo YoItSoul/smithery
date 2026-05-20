@@ -2,6 +2,7 @@ package com.soul.smithery;
 
 import com.mojang.logging.LogUtils;
 import com.soul.smithery.content.SmitheryMaterials;
+import com.soul.smithery.content.SmitheryMeltingRecipes;
 import com.soul.smithery.content.SmitheryModifiers;
 import com.soul.smithery.content.SmitheryPartTypes;
 import com.soul.smithery.content.SmitherySynergies;
@@ -50,6 +51,7 @@ public class Smithery {
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> com.soul.smithery.registry.SmitheryBlocks.FORGE_CONTROLLER_ITEM.get().getDefaultInstance())
                     .displayItems((params, output) -> {
+                        output.accept(com.soul.smithery.registry.SmitheryBlocks.FURNACE_BRICKS_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_CONTROLLER_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_FUEL_PORT_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_DRAIN_ITEM.get());
@@ -87,6 +89,7 @@ public class Smithery {
         SmitheryModifiers.register();
         SmitheryMaterials.register();
         SmitherySynergies.register();
+        SmitheryMeltingRecipes.register();
 
         // 2. Now that all built-in materials are in the registry, queue one PartItem per
         //    (material × part type) pair into the deferred item register.

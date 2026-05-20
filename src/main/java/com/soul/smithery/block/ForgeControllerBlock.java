@@ -66,15 +66,35 @@ public class ForgeControllerBlock extends Block implements EntityBlock {
         Component message;
         if (result.valid) {
             int holeCount = result.holes();
-            String base = "Forge valid · "
-                    + result.interior.size() + " interior blocks · "
-                    + result.capacityBuckets() + " buckets · "
-                    + (result.openTop ? "open top" : "closed top");
-            String holesText = holeCount > 0 ? " · " + holeCount + " holes (leaky)" : "";
+            String heatState = fc.isFueled()
+                    ? (fc.temperatureC() < fc.targetTemperatureC() ? "heating" : "at temp")
+                    : (fc.temperatureC() > 25f ? "cooling" : "cold");
+            String base = String.format(
+                    "Forge valid · %d buckets · %s · %.0f°C → %.0f°C (%s) · fuel %d/%d mB · fluid %d/%d mB",
+                    result.capacityBuckets(),
+                    result.openTop ? "open top" : "closed top",
+                    fc.temperatureC(),
+                    fc.targetTemperatureC(),
+                    heatState,
+                    fc.totalFuelMb(),
+                    fc.totalFuelCapacityMb(),
+                    fc.totalStoredFluidMb(),
+                    fc.fluidCapacityMb());
+            String holesText = holeCount > 0 ? " · " + holeCount + " holes" : "";
             message = Component.literal(base + holesText)
                     .withStyle(holeCount > 0 ? ChatFormatting.YELLOW : ChatFormatting.GREEN);
+            // Detailed per-fluid breakdown on a second line if anything is stored.
+            if (fc.totalStoredFluidMb() > 0) {
+                StringBuilder breakdown = new StringBuilder("  fluids:");
+                fc.fluidStorageView().forEach((id, mb) ->
+                        breakdown.append(' ').append(id.getPath()).append('=').append(mb).append("mB"));
+                player.sendSystemMessage(Component.literal(breakdown.toString()).withStyle(ChatFormatting.GRAY));
+            }
         } else {
-            message = Component.literal("Forge invalid: " + result.reason).withStyle(ChatFormatting.RED);
+            String invalidBase = "Forge invalid: " + result.reason;
+            int locked = fc.totalStoredFluidMb();
+            if (locked > 0) invalidBase += " · " + locked + " mB locked in controller";
+            message = Component.literal(invalidBase).withStyle(ChatFormatting.RED);
         }
         player.sendSystemMessage(message);
 

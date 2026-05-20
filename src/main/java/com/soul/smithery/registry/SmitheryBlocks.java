@@ -9,6 +9,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.material.PushReaction;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -24,6 +25,15 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  */
 public final class SmitheryBlocks {
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(Smithery.MODID);
+
+    /** Plain structural shell block for the Forge multiblock. The only non-port wall material. */
+    public static final DeferredBlock<Block> FURNACE_BRICKS =
+            BLOCKS.registerSimpleBlock("furnace_bricks", p -> p
+                    .mapColor(MapColor.STONE)
+                    .strength(3.0f, 9.0f)
+                    .sound(SoundType.STONE)
+                    .requiresCorrectToolForDrops()
+                    .pushReaction(PushReaction.BLOCK));
 
     public static final DeferredBlock<ForgeControllerBlock> FORGE_CONTROLLER =
             BLOCKS.registerBlock("forge_controller",
@@ -53,6 +63,8 @@ public final class SmitheryBlocks {
                             .requiresCorrectToolForDrops());
 
     // Corresponding BlockItems live in the Smithery item register so they appear with parts/tools.
+    public static final DeferredItem<BlockItem> FURNACE_BRICKS_ITEM =
+            SmitheryItems.ITEMS.registerSimpleBlockItem("furnace_bricks", FURNACE_BRICKS);
     public static final DeferredItem<BlockItem> FORGE_CONTROLLER_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("forge_controller", FORGE_CONTROLLER);
     public static final DeferredItem<BlockItem> FORGE_FUEL_PORT_ITEM =
