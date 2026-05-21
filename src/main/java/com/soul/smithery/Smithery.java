@@ -104,6 +104,7 @@ public class Smithery {
         SmitheryItems.register(modEventBus);
         com.soul.smithery.registry.SmitheryBlockEntities.register(modEventBus);
         com.soul.smithery.registry.SmitheryRecipes.register(modEventBus);
+        com.soul.smithery.registry.SmitheryMenus.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
 
         modEventBus.addListener(this::commonSetup);

@@ -3,9 +3,7 @@ package com.soul.smithery.block;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
 import com.soul.smithery.network.ForgeLeakDebugPayload;
 import com.soul.smithery.registry.SmitheryBlockEntities;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
@@ -61,49 +59,25 @@ public class ForgeControllerBlock extends Block implements EntityBlock {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         if (level.isClientSide()) return InteractionResult.SUCCESS;
         if (!(level.getBlockEntity(pos) instanceof ForgeControllerBlockEntity fc)) return InteractionResult.PASS;
+        if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
 
-        ForgeControllerBlockEntity.ValidationResult result = fc.validateStructure();
-        Component message;
-        if (result.valid) {
-            int holeCount = result.holes();
-            String heatState = fc.isFueled()
-                    ? (fc.temperatureC() < fc.targetTemperatureC() ? "heating" : "at temp")
-                    : (fc.temperatureC() > 25f ? "cooling" : "cold");
-            String base = String.format(
-                    "Forge valid · %d buckets · %s · %.0f°C → %.0f°C (%s) · fuel %d/%d mB · fluid %d/%d mB",
-                    result.capacityBuckets(),
-                    result.openTop ? "open top" : "closed top",
-                    fc.temperatureC(),
-                    fc.targetTemperatureC(),
-                    heatState,
-                    fc.totalFuelMb(),
-                    fc.totalFuelCapacityMb(),
-                    fc.totalStoredFluidMb(),
-                    fc.fluidCapacityMb());
-            String holesText = holeCount > 0 ? " · " + holeCount + " holes" : "";
-            message = Component.literal(base + holesText)
-                    .withStyle(holeCount > 0 ? ChatFormatting.YELLOW : ChatFormatting.GREEN);
-            // Detailed per-fluid breakdown on a second line if anything is stored.
-            if (fc.totalStoredFluidMb() > 0) {
-                StringBuilder breakdown = new StringBuilder("  fluids:");
-                fc.fluidStorageView().forEach((id, mb) ->
-                        breakdown.append(' ').append(id.getPath()).append('=').append(mb).append("mB"));
-                player.sendSystemMessage(Component.literal(breakdown.toString()).withStyle(ChatFormatting.GRAY));
-            }
-        } else {
-            String invalidBase = "Forge invalid: " + result.reason;
-            int locked = fc.totalStoredFluidMb();
-            if (locked > 0) invalidBase += " · " + locked + " mB locked in controller";
-            message = Component.literal(invalidBase).withStyle(ChatFormatting.RED);
-        }
-        player.sendSystemMessage(message);
-
-        // Debug visualization: flash red wireframe boxes around any leak positions so the
-        // player can locate missing wall blocks at a glance. 3 seconds at 20 tps = 60 ticks.
-        if (player instanceof ServerPlayer sp && !result.holePositions.isEmpty()) {
+        // Debug leak visualization: flash red wireframe boxes around hole positions.
+        ForgeControllerBlockEntity.ValidationResult result = fc.lastValidation();
+        if (!result.holePositions.isEmpty()) {
             PacketDistributor.sendToPlayer(sp,
                     new ForgeLeakDebugPayload(new ArrayList<>(result.holePositions), 60));
         }
+
+        // Capture the slot count NOW (on the server side) and ship it to the client
+        // so the client allocates the same number of forge slots in its menu copy.
+        // Reading be.slots().size() on the client is unreliable — the BE may not have
+        // received its update packet yet, so it would default to 0 and mismatch the
+        // server's ClientboundContainerSetContentPacket.
+        final int forgeSlotCount = fc.slots().size();
+        sp.openMenu(fc, buf -> {
+            buf.writeBlockPos(pos);
+            buf.writeVarInt(forgeSlotCount);
+        });
         return InteractionResult.SUCCESS;
     }
 }
