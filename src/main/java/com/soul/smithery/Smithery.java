@@ -55,6 +55,37 @@ public class Smithery {
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_CONTROLLER_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_FUEL_PORT_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_DRAIN_ITEM.get());
+                        output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_TABLE_ITEM.get());
+                        output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_SAND_ITEM.get());
+                    })
+                    .build());
+
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> MOLTEN_TAB =
+            CREATIVE_MODE_TABS.register("molten_tab", () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup." + MODID + ".molten"))
+                    .withTabsBefore(CreativeModeTabs.COMBAT)
+                    .icon(() -> {
+                        // Default-icon fallback: iron bucket if registered, otherwise the first
+                        // registered molten bucket, otherwise vanilla iron ingot as a last resort.
+                        var ironEntry = com.soul.smithery.registry.SmitheryFluids.forMaterial(
+                                com.soul.smithery.content.SmitheryMaterials.IRON);
+                        if (ironEntry != null) return ironEntry.bucket.get().getDefaultInstance();
+                        var entries = com.soul.smithery.registry.SmitheryFluids.entries();
+                        if (!entries.isEmpty()) {
+                            return entries.values().iterator().next().bucket.get().getDefaultInstance();
+                        }
+                        return net.minecraft.world.item.Items.IRON_INGOT.getDefaultInstance();
+                    })
+                    .displayItems((params, output) -> {
+                        // Iterate the live fluid registry so anything dynamically added
+                        // by a downstream mod's material registration shows up automatically.
+                        // Only buckets — LiquidBlocks have no BlockItem so adding them would
+                        // pass an empty (count=0) ItemStack to Output.accept, which throws
+                        // "The stack count must be 1". Matches vanilla, where lava/water
+                        // appear in creative only as buckets.
+                        for (var entry : com.soul.smithery.registry.SmitheryFluids.entries().values()) {
+                            output.accept(entry.bucket.get());
+                        }
                     })
                     .build());
 
@@ -90,6 +121,14 @@ public class Smithery {
         SmitheryMaterials.register();
         SmitherySynergies.register();
         SmitheryMeltingRecipes.register();
+        // Queue per-PartType "sand with cutout" block registrations now that PartTypes
+        // exist. Must happen before SmitheryBlocks.register(modEventBus) attaches the
+        // DeferredRegister to the bus.
+        com.soul.smithery.registry.SmitheryBlocks.registerImpressedSandVariants();
+        // Build per-material molten fluid entries from the populated MATERIALS registry.
+        // Must happen AFTER SmitheryMaterials.register() and BEFORE SmitheryFluids.register
+        // (which hands the DeferredRegisters to the mod bus).
+        com.soul.smithery.registry.SmitheryFluids.bootstrap();
 
         // 2. Now that all built-in materials are in the registry, queue one PartItem per
         //    (material × part type) pair into the deferred item register.
@@ -105,6 +144,7 @@ public class Smithery {
         com.soul.smithery.registry.SmitheryBlockEntities.register(modEventBus);
         com.soul.smithery.registry.SmitheryRecipes.register(modEventBus);
         com.soul.smithery.registry.SmitheryMenus.register(modEventBus);
+        com.soul.smithery.registry.SmitheryFluids.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
 
         modEventBus.addListener(this::commonSetup);

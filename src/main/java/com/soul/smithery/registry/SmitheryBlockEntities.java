@@ -1,6 +1,7 @@
 package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
+import com.soul.smithery.block.entity.CastingTableBlockEntity;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
 import net.minecraft.core.registries.Registries;
@@ -22,6 +23,11 @@ public final class SmitheryBlockEntities {
             FORGE_FUEL_PORT = BLOCK_ENTITIES.register("forge_fuel_port",
                     () -> new BlockEntityType<>(ForgeFuelPortBlockEntity::new,
                             SmitheryBlocks.FORGE_FUEL_PORT.get()));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<CastingTableBlockEntity>>
+            CASTING_TABLE = BLOCK_ENTITIES.register("casting_table",
+                    () -> new BlockEntityType<>(CastingTableBlockEntity::new,
+                            SmitheryBlocks.CASTING_TABLE.get()));
 
     public static void register(IEventBus modEventBus) {
         BLOCK_ENTITIES.register(modEventBus);

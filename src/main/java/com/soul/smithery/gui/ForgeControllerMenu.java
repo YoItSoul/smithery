@@ -51,13 +51,17 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     public static final int DATA_FLUID_CAP   = 5;
     public static final int DATA_FLUID_TOTAL = 6;
     public static final int DATA_FLUID_BASE  = 7;
+    // Melt progress per slot (in mB) lives after the fluid slots in syncData.
+    // dataMeltBase = DATA_FLUID_BASE + materialList.size().
 
     private static final int OFFSCREEN = -9999;
+    private static final int FORGE_SLOT_MAX_STACK = 1;
 
     private final @Nullable ForgeControllerBlockEntity blockEntity;
     private final BlockPos blockPos;
     private final List<Material> materialList;
     private final int forgeSlotCount;
+    private final int dataMeltBase;
     private final int[] syncData;
 
     // ----- Client-side (network) entry point -----
@@ -96,22 +100,29 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
         this.blockPos       = pos;
         this.materialList   = List.copyOf(SmitheryAPI.MATERIALS.all());
         this.forgeSlotCount = forgeSlotCount;
-        this.syncData       = new int[DATA_FLUID_BASE + materialList.size()];
+        this.dataMeltBase   = DATA_FLUID_BASE + materialList.size();
+        this.syncData       = new int[dataMeltBase + forgeSlotCount];
 
-        // Forge item slots — rendered manually by the screen.
+        // Forge item slots — rendered manually by the screen. Capped at 1 stack
+        // per slot so each interior air block holds exactly one melting item.
         for (int i = 0; i < forgeSlotCount; i++) {
-            addSlot(new Slot(slotContainer, i, OFFSCREEN, OFFSCREEN));
+            addSlot(new Slot(slotContainer, i, OFFSCREEN, OFFSCREEN) {
+                @Override public int getMaxStackSize()                  { return FORGE_SLOT_MAX_STACK; }
+                @Override public int getMaxStackSize(ItemStack stack)   { return FORGE_SLOT_MAX_STACK; }
+            });
         }
 
-        // Player main inventory (rows 0-2).
+        // Player main inventory (rows 0-2) — centered horizontally in the 248px-wide screen.
+        // 9 slots × 18px = 162px wide, so left margin = (248 - 162) / 2 = 43,
+        // and the first slot's interior begins at x = 43 + 1 (border) = 44.
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInv, col + row * 9 + 9, 8 + col * 18, 143 + row * 18));
+                addSlot(new Slot(playerInv, col + row * 9 + 9, 44 + col * 18, 143 + row * 18));
             }
         }
         // Hotbar.
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInv, col, 8 + col * 18, 201));
+            addSlot(new Slot(playerInv, col, 44 + col * 18, 201));
         }
 
         addDataSlots(new ContainerData() {
@@ -139,7 +150,15 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
             syncData[DATA_FLUID_CAP]   = blockEntity.fluidCapacityMb();
             syncData[DATA_FLUID_TOTAL] = blockEntity.totalStoredFluidMb();
             for (int i = 0; i < materialList.size(); i++) {
-                syncData[DATA_FLUID_BASE + i] = blockEntity.storedFluidMb(materialList.get(i).id());
+                // Storage is now keyed by Fluid (not Material). Look up the molten fluid for
+                // each material; if absent (e.g. wood has no molten form), report 0.
+                com.soul.smithery.registry.SmitheryFluids.Entry entry =
+                        com.soul.smithery.registry.SmitheryFluids.forMaterial(materialList.get(i).id());
+                syncData[DATA_FLUID_BASE + i] = entry == null ? 0
+                        : blockEntity.storedFluidMb(entry.source.get());
+            }
+            for (int i = 0; i < forgeSlotCount; i++) {
+                syncData[dataMeltBase + i] = blockEntity.meltProgressMb(i);
             }
         }
         super.broadcastChanges();
@@ -161,6 +180,13 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     public int getStoredMbForMaterial(int index) {
         int i = DATA_FLUID_BASE + index;
         return (i >= 0 && i < syncData.length) ? syncData[i] : 0;
+    }
+
+    /** Synced melt progress (mB) for the given forge slot; 0 if out of range. */
+    public int getMeltProgressMb(int slotIndex) {
+        int i = dataMeltBase + slotIndex;
+        return (slotIndex >= 0 && slotIndex < forgeSlotCount && i < syncData.length)
+                ? syncData[i] : 0;
     }
 
     // ---- Shift-click ----

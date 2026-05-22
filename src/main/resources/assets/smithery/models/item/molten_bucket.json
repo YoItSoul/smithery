@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "smithery:item/molten_bucket_base",
+    "layer1": "smithery:item/molten_bucket_fluid"
+  }
+}

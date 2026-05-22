@@ -1,16 +1,24 @@
 package com.soul.smithery.gui;
 
+import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.material.MaterialStats;
+import com.soul.smithery.api.melting.MeltingRecipe;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * GUI for the Forge Controller.
@@ -56,12 +64,32 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     private static final int ROW_W         = PLC_W - 5; // leave 5px for scroll bar
     private static final int SLOTS_VISIBLE = (PL_H - 4 - LIST_HEADER_H) / ROW_H; // 5
 
-    // Fluid list inside right panel.
-    // Header height = 20 because we stack "Molten Metals" (y+0) and the total
-    // capacity readout (y+10) on separate lines — they don't fit side-by-side
-    // in the panel's 110px content width.
-    private static final int FLUID_ROW_H    = 20;
+    // Right-panel header takes two stacked lines: "Molten Metals" + capacity readout.
     private static final int FLUID_HEADER_H = 20;
+
+    // Tinkers-style vertical fluid tank: each registered molten material is a
+    // colored band stacked bottom-up, height proportional to its mB / total capacity.
+    // Centered in the right panel, with a 1px dark border. The "ceiling" inside
+    // the border (above the topmost layer) stays dark to read as empty headroom.
+    private static final int TANK_W       = 40;
+    private static final int TANK_X       = PRC_X + (PRC_W - TANK_W) / 2; // centered in inner area
+    private static final int TANK_Y       = PRC_Y + FLUID_HEADER_H + 2;
+    private static final int TANK_BOTTOM  = PR_Y + PR_H - 4;
+    private static final int TANK_H       = TANK_BOTTOM - TANK_Y;
+    private static final int COL_TANK_EMPTY = 0xFF1A1A1A;
+
+    // Animated lava-flow sprite used as the layer fill texture, tinted per-material.
+    // The PNG is the same one used for the actual world fluid; we drive the animation
+    // manually here because raw blit() doesn't honor .mcmeta — it sees only the sheet.
+    private static final net.minecraft.resources.Identifier MOLTEN_FLOW_TEXTURE =
+            net.minecraft.resources.Identifier.fromNamespaceAndPath(
+                    com.soul.smithery.Smithery.MODID, "textures/block/molten_flow.png");
+    private static final int FLOW_FRAME_W      = 32;
+    private static final int FLOW_FRAME_H      = 32;
+    private static final int FLOW_FRAME_COUNT  = 16;       // sheet is 32 × (32 × 16) = 32×512
+    private static final int FLOW_TEX_W        = 32;
+    private static final int FLOW_TEX_H        = 512;
+    private static final int FLOW_FRAMETIME_MS = 150;      // mcmeta frametime = 3 ticks → 150 ms
 
     // ---- Colors ----
     private static final int COL_BG       = 0xFFC6C6C6;
@@ -84,32 +112,50 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         super(menu, playerInventory, title, IMG_W, IMG_H);
         this.titleLabelX     = PL_X + 2;
         this.titleLabelY     = 6;
+        this.inventoryLabelX = 44;  // align with leftmost inventory slot interior (centered inv)
         this.inventoryLabelY = 134; // 9px above player inventory at y=143
     }
 
     // ---- Render pipeline (extract* pattern) ----
+    //
+    // Critical: in MC 26.1.2, AbstractContainerScreen.extractRenderState calls
+    // extractContents → which in turn calls super.extractRenderState (drawing
+    // the screen background via extractBackground), translates the matrix by
+    // (leftPos, topPos), then calls extractLabels and extractSlots.
+    //
+    // So:
+    //   - Override extractBackground (drawn in ABSOLUTE screen coords) for our
+    //     custom panels/textures/etc. This is what ContainerScreen (vanilla
+    //     chest GUI) does. Overriding extractContents instead suppresses the
+    //     extractSlots call, which is why item icons stopped rendering.
+    //   - Override extractLabels (drawn in coords RELATIVE to leftPos/topPos
+    //     since the matrix is already translated) for our title and
+    //     "Inventory" label.
 
-    /** Replaces renderBg — draws the custom GUI background and custom panels. */
     @Override
-    public void extractContents(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+    public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+        super.extractBackground(g, mouseX, mouseY, partialTick); // dim overlay / blur
+
         int x = leftPos, y = topPos;
 
         // Main background fill.
         g.fill(x, y, x + IMG_W, y + IMG_H, COL_BG);
 
-        // Panels.
+        // Top panels.
         drawPanel(g, x + PL_X, y + PL_Y, PL_W, PL_H);
         drawPanel(g, x + PR_X, y + PR_Y, PR_W, PR_H);
 
-        // Player inventory slot backgrounds (no texture, so drawn manually).
+        // Player inventory slot region from vanilla inventory.png.
         drawPlayerInvSlots(g, x, y);
 
-        // Panel contents.
+        // Panel contents (forge slot list, fluid list, status strip).
         renderForgeSlots(g, x, y, mouseX, mouseY);
-        renderFluidList(g, x, y);
+        renderFluidTank(g, x, y, mouseX, mouseY);
         renderStatusStrip(g, x, y);
 
-        // Forge slot item tooltip (super.extractContents doesn't handle our off-screen slots).
+        // Forge slot tooltip — vanilla's extractTooltip doesn't fire for our
+        // off-screen forge slots, so we set the tooltip ourselves. Includes
+        // detailed melt status: not-meltable / too-cool / melting / forge-full.
         int listTopY  = y + PLC_Y + LIST_HEADER_H;
         int listLeftX = x + PLC_X;
         if (mouseX >= listLeftX && mouseX < listLeftX + ROW_W
@@ -119,15 +165,107 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             if (slotIdx >= 0 && slotIdx < menu.getForgeSlotCount()) {
                 ItemStack stack = menu.getSlot(slotIdx).getItem();
                 if (!stack.isEmpty()) {
-                    g.setTooltipForNextFrame(font, stack, mouseX, mouseY);
+                    List<Component> lines = buildSlotTooltip(stack, slotIdx);
+                    g.setTooltipForNextFrame(font, lines, Optional.empty(), mouseX, mouseY);
                 }
             }
         }
     }
 
-    /** Replaces renderLabels. */
+    // ---- Melt state computation (client-side, mirrors the server logic) ----
+
+    /** Per-slot melt state used by both the in-row progress bar and the tooltip. */
+    private static final class MeltState {
+        enum Status { NOT_MELTABLE, TOO_COOL, FORGE_FULL, MELTING }
+        Status status;
+        float  meltingTempC;
+        int    progressMb;
+        int    maxMb;
+        int    barColor;
+        Material material; // nullable
+    }
+
+    /**
+     * Mirrors {@link com.soul.smithery.block.entity.ForgeControllerBlockEntity#meltFromSlots}
+     * gating logic on the client so the GUI can label why a slot is or isn't melting.
+     */
+    private MeltState computeMeltState(ItemStack stack, int slotIdx) {
+        MeltState ms = new MeltState();
+        ms.progressMb = menu.getMeltProgressMb(slotIdx);
+
+        Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        MeltingRecipe recipe = SmitheryAPI.MELTING_RECIPES.get(itemId);
+        if (recipe == null) {
+            ms.status   = MeltState.Status.NOT_MELTABLE;
+            ms.barColor = COL_GRAY;
+            return ms;
+        }
+
+        Material mat = SmitheryAPI.MATERIALS.get(recipe.outputMaterialId());
+        ms.material = mat;
+        ms.maxMb    = recipe.outputMb();
+        if (mat != null) {
+            MaterialStats stats = mat.stats();
+            ms.meltingTempC = stats.meltingTemp();
+            ms.barColor     = stats.moltenColor() | 0xFF000000;
+        } else {
+            ms.barColor = COL_GRAY;
+        }
+
+        float temp = menu.getTemperatureC();
+        if (temp < ms.meltingTempC) {
+            ms.status   = MeltState.Status.TOO_COOL;
+            ms.barColor = 0xFF6688AA;
+            return ms;
+        }
+        if (menu.getFluidCapacityMb() > 0
+                && menu.getTotalFluidMb() >= menu.getFluidCapacityMb()) {
+            ms.status   = MeltState.Status.FORGE_FULL;
+            ms.barColor = 0xFFAA4422;
+            return ms;
+        }
+        ms.status = MeltState.Status.MELTING;
+        return ms;
+    }
+
+    private List<Component> buildSlotTooltip(ItemStack stack, int slotIdx) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(stack.getHoverName().copy().withStyle(ChatFormatting.WHITE));
+
+        MeltState ms = computeMeltState(stack, slotIdx);
+        switch (ms.status) {
+            case NOT_MELTABLE ->
+                lines.add(Component.literal("Not meltable").withStyle(ChatFormatting.DARK_GRAY));
+            case TOO_COOL ->
+                lines.add(Component.literal(String.format(
+                                "Too cool — needs %.0f°C (forge %.0f°C)",
+                                ms.meltingTempC, menu.getTemperatureC()))
+                        .withStyle(ChatFormatting.AQUA));
+            case FORGE_FULL ->
+                lines.add(Component.literal("Forge full — drain fluids to resume")
+                        .withStyle(ChatFormatting.RED));
+            case MELTING -> {
+                int pct = ms.maxMb > 0 ? (int)((float) ms.progressMb / ms.maxMb * 100) : 0;
+                lines.add(Component.literal(String.format(
+                                "Melting: %d / %d mB (%d%%)",
+                                ms.progressMb, ms.maxMb, pct))
+                        .withStyle(ChatFormatting.GOLD));
+                if (ms.material != null) {
+                    String matName = ms.material.id().getPath();
+                    if (!matName.isEmpty()) {
+                        matName = Character.toUpperCase(matName.charAt(0)) + matName.substring(1);
+                    }
+                    lines.add(Component.literal("→ Molten " + matName)
+                            .withStyle(ChatFormatting.GRAY));
+                }
+            }
+        }
+        return lines;
+    }
+
     @Override
     protected void extractLabels(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+        // Matrix is translated by (leftPos, topPos) before this is called.
         g.text(font, title, titleLabelX, titleLabelY, COL_TEXT, false);
         g.text(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, COL_TEXT, false);
     }
@@ -142,18 +280,16 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     /**
      * Blits the player-inventory slot region from vanilla's inventory.png
      * (3 rows × 9 cols + 4px gap + hotbar = 162×76 from texture coord 7,83).
-     * Aligns to the menu's slot positions: first row at y=143, hotbar at y=201.
-     * Using the vanilla texture also fixes the z-order — items now render above
-     * the slot backgrounds, which they didn't with raw g.fill() rectangles
-     * because the new extractor pipeline submits fills on a layer above items.
+     * Aligns to the menu's slot positions: first row at y=143, hotbar at y=201,
+     * left edge at x=43 (centered in the 248px screen).
      */
     private void drawPlayerInvSlots(GuiGraphicsExtractor g, int sx, int sy) {
         g.blit(RenderPipelines.GUI_TEXTURED,
                 AbstractContainerScreen.INVENTORY_LOCATION,
-                sx + 7, sy + 142,   // dest top-left (1px above first slot at y=143)
-                7f, 83f,             // src u, v in inventory.png
-                162, 76,             // width × height
-                256, 256);           // texture sheet size
+                sx + 43, sy + 142,   // dest top-left (1px above first slot at y=143)
+                7f, 83f,              // src u, v in inventory.png
+                162, 76,              // width × height
+                256, 256);            // texture sheet size
     }
 
     // ---- Left panel: forge slot list ----
@@ -194,7 +330,19 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
                 while (name.length() > 1 && font.width(name) > maxW) {
                     name = name.substring(0, name.length() - 1);
                 }
-                g.text(font, name, rx + 20, ry + 5, COL_TEXT, false);
+                g.text(font, name, rx + 20, ry + 2, COL_TEXT, false);
+
+                // Per-slot melt progress bar in the bottom half of the row.
+                MeltState ms = computeMeltState(stack, slotIdx);
+                int barX = rx + 20;
+                int barY = ry + 12;
+                int barW = ROW_W - 22;
+                int barH = 4;
+                g.fill(barX, barY, barX + barW, barY + barH, COL_BAR_BG);
+                if (ms.maxMb > 0) {
+                    int fillW = (int)((float) ms.progressMb / ms.maxMb * barW);
+                    g.fill(barX, barY, barX + fillW, barY + barH, ms.barColor);
+                }
             }
         }
 
@@ -218,54 +366,138 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             && mouseY >= ry && mouseY < ry + ROW_H - 1;
     }
 
-    // ---- Right panel: fluid list ----
+    // ---- Right panel: stacked-fluid tank (Tinkers-style) ----
 
-    private void renderFluidList(GuiGraphicsExtractor g, int sx, int sy) {
-        int cx       = sx + PRC_X;
-        int cy       = sy + PRC_Y;
-        int listTop  = cy + FLUID_HEADER_H;
-        int maxBottom = sy + PR_Y + PR_H - 2;
+    /**
+     * Pixel-resolved layer used by both the tank renderer and its hover tooltip.
+     * Layers stack from {@code TANK_BOTTOM} upwards in registration order so the
+     * visualization is stable as fluid levels change.
+     */
+    private record FluidLayer(Material material, int storedMb, int topY, int bottomY) {}
 
+    private void renderFluidTank(GuiGraphicsExtractor g, int sx, int sy, int mouseX, int mouseY) {
+        int cx = sx + PRC_X;
+        int cy = sy + PRC_Y;
+
+        // Header.
         g.text(font, "Molten Metals", cx, cy, COL_TEXT, false);
 
-        List<Material> materials = menu.getMaterials();
         int capacity = menu.getFluidCapacityMb();
         int totalMb  = menu.getTotalFluidMb();
-
-        // Capacity readout on its own line directly below the header, right-aligned.
         if (capacity > 0) {
             String cap = totalMb + " / " + capacity + " mB";
             g.text(font, cap, sx + PR_X + PR_W - 2 - font.width(cap), cy + 10, COL_GRAY, false);
         }
 
-        boolean anyFluid = false;
-        int rowTop = listTop;
+        // Tank frame (1px border + dark empty interior).
+        int tankX = sx + TANK_X;
+        int tankY = sy + TANK_Y;
+        g.fill(tankX, tankY, tankX + TANK_W, tankY + TANK_H, COL_BORDER);
+        g.fill(tankX + 1, tankY + 1, tankX + TANK_W - 1, tankY + TANK_H - 1, COL_TANK_EMPTY);
+        if (capacity <= 0) return;
 
+        // Stacked fluid layers — each filled with the animated molten_flow sprite,
+        // tinted by the material color. Approach mirrors Tinkers' GuiUtil.drawGuiTank:
+        // pick a single time-driven frame, then tile that frame at its native 32×32
+        // size across the layer, cropping the partial tiles at the right/top edges.
+        int innerX = tankX + 1;
+        int innerY = tankY + 1;
+        int innerW = TANK_W - 2;
+        int innerH = TANK_H - 2;
+        List<FluidLayer> layers = computeFluidLayers(innerY, innerH, capacity);
+        int frame  = (int)((System.currentTimeMillis() / FLOW_FRAMETIME_MS) % FLOW_FRAME_COUNT);
+        float baseV = (float)(frame * FLOW_FRAME_H);
+        for (FluidLayer layer : layers) {
+            int color = layer.material.stats().moltenColor() | 0xFF000000;
+            int layerH = layer.bottomY - layer.topY;
+            drawTiledMolten(g, innerX, layer.topY, innerW, layerH, baseV, color);
+            // 1px highlight along the top of each layer so adjacent layers don't blur together.
+            g.fill(innerX, layer.topY, innerX + innerW, layer.topY + 1, brighten(color));
+        }
+
+        // Hover tooltip: which layer is the mouse over?
+        if (mouseX >= innerX && mouseX < innerX + innerW
+                && mouseY >= innerY && mouseY < innerY + innerH) {
+            for (FluidLayer layer : layers) {
+                if (mouseY >= layer.topY && mouseY < layer.bottomY) {
+                    String matName = layer.material.id().getPath();
+                    if (!matName.isEmpty()) {
+                        matName = Character.toUpperCase(matName.charAt(0)) + matName.substring(1);
+                    }
+                    int pct = capacity > 0 ? (int)((long) layer.storedMb * 100 / capacity) : 0;
+                    List<Component> lines = new ArrayList<>();
+                    lines.add(Component.literal("Molten " + matName).withStyle(ChatFormatting.WHITE));
+                    lines.add(Component.literal(layer.storedMb + " mB (" + pct + "% of tank)")
+                            .withStyle(ChatFormatting.GOLD));
+                    g.setTooltipForNextFrame(font, lines, Optional.empty(), mouseX, mouseY);
+                    break;
+                }
+            }
+        }
+    }
+
+    /** Computes pixel ranges for each non-empty fluid layer, stacked from the tank bottom up. */
+    private List<FluidLayer> computeFluidLayers(int innerY, int innerH, int capacity) {
+        List<FluidLayer> out = new ArrayList<>();
+        if (capacity <= 0) return out;
+        int bottomY = innerY + innerH;
+        int cumPx = 0;
+        List<Material> materials = menu.getMaterials();
         for (int i = 0; i < materials.size(); i++) {
             int stored = menu.getStoredMbForMaterial(i);
             if (stored <= 0) continue;
-            if (rowTop + FLUID_ROW_H > maxBottom) break;
-
-            anyFluid = true;
-            Material mat = materials.get(i);
-
-            String path = mat.id().getPath();
-            String name = path.isEmpty() ? "?" : Character.toUpperCase(path.charAt(0)) + path.substring(1);
-            String mbStr = stored + " mB";
-
-            g.text(font, name, cx, rowTop, COL_TEXT, false);
-            g.text(font, mbStr, cx + PRC_W - font.width(mbStr), rowTop, COL_GRAY, false);
-
-            int barY = rowTop + 10;
-            g.fill(cx, barY, cx + PRC_W, barY + 5, COL_BAR_BG);
-            int fillW = capacity > 0 ? Math.max(1, (int)((float) stored / capacity * PRC_W)) : 0;
-            g.fill(cx, barY, cx + fillW, barY + 5, mat.stats().moltenColor() | 0xFF000000);
-
-            rowTop += FLUID_ROW_H;
+            // Min 1px so a trickle of fluid is still visible; clamp so rounding can't overflow.
+            int layerPx = Math.max(1, (int)((long) stored * innerH / capacity));
+            if (cumPx + layerPx > innerH) layerPx = innerH - cumPx;
+            if (layerPx <= 0) break;
+            int layerBottom = bottomY - cumPx;
+            int layerTop    = layerBottom - layerPx;
+            out.add(new FluidLayer(materials.get(i), stored, layerTop, layerBottom));
+            cumPx += layerPx;
         }
+        return out;
+    }
 
-        if (!anyFluid) {
-            g.text(font, "No molten metals", cx, listTop + 8, COL_GRAY, false);
+    /** Top-edge highlight: brighten an ARGB color by ~30 per channel, clamped. */
+    private static int brighten(int argb) {
+        int r = Math.min(255, ((argb >>> 16) & 0xFF) + 30);
+        int gn = Math.min(255, ((argb >>> 8)  & 0xFF) + 30);
+        int b = Math.min(255, ( argb          & 0xFF) + 30);
+        return 0xFF000000 | (r << 16) | (gn << 8) | b;
+    }
+
+    /**
+     * Tile the molten_flow sprite at native 32×32 size across (destX..destX+w, destY..destY+h),
+     * cropping the partial tile at the right/bottom edges when the area isn't a clean
+     * multiple of the frame size. {@code baseV} pins us to a single animation frame (caller
+     * computes that once per draw call so all tiles in the tank stay in sync).
+     */
+    private static void drawTiledMolten(GuiGraphicsExtractor g, int destX, int destY,
+                                        int w, int h, float baseV, int tintArgb) {
+        int yRemaining = h;
+        int dy = destY;
+        while (yRemaining > 0) {
+            int rowH = Math.min(FLOW_FRAME_H, yRemaining);
+            int xRemaining = w;
+            int dx = destX;
+            while (xRemaining > 0) {
+                int colW = Math.min(FLOW_FRAME_W, xRemaining);
+                // 13-arg blit: (pipe, id, x, y, u, v, destW, destH, srcW, srcH, texW, texH, tint).
+                // Passing destW=srcW and destH=srcH means no stretching — just cropping
+                // at the partial edges, matching Tinkers' putTiledTextureQuads behavior.
+                g.blit(RenderPipelines.GUI_TEXTURED,
+                        MOLTEN_FLOW_TEXTURE,
+                        dx, dy,
+                        0f, baseV,
+                        colW, rowH,
+                        colW, rowH,
+                        FLOW_TEX_W, FLOW_TEX_H,
+                        tintArgb);
+                dx += colW;
+                xRemaining -= colW;
+            }
+            dy += rowH;
+            yRemaining -= rowH;
         }
     }
 

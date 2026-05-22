@@ -93,6 +93,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     // Temp: populated by loadAdditional(), consumed by the next validateStructure() call.
     private final Map<BlockPos, ItemStack> pendingSlotItems = new HashMap<>();
+    private final Map<BlockPos, Float>     pendingProgress  = new HashMap<>();
 
     public ForgeControllerBlockEntity(BlockPos pos, BlockState state) {
         super(SmitheryBlockEntities.FORGE_CONTROLLER.get(), pos, state);
@@ -108,7 +109,17 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     public List<BlockPos> slotPositions()       { return slotPositions; }
     public NonNullList<ItemStack> slots()       { return slots; }
 
+    /** mB of melt progress accrued for slot {@code i}; 0 if invalid index. */
+    public int meltProgressMb(int i) {
+        return (i >= 0 && i < meltProgressPerSlot.length) ? (int) meltProgressPerSlot[i] : 0;
+    }
+
     // ---- Fluid storage ----
+    //
+    // Keys are Fluid IDs (e.g. "smithery:molten_iron") — not Material IDs.
+    // This matches the FluidStack identity used by IFluidHandler and lets the
+    // drain/casting plumbing speak Fluid natively. Translation from Material ID
+    // (used by melting recipes) happens at the callsite via SmitheryFluids#forMaterial.
 
     public boolean canAccessFluids() { return lastValidation.valid; }
 
@@ -126,31 +137,54 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return Math.max(0, fluidCapacityMb() - totalStoredFluidMb());
     }
 
-    public int storedFluidMb(Identifier materialId) {
-        return fluidStorage.getOrDefault(materialId, 0);
+    /** Stored mB of the given fluid; 0 if absent or the fluid has no registry key. */
+    public int storedFluidMb(net.minecraft.world.level.material.Fluid fluid) {
+        Identifier id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
+        return id == null ? 0 : fluidStorage.getOrDefault(id, 0);
     }
 
+    /** Read-only view of the storage map keyed by Fluid ID. */
     public Map<Identifier, Integer> fluidStorageView() {
         return Collections.unmodifiableMap(fluidStorage);
     }
 
-    public int addFluid(Identifier materialId, int mb) {
-        if (!canAccessFluids() || mb <= 0) return 0;
+    /** Adds mB of the given fluid up to remaining capacity. Returns how many mB were actually added. */
+    public int addFluid(net.minecraft.world.level.material.Fluid fluid, int mb) {
+        Identifier id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
+        if (id == null || !canAccessFluids() || mb <= 0) return 0;
         int toAdd = Math.min(mb, remainingFluidCapacityMb());
         if (toAdd <= 0) return 0;
-        fluidStorage.merge(materialId, toAdd, Integer::sum);
+        fluidStorage.merge(id, toAdd, Integer::sum);
         setChanged();
         return toAdd;
     }
 
-    public int drainFluid(Identifier materialId, int mb) {
-        if (!canAccessFluids() || mb <= 0) return 0;
-        int have = fluidStorage.getOrDefault(materialId, 0);
+    /**
+     * Maps a save-file identifier to the canonical Fluid ID we now key the storage by.
+     * Handles both the new format (already a registered Fluid) and the pre-migration
+     * format (a Material ID that needs translating to its molten fluid). Returns null
+     * if the id can't be resolved either way.
+     */
+    private static @Nullable Identifier resolveSavedFluidId(Identifier saved) {
+        if (net.minecraft.core.registries.BuiltInRegistries.FLUID.containsKey(saved)) {
+            return saved;
+        }
+        com.soul.smithery.registry.SmitheryFluids.Entry entry =
+                com.soul.smithery.registry.SmitheryFluids.forMaterial(saved);
+        if (entry == null) return null;
+        return net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(entry.source.get());
+    }
+
+    /** Drains up to {@code mb} of the given fluid. Returns how many mB were actually drained. */
+    public int drainFluid(net.minecraft.world.level.material.Fluid fluid, int mb) {
+        Identifier id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
+        if (id == null || !canAccessFluids() || mb <= 0) return 0;
+        int have = fluidStorage.getOrDefault(id, 0);
         int toDrain = Math.min(mb, have);
         if (toDrain <= 0) return 0;
         int remaining = have - toDrain;
-        if (remaining <= 0) fluidStorage.remove(materialId);
-        else                 fluidStorage.put(materialId, remaining);
+        if (remaining <= 0) fluidStorage.remove(id);
+        else                 fluidStorage.put(id, remaining);
         setChanged();
         return toDrain;
     }
@@ -229,12 +263,17 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             ItemStack stack = entity.getItem();
             if (stack.isEmpty()) continue;
 
-            int slot = nearestEmptySlot(entity.position());
-            if (slot < 0) break; // all slots occupied
-
-            slots.set(slot, stack.copy());
-            entity.discard();
-            changed = true;
+            // Forge slots hold at most 1 item each. Pull items off the entity
+            // one at a time and into empty slots; if the entity has more than
+            // we have room for, the remainder stays as a world entity.
+            while (!stack.isEmpty()) {
+                int slot = nearestEmptySlot(entity.position());
+                if (slot < 0) break; // no empty slots — leave the rest in world
+                slots.set(slot, stack.copyWithCount(1));
+                stack.shrink(1);
+                changed = true;
+            }
+            if (stack.isEmpty()) entity.discard();
         }
 
         if (changed) {
@@ -275,12 +314,20 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             if (temperatureC < stats.meltingTemp()) continue;
             if (remainingFluidCapacityMb() <= 0) continue;
 
+            // Translate the recipe's output Material ID to the registered Fluid for storage.
+            // If a material has a melting recipe but no registered fluid, skip — shouldn't
+            // happen for built-in materials but is defensive.
+            com.soul.smithery.registry.SmitheryFluids.Entry fluidEntry =
+                    com.soul.smithery.registry.SmitheryFluids.forMaterial(recipe.outputMaterialId());
+            if (fluidEntry == null) continue;
+            net.minecraft.world.level.material.Fluid outputFluid = fluidEntry.source.get();
+
             float meltRate = MELT_BASE_RATE_MB_PER_TICK
                     * (1f + MELT_TEMP_SCALE * (temperatureC - stats.meltingTemp()) / stats.meltingTemp());
             meltProgressPerSlot[i] += meltRate;
 
             while (meltProgressPerSlot[i] >= recipe.outputMb()) {
-                int added = addFluid(recipe.outputMaterialId(), recipe.outputMb());
+                int added = addFluid(outputFluid, recipe.outputMb());
                 if (added <= 0) break;
                 meltProgressPerSlot[i] -= recipe.outputMb();
                 stack.shrink(1);
@@ -419,7 +466,10 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     /**
      * Sorts interior blocks into a deterministic order and resizes the slot list.
      * Items from the previous slot list (or from pendingSlotItems on load) are remapped
-     * by their absolute block position so they survive structure changes.
+     * by their absolute block position so they survive structure changes — and so is
+     * the in-progress melt amount for each slot, since validateStructure() runs every
+     * 40 ticks even when the structure is unchanged. Without remapping the float[] of
+     * progress, all melts would silently reset to 0 every 2 seconds.
      */
     private void rebuildSlots(Set<BlockPos> interior) {
         List<BlockPos> newPositions = new ArrayList<>(interior);
@@ -430,25 +480,38 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             return c != 0 ? c : Long.compare(a.getZ(), b.getZ());
         });
 
-        // Gather existing items keyed by position.
-        Map<BlockPos, ItemStack> itemByPos = new HashMap<>();
+        // Snapshot existing items + their melt progress keyed by BlockPos.
+        Map<BlockPos, ItemStack> itemByPos     = new HashMap<>();
+        Map<BlockPos, Float>     progressByPos = new HashMap<>();
         for (int i = 0; i < slotPositions.size(); i++) {
             ItemStack s = slots.get(i);
-            if (!s.isEmpty()) itemByPos.put(slotPositions.get(i), s.copy());
+            if (s.isEmpty()) continue;
+            BlockPos pos = slotPositions.get(i);
+            itemByPos.put(pos, s.copy());
+            if (i < meltProgressPerSlot.length && meltProgressPerSlot[i] > 0f) {
+                progressByPos.put(pos, meltProgressPerSlot[i]);
+            }
         }
-        // Merge items that were loaded from NBT but not yet assigned to a slot.
+        // Merge items + progress that were loaded from NBT but not yet assigned.
         itemByPos.putAll(pendingSlotItems);
+        progressByPos.putAll(pendingProgress);
         pendingSlotItems.clear();
+        pendingProgress.clear();
 
-        NonNullList<ItemStack> newSlots = NonNullList.withSize(newPositions.size(), ItemStack.EMPTY);
+        NonNullList<ItemStack> newSlots    = NonNullList.withSize(newPositions.size(), ItemStack.EMPTY);
+        float[]                newProgress = new float[newPositions.size()];
         for (int i = 0; i < newPositions.size(); i++) {
-            ItemStack item = itemByPos.get(newPositions.get(i));
-            if (item != null) newSlots.set(i, item);
+            BlockPos pos = newPositions.get(i);
+            ItemStack item = itemByPos.get(pos);
+            if (item == null) continue;
+            newSlots.set(i, item);
+            Float p = progressByPos.get(pos);
+            if (p != null) newProgress[i] = p;
         }
 
         slotPositions = List.copyOf(newPositions);
         slots = newSlots;
-        meltProgressPerSlot = new float[slotPositions.size()];
+        meltProgressPerSlot = newProgress;
     }
 
     // ---- Helpers ----
@@ -585,13 +648,23 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                 int mb = entry.getInt("mb").orElse(0);
                 if (idStr.isEmpty() || mb <= 0) continue;
                 Identifier id = Identifier.tryParse(idStr.get());
-                if (id != null) fluidStorage.put(id, mb);
+                if (id == null) continue;
+                // Storage uses Fluid IDs now. Existing worlds saved Material IDs before
+                // the migration — translate those forward by looking up the corresponding
+                // molten fluid via SmitheryFluids. Anything that doesn't resolve either
+                // way is dropped (was likely a stale/bogus id anyway).
+                Identifier resolvedFluidId = resolveSavedFluidId(id);
+                if (resolvedFluidId != null) {
+                    fluidStorage.merge(resolvedFluidId, mb, Integer::sum);
+                }
             }
         }
 
-        // Slot items are loaded into pendingSlotItems and merged into the slot list
-        // the next time validateStructure() runs (triggered by onLoad on server side).
+        // Slot items + their in-progress melt amounts are loaded into pending maps and
+        // merged into the slot list the next time validateStructure() runs (triggered
+        // by onLoad on server side).
         pendingSlotItems.clear();
+        pendingProgress.clear();
         Optional<ValueInput.ValueInputList> slotsIn = input.childrenList("slots");
         if (slotsIn.isPresent()) {
             for (ValueInput entry : slotsIn.get()) {
@@ -600,12 +673,15 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                 int z = entry.getInt("z").orElse(0);
                 Optional<String> itemStr = entry.getString("item");
                 int count = entry.getInt("count").orElse(1);
+                float progress = entry.getFloatOr("progress", 0f);
                 if (itemStr.isEmpty()) continue;
                 Identifier itemId = Identifier.tryParse(itemStr.get());
                 if (itemId == null) continue;
                 Item item = BuiltInRegistries.ITEM.get(itemId).<Item>map(r -> r.value()).orElse(null);
                 if (item == null || item == Items.AIR) continue;
-                pendingSlotItems.put(new BlockPos(x, y, z), new ItemStack(item, Math.max(1, count)));
+                BlockPos pos = new BlockPos(x, y, z);
+                pendingSlotItems.put(pos, new ItemStack(item, Math.max(1, count)));
+                if (progress > 0f) pendingProgress.put(pos, progress);
             }
         }
 
@@ -656,12 +732,27 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             entry.putInt("z", pos.getZ());
             entry.putString("item", key.toString());
             entry.putInt("count", stack.getCount());
+            // Persist in-progress melt so it survives world reloads.
+            if (i < meltProgressPerSlot.length && meltProgressPerSlot[i] > 0f) {
+                entry.putFloat("progress", meltProgressPerSlot[i]);
+            }
         }
     }
 
     @Override
     public @Nullable Packet<ClientGamePacketListener> getUpdatePacket() {
         return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    /**
+     * Without this override the BE-data packet ships an empty CompoundTag — the
+     * default getUpdateTag() returns `new CompoundTag()` regardless of saveAdditional.
+     * That's why the in-world floating items never rendered: the client BE's
+     * slotPositions/slots stayed empty even after server-side absorbing.
+     */
+    @Override
+    public net.minecraft.nbt.CompoundTag getUpdateTag(net.minecraft.core.HolderLookup.Provider registries) {
+        return saveCustomOnly(registries);
     }
 
     // ---- ValidationResult ----

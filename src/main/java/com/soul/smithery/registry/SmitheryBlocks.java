@@ -1,11 +1,17 @@
 package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
+import com.soul.smithery.api.SmitheryAPI;
+import com.soul.smithery.api.part.PartType;
+import com.soul.smithery.block.CastingTableBlock;
 import com.soul.smithery.block.ForgeControllerBlock;
 import com.soul.smithery.block.ForgeDrainBlock;
 import com.soul.smithery.block.ForgeFuelPortBlock;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.ColorRGBA;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.ColoredFallingBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
@@ -14,6 +20,9 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Block registrations for the Smithery Forge multiblock. The structural shell uses vanilla
@@ -62,6 +71,35 @@ public final class SmitheryBlocks {
                             .sound(SoundType.METAL)
                             .requiresCorrectToolForDrops());
 
+    /**
+     * Casting Sand — gravity-falling block, identical behavior to vanilla sand.
+     * Used to prep a Casting Table for sand-casting. ColorRGBA controls the
+     * falling-dust particle color; matches the darkened sand texture so the
+     * particles don't visually clash when the block falls.
+     */
+    /**
+     * Casting Table — sand-casting workbench. BlockEntity holds the cast state machine.
+     * Light strength (axe-mineable wood-stat); not requiring a specific tool for drops.
+     */
+    public static final DeferredBlock<CastingTableBlock> CASTING_TABLE =
+            BLOCKS.registerBlock("casting_table",
+                    CastingTableBlock::new,
+                    () -> BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.WOOD)
+                            .strength(2.0f, 4.0f)
+                            .sound(SoundType.WOOD));
+
+    public static final DeferredBlock<ColoredFallingBlock> CASTING_SAND =
+            BLOCKS.registerBlock("casting_sand",
+                    // Particle color tuned to the darkened texture's average (~dark charcoal gray)
+                    // so the falling-dust effect doesn't puff out as pale yellow sand.
+                    props -> new ColoredFallingBlock(new ColorRGBA(0xFF3A3A3A), props),
+                    () -> BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.COLOR_BLACK)
+                            .strength(0.5f)
+                            .sound(SoundType.SAND)
+                            .pushReaction(PushReaction.NORMAL));
+
     // Corresponding BlockItems live in the Smithery item register so they appear with parts/tools.
     public static final DeferredItem<BlockItem> FURNACE_BRICKS_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("furnace_bricks", FURNACE_BRICKS);
@@ -71,6 +109,47 @@ public final class SmitheryBlocks {
             SmitheryItems.ITEMS.registerSimpleBlockItem("forge_fuel_port", FORGE_FUEL_PORT);
     public static final DeferredItem<BlockItem> FORGE_DRAIN_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("forge_drain", FORGE_DRAIN);
+    public static final DeferredItem<BlockItem> CASTING_TABLE_ITEM =
+            SmitheryItems.ITEMS.registerSimpleBlockItem("casting_table", CASTING_TABLE);
+    public static final DeferredItem<BlockItem> CASTING_SAND_ITEM =
+            SmitheryItems.ITEMS.registerSimpleBlockItem("casting_sand", CASTING_SAND);
+
+    /**
+     * Internal "sand with cutout for PartType" block variants. One per registered PartType,
+     * used purely by the CastingTableRenderer to render the impressed sand visual via the
+     * standard item-stack-render-state pipeline.
+     *
+     * These blocks ARE registered in the registry (so /give can produce them and the BlockItem
+     * has a valid path for the dynamic models to resolve against), but they're never put in a
+     * creative tab and have no loot table so they behave inertly even if placed.
+     */
+    private static final Map<Identifier, DeferredItem<BlockItem>> IMPRESSED_SAND_ITEMS = new LinkedHashMap<>();
+
+    /**
+     * Register one internal "casting_sand_impressed_<part>" block per registered PartType.
+     * Must be called AFTER SmitheryPartTypes.register() (so SmitheryAPI.PART_TYPES.all() is
+     * populated) and BEFORE register(modEventBus) so the DeferredRegister queue is complete
+     * by the time the bus event fires.
+     */
+    public static void registerImpressedSandVariants() {
+        if (!IMPRESSED_SAND_ITEMS.isEmpty()) return; // idempotent guard
+        for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
+            String name = "casting_sand_impressed_" + pt.id().getPath();
+            DeferredBlock<Block> block = BLOCKS.registerSimpleBlock(name, p -> p
+                    .mapColor(MapColor.COLOR_BLACK)
+                    .strength(0.5f)
+                    .sound(SoundType.SAND)
+                    .pushReaction(PushReaction.DESTROY)
+                    .noLootTable());
+            IMPRESSED_SAND_ITEMS.put(pt.id(),
+                    SmitheryItems.ITEMS.registerSimpleBlockItem(name, block));
+        }
+    }
+
+    /** BlockItem of the "sand with PartType-shaped hole" block; null for unregistered part ids. */
+    public static DeferredItem<BlockItem> getImpressedSandItem(Identifier partTypeId) {
+        return IMPRESSED_SAND_ITEMS.get(partTypeId);
+    }
 
     public static void register(IEventBus modEventBus) {
         BLOCKS.register(modEventBus);

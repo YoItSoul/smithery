@@ -1,7 +1,10 @@
 package com.soul.smithery;
 
+import com.soul.smithery.client.CastingTableRenderer;
 import com.soul.smithery.client.ForgeControllerRenderer;
+import com.soul.smithery.client.MoltenBucketTintSource;
 import com.soul.smithery.client.PartMaterialTintSource;
+import com.soul.smithery.client.SmitheryFluidsClient;
 import com.soul.smithery.client.ToolPrimaryMaterialTintSource;
 import com.soul.smithery.gui.ForgeControllerScreen;
 import com.soul.smithery.registry.SmitheryBlockEntities;
@@ -15,6 +18,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
+import net.neoforged.neoforge.client.event.RegisterFluidModelsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
@@ -28,6 +32,9 @@ public class SmitheryClient {
     public static final Identifier TOOL_PRIMARY_MATERIAL_TINT_ID =
             Identifier.fromNamespaceAndPath(Smithery.MODID, "tool_primary_material");
 
+    public static final Identifier MOLTEN_BUCKET_TINT_ID =
+            Identifier.fromNamespaceAndPath(Smithery.MODID, "molten_bucket");
+
     public SmitheryClient(ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
     }
@@ -40,6 +47,7 @@ public class SmitheryClient {
     @SubscribeEvent
     static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FORGE_CONTROLLER.get(), ForgeControllerRenderer::new);
+        event.registerBlockEntityRenderer(SmitheryBlockEntities.CASTING_TABLE.get(), CastingTableRenderer::new);
     }
 
     /**
@@ -53,8 +61,14 @@ public class SmitheryClient {
     }
 
     @SubscribeEvent
+    static void onRegisterFluidModels(RegisterFluidModelsEvent event) {
+        SmitheryFluidsClient.onRegisterFluidModels(event);
+    }
+
+    @SubscribeEvent
     static void onRegisterTintSources(RegisterColorHandlersEvent.ItemTintSources event) {
         event.register(PART_MATERIAL_TINT_ID, PartMaterialTintSource.MAP_CODEC);
         event.register(TOOL_PRIMARY_MATERIAL_TINT_ID, ToolPrimaryMaterialTintSource.MAP_CODEC);
+        event.register(MOLTEN_BUCKET_TINT_ID, MoltenBucketTintSource.MAP_CODEC);
     }
 }

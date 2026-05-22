@@ -14,10 +14,14 @@ import java.util.Objects;
  * in those cases the PartType can opt out by setting partColorTint=false.
  */
 public final class PartType {
+    /** Default mB to cast one part if a PartType doesn't specify — half an ingot. */
+    public static final int DEFAULT_CAST_MB = 72;
+
     private final Identifier id;
     private final float durabilityScalar;
     private final boolean partColorTint;
     private final Identifier textureTemplate;
+    private final int castMb;
 
     private PartType(Builder b) {
         this.id = Objects.requireNonNull(b.id, "PartType id");
@@ -25,12 +29,15 @@ public final class PartType {
         this.partColorTint = b.partColorTint;
         this.textureTemplate = b.textureTemplate != null ? b.textureTemplate
                 : Identifier.fromNamespaceAndPath(b.id.getNamespace(), "item/part/" + b.id.getPath());
+        this.castMb = b.castMb;
     }
 
     public Identifier id() { return id; }
     public float durabilityScalar() { return durabilityScalar; }
     public boolean partColorTint() { return partColorTint; }
     public Identifier textureTemplate() { return textureTemplate; }
+    /** mB of molten material needed to cast one of this part. */
+    public int castMb() { return castMb; }
 
     @Override public boolean equals(Object o) { return o instanceof PartType p && p.id.equals(id); }
     @Override public int hashCode() { return id.hashCode(); }
@@ -43,12 +50,15 @@ public final class PartType {
         private float durabilityScalar = 1.0f;
         private boolean partColorTint = true;
         private Identifier textureTemplate;
+        private int castMb = DEFAULT_CAST_MB;
 
         private Builder(Identifier id) { this.id = id; }
 
         public Builder durabilityScalar(float v) { this.durabilityScalar = v; return this; }
         public Builder partColorTint(boolean v) { this.partColorTint = v; return this; }
         public Builder textureTemplate(Identifier t) { this.textureTemplate = t; return this; }
+        /** Override how much molten material is needed to cast one part of this type. */
+        public Builder castMb(int v) { this.castMb = v; return this; }
 
         public PartType build() { return new PartType(this); }
     }

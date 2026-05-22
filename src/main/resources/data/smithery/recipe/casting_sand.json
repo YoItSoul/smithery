@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SSS",
+    "SCS",
+    "SSS"
+  ],
+  "key": {
+    "S": { "item": "minecraft:sand" },
+    "C": { "item": "minecraft:clay_ball" }
+  },
+  "result": {
+    "id": "smithery:casting_sand",
+    "count": 8
+  }
+}

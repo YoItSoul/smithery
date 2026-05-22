@@ -27,7 +27,15 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // Add here additional repositories if required by some of the dependencies below.
+    // Modonomicon (in-game documentation mod) is published to klikli-dev's
+    // Cloudsmith mods repo. Needed for compile-time API + runtime presence so
+    // we can test the Smithery book in the dev environment.
+    maven {
+        url = "https://dl.cloudsmith.io/public/klikli-dev/mods/maven/"
+        content {
+            includeGroup "com.klikli_dev"
+        }
+    }
 }
 
 base {
@@ -113,6 +121,14 @@ configurations {
 }
 
 dependencies {
+    // Modonomicon — in-game documentation framework. We compile against it (so
+    // datagen + book classes resolve) and load it in dev so we can test the
+    // generated book in-game. transitive=false because Modonomicon also pulls
+    // a fluxapi / cardinal-components-style stack that we don't need.
+    implementation("com.klikli_dev:modonomicon-${minecraft_version}-neoforge:${modonomicon_version}") {
+        transitive = false
+    }
+
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
