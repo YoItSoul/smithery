@@ -30,20 +30,20 @@ Smithery is a modular, modder-friendly tool crafting mod centered on a multibloc
 
 Smithery is in active development. The roadmap is documented in [`SMITHERY_DESIGN.md`](SMITHERY_DESIGN.md).
 
-| Phase | Status |
-|---|---|
-| Materials, parts, tools, modifiers, synergies | ✅ implemented |
-| Crafting (shapeless tool assembly) | ✅ implemented |
-| Multiblock Forge validator (open / closed / partial / no-corner) | ✅ implemented |
-| Debug leak visualization | ✅ implemented |
-| Heat / fluid / alloy simulation | 🚧 in progress |
-| Forge controller GUI | 🚧 in progress |
-| RF heat coils (Tier 1 + Tier 2) | ⏳ planned |
-| Casting basin + cast molds | ⏳ planned |
-| Sharpening stones (repair) | ⏳ planned |
-| Anvil-applied modifier items | ⏳ planned |
-| Datapack JSON override loaders | ⏳ planned |
-| In-game Field Guide book | ⏳ planned |
+| Phase | Status          |
+|---|-----------------|
+| Materials, parts, tools, modifiers, synergies | ✅ implemented   |
+| Crafting (shapeless tool assembly) | ✅ implemented   |
+| Multiblock Forge validator (open / closed / partial / no-corner) | ✅ implemented   |
+| Debug leak visualization | ✅ implemented   |
+| Heat / fluid / alloy simulation | 🚧 in progress  |
+| Forge controller GUI | 🚧 experimental |
+| RF heat coils (Tier 1 + Tier 2) | ⏳ planned       |
+| Casting basin + cast molds | ⏳ planned       |
+| Sharpening stones (repair) | ⏳ planned       |
+| Anvil-applied modifier items | ⏳ planned       |
+| Datapack JSON override loaders | ⏳ planned       |
+| In-game Field Guide book | 🚧 in progress  |
 
 ---
 
