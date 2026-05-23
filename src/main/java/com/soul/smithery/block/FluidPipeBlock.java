@@ -1,13 +1,20 @@
 package com.soul.smithery.block;
 
+import com.soul.smithery.block.entity.FluidPipeBlockEntity;
+import com.soul.smithery.registry.SmitheryBlockEntities;
 import com.soul.smithery.registry.SmitheryBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
@@ -30,7 +37,7 @@ import org.jspecify.annotations.Nullable;
  * by {@link #onPlace} and {@link #neighborChanged} from the actual neighbour blocks.
  * 3 visuals × 6 faces = 729 blockstates.
  */
-public class FluidPipeBlock extends Block {
+public class FluidPipeBlock extends Block implements EntityBlock {
 
     public static final EnumProperty<FluidPipeFaceVisual> NORTH = EnumProperty.create("north", FluidPipeFaceVisual.class);
     public static final EnumProperty<FluidPipeFaceVisual> EAST  = EnumProperty.create("east",  FluidPipeFaceVisual.class);
@@ -122,11 +129,19 @@ public class FluidPipeBlock extends Block {
      * Per-face visual rule:
      *   1. Neighbour is another pipe                            → ARM_OPEN (continuous tube)
      *   2. DOWN face above a casting table                      → ARM_OPEN (free drip)
-     *   3. Neighbour exposes a real fluid handler (size&gt;0)      → ARM_TOOTHER (flange)
-     *   4. Anything else (air, inert walls, empty proxy)        → NONE (no geometry)
+     *   3. Neighbour is a forge drain                           → ARM_TOOTHER (always; visual
+     *      connection must not depend on whether a fluid is currently selected in the controller)
+     *   4. Neighbour exposes a real fluid handler (size&gt;0)      → ARM_TOOTHER (flange)
+     *   5. Anything else (air, inert walls, empty proxy)        → NONE (no geometry)
      *
      * Skips the capability lookup when the neighbour is air to avoid NeoForge 26.1's
      * non-null empty proxy handler that gets returned for waterloggable vanilla blocks.
+     *
+     * Forge drains get an explicit block-type check (case 3) BEFORE the capability lookup.
+     * The drain's DrainHandler reports {@code size() == 0} until the controller has an active
+     * output fluid selected, which would otherwise make pipes disconnect visually whenever
+     * the forge is idle or between melts — confusing because the physical pipe-to-drain
+     * connection is permanent.
      */
     private static FluidPipeFaceVisual computeVisual(Level level, BlockPos pos, Direction dir) {
         BlockPos neighborPos = pos.relative(dir);
@@ -135,8 +150,18 @@ public class FluidPipeBlock extends Block {
         if (neighborState.getBlock() instanceof FluidPipeBlock) {
             return FluidPipeFaceVisual.ARM_OPEN;
         }
-        if (dir == Direction.DOWN && neighborState.is(SmitheryBlocks.CASTING_TABLE.get())) {
-            return FluidPipeFaceVisual.ARM_OPEN;
+        // Casting tables are top-pour only — a pipe directly above renders ARM_OPEN (free
+        // drip into the cast); any other side toward a casting table renders nothing at all.
+        // The fluid handler also rejects inserts from non-top sides, so this is symmetric:
+        // no functional flow, no visual cap or flange.
+        if (neighborState.is(SmitheryBlocks.CASTING_TABLE.get())) {
+            return dir == Direction.DOWN ? FluidPipeFaceVisual.ARM_OPEN : FluidPipeFaceVisual.NONE;
+        }
+        // Forge drain — always flange unconditionally so the pipe doesn't visually detach
+        // when the controller has no active output fluid (no fluid selected, forge idle,
+        // between melts, etc). The physical connection is permanent regardless of state.
+        if (neighborState.is(SmitheryBlocks.FORGE_DRAIN.get())) {
+            return FluidPipeFaceVisual.ARM_TOOTHER;
         }
         if (neighborState.isAir()) {
             return FluidPipeFaceVisual.NONE;
@@ -152,5 +177,21 @@ public class FluidPipeBlock extends Block {
     /** Test helper used by ForgeDrainBlockEntity's network walker. */
     public static boolean isPipe(BlockState state) {
         return state.getBlock() instanceof FluidPipeBlock;
+    }
+
+    // ---- BE plumbing for the flow visualization ----
+
+    @Override
+    public @Nullable BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new FluidPipeBlockEntity(pos, state);
+    }
+
+    @Override
+    public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
+        if (level.isClientSide()) return null;
+        if (type != SmitheryBlockEntities.FLUID_PIPE.get()) return null;
+        // Lightweight decay tick — clears the transient flow visualization a second after
+        // the drain stops marking us. Doesn't participate in actual fluid transfer.
+        return (lvl, p, st, be) -> ((FluidPipeBlockEntity) be).serverTick((ServerLevel) lvl, p, st);
     }
 }

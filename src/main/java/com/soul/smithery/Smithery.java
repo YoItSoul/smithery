@@ -122,6 +122,9 @@ public class Smithery {
         SmitheryMaterials.register();
         SmitherySynergies.register();
         SmitheryMeltingRecipes.register();
+        // Modder-example bundle: registers material smithery:ender + smithery:pearl cast.
+        // Lives in its own class as a copy-paste reference for modders extending the system.
+        com.soul.smithery.content.example.EnderExampleContent.register();
         // Queue per-PartType "sand with cutout" block registrations now that PartTypes
         // exist. Must happen before SmitheryBlocks.register(modEventBus) attaches the
         // DeferredRegister to the bus.
@@ -134,6 +137,12 @@ public class Smithery {
         // 2. Now that all built-in materials are in the registry, queue one PartItem per
         //    (material × part type) pair into the deferred item register.
         SmitheryItems.registerBuiltInParts();
+
+        // Auto-register a remelt recipe for every PartItem we just queued: putting the part
+        // back into the forge yields exactly its castMb of the source material. Lossless
+        // "uncraft" path for broken / unwanted parts. Runs here so modder content registered
+        // between this point and SmitheryMaterials.register() is included too.
+        SmitheryMeltingRecipes.registerPartRemeltRecipes();
 
         // 3. Hook deferred registers to the mod event bus so they fire at RegisterEvent time.
         // Block registration must occur before item registration completes so that BlockItem

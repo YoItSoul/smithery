@@ -22,6 +22,7 @@ public final class PartType {
     private final boolean partColorTint;
     private final Identifier textureTemplate;
     private final int castMb;
+    private final boolean syntheticCast;
 
     private PartType(Builder b) {
         this.id = Objects.requireNonNull(b.id, "PartType id");
@@ -30,6 +31,7 @@ public final class PartType {
         this.textureTemplate = b.textureTemplate != null ? b.textureTemplate
                 : Identifier.fromNamespaceAndPath(b.id.getNamespace(), "item/part/" + b.id.getPath());
         this.castMb = b.castMb;
+        this.syntheticCast = b.syntheticCast;
     }
 
     public Identifier id() { return id; }
@@ -38,6 +40,13 @@ public final class PartType {
     public Identifier textureTemplate() { return textureTemplate; }
     /** mB of molten material needed to cast one of this part. */
     public int castMb() { return castMb; }
+    /**
+     * If true, this PartType does NOT auto-generate smithery PartItems (e.g. iron_ingot,
+     * gold_nugget, ender_pearl). The cast resolves via {@link com.soul.smithery.api.cast.CastResults}
+     * to whatever item the modder registered (typically a vanilla item or another mod's item).
+     * Used for "shape-only" casts that produce existing items rather than new smithery items.
+     */
+    public boolean syntheticCast() { return syntheticCast; }
 
     @Override public boolean equals(Object o) { return o instanceof PartType p && p.id.equals(id); }
     @Override public int hashCode() { return id.hashCode(); }
@@ -51,6 +60,7 @@ public final class PartType {
         private boolean partColorTint = true;
         private Identifier textureTemplate;
         private int castMb = DEFAULT_CAST_MB;
+        private boolean syntheticCast = false;
 
         private Builder(Identifier id) { this.id = id; }
 
@@ -59,6 +69,11 @@ public final class PartType {
         public Builder textureTemplate(Identifier t) { this.textureTemplate = t; return this; }
         /** Override how much molten material is needed to cast one part of this type. */
         public Builder castMb(int v) { this.castMb = v; return this; }
+        /**
+         * Mark as a "shape-only" cast that doesn't produce a smithery PartItem (e.g. ingot,
+         * nugget, ender pearl). The cast resolves via {@link com.soul.smithery.api.cast.CastResults}.
+         */
+        public Builder syntheticCast(boolean v) { this.syntheticCast = v; return this; }
 
         public PartType build() { return new PartType(this); }
     }

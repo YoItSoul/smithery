@@ -1,11 +1,13 @@
 package com.soul.smithery;
 
 import com.soul.smithery.client.CastingTableRenderer;
+import com.soul.smithery.client.FluidPipeRenderer;
 import com.soul.smithery.client.ForgeControllerRenderer;
 import com.soul.smithery.client.MoltenBucketTintSource;
 import com.soul.smithery.client.PartMaterialTintSource;
 import com.soul.smithery.client.SmitheryFluidsClient;
 import com.soul.smithery.client.ToolPrimaryMaterialTintSource;
+import com.soul.smithery.client.ToolSlotMaterialTintSource;
 import com.soul.smithery.gui.ForgeControllerScreen;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import com.soul.smithery.registry.SmitheryMenus;
@@ -32,6 +34,9 @@ public class SmitheryClient {
     public static final Identifier TOOL_PRIMARY_MATERIAL_TINT_ID =
             Identifier.fromNamespaceAndPath(Smithery.MODID, "tool_primary_material");
 
+    public static final Identifier TOOL_SLOT_MATERIAL_TINT_ID =
+            Identifier.fromNamespaceAndPath(Smithery.MODID, "tool_slot_material");
+
     public static final Identifier MOLTEN_BUCKET_TINT_ID =
             Identifier.fromNamespaceAndPath(Smithery.MODID, "molten_bucket");
 
@@ -48,6 +53,7 @@ public class SmitheryClient {
     static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FORGE_CONTROLLER.get(), ForgeControllerRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.CASTING_TABLE.get(), CastingTableRenderer::new);
+        event.registerBlockEntityRenderer(SmitheryBlockEntities.FLUID_PIPE.get(), FluidPipeRenderer::new);
     }
 
     /**
@@ -69,6 +75,7 @@ public class SmitheryClient {
     static void onRegisterTintSources(RegisterColorHandlersEvent.ItemTintSources event) {
         event.register(PART_MATERIAL_TINT_ID, PartMaterialTintSource.MAP_CODEC);
         event.register(TOOL_PRIMARY_MATERIAL_TINT_ID, ToolPrimaryMaterialTintSource.MAP_CODEC);
+        event.register(TOOL_SLOT_MATERIAL_TINT_ID, ToolSlotMaterialTintSource.MAP_CODEC);
         event.register(MOLTEN_BUCKET_TINT_ID, MoltenBucketTintSource.MAP_CODEC);
     }
 }

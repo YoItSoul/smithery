@@ -57,11 +57,11 @@ public class CastingTableBlockEntity extends BlockEntity {
     /** Number of brush strokes needed to fully sweep the sand off (matches suspicious-sand pacing). */
     public static final int MAX_BRUSH = 4;
     /**
-     * Per-mB cooling time, in server ticks. With this set to 1, a 72 mB guard cools in
-     * ~3.6s and a 144 mB sword blade in ~7.2s — noticeable wait, scales linearly with
-     * part size. Bump higher for a slower / more deliberate craft feel.
+     * Per-mB cooling time, in server ticks. With this set to 2, a 72 mB guard cools in
+     * ~7.2s and a 144 mB sword blade in ~14.4s — combined with the 1 mB/tick pour rate
+     * the whole guard cycle (fill → cool → ready) is around 10-11 seconds.
      */
-    public static final int COOLING_TICKS_PER_MB = 1;
+    public static final int COOLING_TICKS_PER_MB = 2;
 
     private State state = State.EMPTY;
     private @Nullable Identifier impressedPartTypeId; // set when state >= IMPRESSED
@@ -88,6 +88,18 @@ public class CastingTableBlockEntity extends BlockEntity {
     public Fluid pouredFluid() { return pouredFluid; }
     public int filledMb() { return filledMb; }
     public int coolingTicksRemaining() { return coolingTicksRemaining; }
+
+    /**
+     * 1.0 when the molten material is freshly poured (start of COOLING), decaying linearly
+     * to 0.0 at COOLING completion. Returns 1.0 for FILLING (the cast is still molten as it
+     * fills) and 0.0 for every other state. Renderer drives the molten-to-part fade off this.
+     */
+    public float coolingFraction() {
+        if (state == State.FILLING) return 1.0f;
+        if (state != State.COOLING) return 0.0f;
+        int total = Math.max(1, requiredMb * COOLING_TICKS_PER_MB);
+        return Math.max(0.0f, Math.min(1.0f, (float) coolingTicksRemaining / (float) total));
+    }
 
     /** True iff this table can currently accept poured fluid (IMPRESSED, or partially FILLING). */
     public boolean acceptsPour() {
@@ -134,6 +146,22 @@ public class CastingTableBlockEntity extends BlockEntity {
         PartType pt = SmitheryAPI.PART_TYPES.get(partItem.partTypeId());
         if (pt == null) return false;
         impressedPartTypeId = partItem.partTypeId();
+        requiredMb = pt.castMb();
+        state = State.IMPRESSED;
+        markDirtyAndSync();
+        return true;
+    }
+
+    /**
+     * SAND → IMPRESSED using a non-PartItem template (e.g. vanilla iron_ingot, modder's
+     * ender pearl). Looks up the cast-target PartType id via {@link com.soul.smithery.api.cast.CastTemplates}
+     * and records it as the impression. Template is not consumed.
+     */
+    public boolean tryImpressTemplateItem(Identifier castTypeId) {
+        if (state != State.SAND || castTypeId == null) return false;
+        PartType pt = SmitheryAPI.PART_TYPES.get(castTypeId);
+        if (pt == null) return false;
+        impressedPartTypeId = pt.id();
         requiredMb = pt.castMb();
         state = State.IMPRESSED;
         markDirtyAndSync();
@@ -194,6 +222,20 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     /**
+     * Client-side cooling prediction. The server only re-syncs the BE when state actually
+     * changes (markDirtyAndSync), so without this the client's coolingTicksRemaining stays
+     * at its FILLING→COOLING value the whole cooling window — making the renderer's
+     * coolingFraction sit at 1.0 (full molten tint) until the server's READY snap.
+     * Decrementing locally lets the molten→partColor lerp transition smoothly. The values
+     * naturally re-converge with the server when state moves to READY.
+     */
+    public void clientTick() {
+        if (state == State.COOLING && coolingTicksRemaining > 0) {
+            coolingTicksRemaining--;
+        }
+    }
+
+    /**
      * READY → IMPRESSED: resolves the cooled cast into the matching (Material × PartType)
      * PartItem and returns the stack for the caller to give / drop. The sand layer AND the
      * impression (impressedPartTypeId + requiredMb) are preserved so the table is immediately
@@ -223,12 +265,26 @@ public class CastingTableBlockEntity extends BlockEntity {
         return result;
     }
 
-    /** Resolves the (pouredFluid, impressedPartTypeId) pair into the registered PartItem stack. */
+    /**
+     * Resolves the cast outcome, consulting {@link com.soul.smithery.api.cast.CastResults}
+     * first (modder-extensible: e.g. iron+ingot → Items.IRON_INGOT, ender+pearl → Items.ENDER_PEARL),
+     * then falling back to smithery's auto-generated PartItem (Material × PartType) for
+     * normal part-type combos. Returns {@link ItemStack#EMPTY} if no mapping exists at all
+     * (e.g. copper into a nugget cast — vanilla copper_nugget doesn't exist; the cast
+     * gets discarded with a chat warning at retrieve time).
+     */
     private ItemStack resolvePartItem() {
         if (impressedPartTypeId == null || pouredFluid == Fluids.EMPTY) return ItemStack.EMPTY;
         com.soul.smithery.registry.SmitheryFluids.Entry entry =
                 com.soul.smithery.registry.SmitheryFluids.forFluid(pouredFluid);
         if (entry == null) return ItemStack.EMPTY;
+
+        // Explicit registry first — modder-extensible.
+        net.minecraft.world.item.Item explicit =
+                com.soul.smithery.api.cast.CastResults.resolve(entry.materialId, impressedPartTypeId);
+        if (explicit != null) return new ItemStack(explicit);
+
+        // Default: smithery PartItem for the material × part-type combo.
         var partItem = com.soul.smithery.registry.SmitheryItems.getBuiltInPart(
                 entry.materialId, impressedPartTypeId);
         if (partItem == null) return ItemStack.EMPTY;
@@ -373,7 +429,14 @@ public class CastingTableBlockEntity extends BlockEntity {
     // immediately without transaction journaling (see FluidPipeBlockEntity for the
     // same caveat).
 
-    public ResourceHandler<FluidResource> fluidHandlerFor(@Nullable Direction side) {
+    /**
+     * Casting tables are top-pour only. Returning null for any side other than {@link Direction#UP}
+     * (and unsided/internal access) means external pipes / buckets / hopper-style queries from
+     * non-top sides see no fluid capability at all — they neither register the table as a sink
+     * nor can they push fluid into it.
+     */
+    public @Nullable ResourceHandler<FluidResource> fluidHandlerFor(@Nullable Direction side) {
+        if (side != null && side != Direction.UP) return null;
         return new TableFluidHandler();
     }
 

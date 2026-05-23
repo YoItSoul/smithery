@@ -1,6 +1,9 @@
 package com.soul.smithery.content;
 
+import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
+import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.part.PartType;
 
 /**
  * Built-in melting recipes for iron, gold, and copper using vanilla item ids.
@@ -53,5 +56,33 @@ public final class SmitheryMeltingRecipes {
 
     private static void recipe(String input, String material, int mb) {
         SmitheryAPI.registerMeltingRecipe(input, material, mb);
+    }
+
+    /**
+     * Auto-registers a melting recipe for every auto-generated PartItem in the smithery
+     * namespace: {@code smithery:<material>_<part_type>} → {@code <material>} fluid at the
+     * part type's {@link PartType#castMb} amount. Parts melt back into their source metal
+     * losslessly — recasting a part recovers exactly the material that went into it, so the
+     * forge doubles as the "uncraft" path for broken or unwanted tool parts.
+     *
+     * Skipped: castOnly materials (no PartItems exist), synthetic part types (ingot / nugget
+     * / pearl — already covered by direct vanilla item recipes), non-smithery materials, and
+     * materials with meltingTemp ≤ 0 (wood doesn't melt; its parts deliberately have no
+     * forge route).
+     *
+     * Must run AFTER {@link SmitheryMaterials#register()} and {@link SmitheryPartTypes#register()}
+     * (and after any modder content registers its own additions, so their parts are picked up too).
+     */
+    public static void registerPartRemeltRecipes() {
+        for (Material mat : SmitheryAPI.MATERIALS.all()) {
+            if (!Smithery.MODID.equals(mat.id().getNamespace())) continue;
+            if (mat.stats().castOnly()) continue;
+            if (mat.stats().meltingTemp() <= 0f) continue;
+            for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
+                if (pt.syntheticCast()) continue;
+                String partItemId = Smithery.MODID + ":" + mat.id().getPath() + "_" + pt.id().getPath();
+                recipe(partItemId, mat.id().toString(), pt.castMb());
+            }
+        }
     }
 }

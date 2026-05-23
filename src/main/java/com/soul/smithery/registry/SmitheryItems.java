@@ -47,6 +47,9 @@ public final class SmitheryItems {
     public static void registerBuiltInParts() {
         for (Material mat : SmitheryAPI.MATERIALS.all()) {
             if (!Smithery.MODID.equals(mat.id().getNamespace())) continue;
+            // Cast-only materials (e.g. ender) exist in fluid form only — they don't
+            // produce smithery PartItems. Their cast outputs are wired via CastResults.
+            if (mat.stats().castOnly()) continue;
             registerPartsFor(mat.id(), ITEMS);
         }
     }
@@ -60,6 +63,11 @@ public final class SmitheryItems {
      */
     public static void registerPartsFor(Identifier materialId, DeferredRegister.Items targetItems) {
         for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
+            // Synthetic cast targets (ingot/nugget/pearl/etc) don't produce smithery
+            // PartItems — their cast outcome resolves through CastResults to whatever
+            // item the modder registered (typically vanilla or another mod's item).
+            // The impression sand block variant still gets created.
+            if (pt.syntheticCast()) continue;
             Identifier ptId = pt.id();
             String itemPath = materialId.getPath() + "_" + ptId.getPath();
             DeferredItem<PartItem> di = targetItems.registerItem(

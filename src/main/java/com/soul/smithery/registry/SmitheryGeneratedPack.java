@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -61,6 +62,10 @@ public class SmitheryGeneratedPack implements PackResources {
     /** Path prefix for the per-PartType "sand with cutout" block variants (voxelized model). */
     private static final String IMPRESSED_SAND_PREFIX = "casting_sand_impressed_";
 
+    /** Path prefix for the synthesized per-slot tool layer textures. */
+    private static final String TOOL_LAYER_TEX_PREFIX = "textures/item/tool/";
+    private static final String PNG_SUFFIX = ".png";
+
     @Override
     public @Nullable IoSupplier<InputStream> getRootResource(String... path) {
         // pack.mcmeta is served via getMetadataSection; nothing else lives at root.
@@ -72,6 +77,14 @@ public class SmitheryGeneratedPack implements PackResources {
         if (type != PackType.CLIENT_RESOURCES) return null;
         String path = location.getPath();
         String namespace = location.getNamespace();
+
+        // Synthesized per-slot tool layer PNGs — derived from vanilla iron tool textures by
+        // classifying pixels (metal vs handle), masking out everything except the slot's region,
+        // and desaturating to grayscale so the per-slot material tint multiplies cleanly.
+        if (path.endsWith(PNG_SUFFIX) && path.startsWith(TOOL_LAYER_TEX_PREFIX)
+                && Smithery.MODID.equals(namespace)) {
+            return resolveToolSlotTexture(path);
+        }
 
         if (!path.endsWith(JSON_SUFFIX)) return null;
 
@@ -111,6 +124,19 @@ public class SmitheryGeneratedPack implements PackResources {
                         () -> resolveModelJson(namespace, path), output);
                 emitIfMatches(namespace, ITEMS_PREFIX  + path + JSON_SUFFIX, prefix,
                         () -> resolveItemDefJson(namespace, path), output);
+                // Per-slot layer textures (synthesized from vanilla iron tool sources).
+                // Must be advertised here — the item-sprite atlas builder discovers candidate
+                // PNGs via listResources, not via direct getResource calls. Without this,
+                // the atlas has no entry for our synthesized textures and tools render
+                // with the missing-texture placeholder per layer.
+                List<ToolType.Slot> slots = tt.slots();
+                for (int i = 0; i < slots.size(); i++) {
+                    String texName = path + "/" + i + "_" + slots.get(i).partType().id().getPath();
+                    String pngPath = TOOL_LAYER_TEX_PREFIX + texName + PNG_SUFFIX;
+                    final String capturedPng = pngPath;
+                    emitIfMatches(namespace, pngPath, prefix,
+                            () -> resolveToolSlotTexture(capturedPng), output);
+                }
             }
         }
 
@@ -373,8 +399,7 @@ public class SmitheryGeneratedPack implements PackResources {
         if (pt == null) throw new IOException("No PartType: " + partPath);
 
         Identifier tmplId = pt.textureTemplate();
-        BufferedImage tmpl = readClasspathPng(
-                "/assets/" + tmplId.getNamespace() + "/textures/" + tmplId.getPath() + ".png");
+        BufferedImage tmpl = readTemplateTexture(tmplId);
         final int W = 16, H = 16;
 
         // Resample template to a 16×16 cutout mask. true = part shape (no geometry).
@@ -453,13 +478,336 @@ public class SmitheryGeneratedPack implements PackResources {
           .append("\"texture\": \"#sand\"}");
     }
 
-    private static BufferedImage readClasspathPng(String path) throws IOException {
-        try (InputStream in = SmitheryGeneratedPack.class.getResourceAsStream(path)) {
-            if (in == null) throw new IOException("Resource not found on classpath: " + path);
-            BufferedImage img = ImageIO.read(in);
-            if (img == null) throw new IOException("Could not decode PNG at: " + path);
-            return img;
+    /**
+     * Reads a PartType's template texture as a normalized ARGB image.
+     *
+     * Source resolution: routes through the client {@link net.minecraft.server.packs.resources.ResourceManager},
+     * NOT the JVM classpath. In NeoForge's module-based class layout, vanilla minecraft assets live in a
+     * separate classloader that mod classes can't see directly — {@code getResourceAsStream("/assets/minecraft/...")}
+     * returns null. The resource manager, by contrast, has indexed every loaded pack (vanilla + forge + mod
+     * resources) by the time our IoSupplier is invoked, so a single {@code getResource(...)} call covers
+     * smithery's own templates, vanilla textures referenced by modder PartTypes, and anything contributed
+     * by other mods.
+     *
+     * Output normalization: PNGs come in many colour models — iron_ingot.png is 8-bit grayscale,
+     * ender_pearl.png is 4-bit indexed with a tRNS transparency chunk. {@code BufferedImage.getRGB()}
+     * on indexed PNGs has been historically flaky across JDK versions for alpha readback. Redrawing
+     * into TYPE_INT_ARGB guarantees the alpha-channel readback used by the voxelizer is correct
+     * regardless of the source colour model.
+     *
+     * Client-only: this method is invoked exclusively from client-resource generation paths
+     * (the early {@code if (type != PackType.CLIENT_RESOURCES) return null} in
+     * {@link #getResource} prevents server-side reach).
+     */
+    private static BufferedImage readTemplateTexture(Identifier tmplId) throws IOException {
+        Identifier resourceLoc = Identifier.fromNamespaceAndPath(
+                tmplId.getNamespace(), "textures/" + tmplId.getPath() + ".png");
+        net.minecraft.server.packs.resources.ResourceManager rm =
+                net.minecraft.client.Minecraft.getInstance().getResourceManager();
+        Optional<net.minecraft.server.packs.resources.Resource> resource = rm.getResource(resourceLoc);
+        if (resource.isEmpty()) {
+            throw new IOException("Texture not found in resource manager: " + resourceLoc);
         }
+        try (InputStream in = resource.get().open()) {
+            BufferedImage img = ImageIO.read(in);
+            if (img == null) throw new IOException("Could not decode PNG at: " + resourceLoc);
+            if (img.getType() == BufferedImage.TYPE_INT_ARGB) return img;
+            BufferedImage argb = new BufferedImage(img.getWidth(), img.getHeight(),
+                    BufferedImage.TYPE_INT_ARGB);
+            java.awt.Graphics2D g = argb.createGraphics();
+            try { g.drawImage(img, 0, 0, null); } finally { g.dispose(); }
+            return argb;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    //  Per-slot tool layer texture synthesizer
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    //
+    // Generates one grayscale-with-alpha PNG per (tool × slot) by sampling the matching
+    // vanilla iron tool texture, classifying each opaque pixel as METAL or HANDLE based on
+    // colour, then applying a slot-specific mask:
+    //
+    //   Sword (from minecraft:item/iron_sword):
+    //     slot 0 sword_blade : METAL pixels except the guard band
+    //     slot 1 guard       : METAL pixels adjacent to HANDLE pixels (the cross-piece)
+    //     slot 2 handle      : HANDLE pixels (the wooden grip)
+    //     slot 3 binder      : small disc centered on the guard centroid
+    //
+    //   Pickaxe (from minecraft:item/iron_pickaxe):
+    //     slot 0 pick_head   : METAL pixels except the binder disc
+    //     slot 1 handle (main): HANDLE pixels in the upper half of the shaft
+    //     slot 2 handle (fore): HANDLE pixels in the lower half of the shaft
+    //     slot 3 binder      : small disc at the head's centroid
+    //
+    // Output pixels are desaturated to luminance + alpha so each layer's slot tint
+    // (smithery:tool_slot_material) multiplies cleanly into the slot's partColor.
+
+    private enum PixelKind { TRANSPARENT, METAL, HANDLE }
+
+    /** Texture path format: textures/item/tool/<tool>/<slotIndex>_<partTypePath>.png */
+    private @Nullable IoSupplier<InputStream> resolveToolSlotTexture(String path) {
+        String stripped = path.substring(TOOL_LAYER_TEX_PREFIX.length(),
+                path.length() - PNG_SUFFIX.length());
+        int slash = stripped.indexOf('/');
+        if (slash < 0) return null;
+        String toolPath = stripped.substring(0, slash);
+        String slotPart = stripped.substring(slash + 1);
+        int underscore = slotPart.indexOf('_');
+        if (underscore <= 0) return null;
+        int slotIndex;
+        try {
+            slotIndex = Integer.parseInt(slotPart.substring(0, underscore));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return () -> {
+            try {
+                BufferedImage png = synthesizeToolSlotTexture(toolPath, slotIndex);
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                ImageIO.write(png, "PNG", out);
+                return new ByteArrayInputStream(out.toByteArray());
+            } catch (IOException e) {
+                throw new IOException("Failed to synthesize tool slot texture: " + path, e);
+            }
+        };
+    }
+
+    private static BufferedImage synthesizeToolSlotTexture(String toolPath, int slotIndex) throws IOException {
+        Identifier sourceId = switch (toolPath) {
+            case "sword"   -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_sword");
+            case "pickaxe" -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_pickaxe");
+            default        -> null;
+        };
+        if (sourceId == null) {
+            throw new IOException("No source-texture mapping for tool: " + toolPath);
+        }
+        BufferedImage source = readTemplateTexture(sourceId);
+        int W = source.getWidth(), H = source.getHeight();
+        PixelKind[][] kind = classifyPixels(source, W, H);
+
+        // Compute per-slot mask of pixels to keep.
+        boolean[][] mask = computeSlotMask(toolPath, slotIndex, kind, W, H);
+
+        // Emit grayscale-with-alpha: tint multiplies cleanly into material colour.
+        // Handle pixels get their luminance range stretched up so different handle
+        // materials read as visually distinct after tinting (vanilla brown handles
+        // are very dim: luma ~30–80, which when multiplied by a material colour
+        // produces dark and nearly-indistinguishable shades of every material).
+        BufferedImage out = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                if (!mask[x][y]) continue;
+                int rgba = source.getRGB(x, y);
+                out.setRGB(x, y, desaturate(rgba, kind[x][y]));
+            }
+        }
+        return out;
+    }
+
+    private static PixelKind[][] classifyPixels(BufferedImage src, int W, int H) {
+        PixelKind[][] kind = new PixelKind[W][H];
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                kind[x][y] = classifyPixel(src.getRGB(x, y));
+            }
+        }
+        return kind;
+    }
+
+    private static PixelKind classifyPixel(int argb) {
+        int a = (argb >>> 24) & 0xFF;
+        if (a < 32) return PixelKind.TRANSPARENT;
+        int r = (argb >>> 16) & 0xFF;
+        int g = (argb >>> 8)  & 0xFF;
+        int b = (argb)        & 0xFF;
+        int max = Math.max(r, Math.max(g, b));
+        int min = Math.min(r, Math.min(g, b));
+        int chroma = max - min;
+        // Warm-tinted (R > G > B with non-trivial chroma) → wooden handle
+        if (r > g && g > b && chroma > 24) return PixelKind.HANDLE;
+        // Low-saturation pixels (silvery) → metal
+        if (chroma < 40) return PixelKind.METAL;
+        // Anything else: classify by which channel dominates — warmth ⇒ handle, else metal
+        return (r > b + 8) ? PixelKind.HANDLE : PixelKind.METAL;
+    }
+
+    /**
+     * Desaturates to luminance preserving alpha; HANDLE pixels are rescaled into a much
+     * brighter range so different handle materials read as visually distinct after the
+     * multiplicative slot tint. Vanilla wooden handles have luma ~30–80; left as-is, every
+     * handle material would render as a very dim shade and the iron/wood/copper variants
+     * would be hard to tell apart. Mapping [30,80] → [180,240] preserves the wood-grain
+     * shading while keeping the result bright enough for the slot's material colour to
+     * dominate. METAL pixels are already bright in the source texture and pass through
+     * untouched so dark pommel/outline shading reads as shadow detail, not as muddied tint.
+     */
+    private static int desaturate(int argb, PixelKind kind) {
+        int a = (argb >>> 24) & 0xFF;
+        int r = (argb >>> 16) & 0xFF;
+        int g = (argb >>> 8)  & 0xFF;
+        int b = (argb)        & 0xFF;
+        // BT.601 luma
+        int y = (299 * r + 587 * g + 114 * b + 500) / 1000;
+        if (kind == PixelKind.HANDLE) {
+            // Linear remap [30, 80] → [180, 240], clamp outside.
+            y = 180 + (y - 30) * 60 / 50;
+            y = Math.max(180, Math.min(240, y));
+        } else {
+            y = Math.max(0, Math.min(255, y));
+        }
+        return (a << 24) | (y << 16) | (y << 8) | y;
+    }
+
+    private static boolean[][] computeSlotMask(String toolPath, int slotIndex,
+                                                PixelKind[][] kind, int W, int H) {
+        switch (toolPath) {
+            case "sword" -> {
+                // Vanilla iron_sword runs bottom-left (handle / pommel) → top-right (blade tip).
+                // Anti-diagonal progress separates the blade-half from the pommel-half so the
+                // tiny grey pommel cluster at the bottom-left doesn't leak into the BLADE layer.
+                // progress(x,y) ∈ [0,1]: 0 at the bottom-left, 1 at the top-right.
+                int span = (W - 1) + (H - 1);
+                java.util.function.BiPredicate<Integer, Integer> inBladeHalf =
+                        (x, y) -> (x + (H - 1 - y)) * 100 >= 30 * span;       // >= 0.30 progress
+                boolean[][] guardBand = metalBoundaryWithHandle(kind, W, H, inBladeHalf);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL
+                                                          && inBladeHalf.test(x, y)
+                                                          && !guardBand[x][y]);
+                    case 1 -> guardBand;
+                    case 2 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.HANDLE);
+                    case 3 -> unionMasks(W, H,
+                            // Pommel: METAL pixels in the lower-left half (not in BLADE)
+                            maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL
+                                                       && !inBladeHalf.test(x, y)),
+                            // Plus a small accent disc at the guard centroid for visibility
+                            centeredDisc(guardBand, W, H, 1));
+                    default -> new boolean[W][H];
+                };
+            }
+            case "pickaxe" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1 -> handleHalf(kind, W, H, true);
+                    case 2 -> handleHalf(kind, W, H, false);
+                    case 3 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+        }
+        return new boolean[W][H];
+    }
+
+    private static boolean[][] unionMasks(int W, int H, boolean[][] a, boolean[][] b) {
+        boolean[][] m = new boolean[W][H];
+        for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) m[x][y] = a[x][y] || b[x][y];
+        return m;
+    }
+
+    /** Functional predicate to boolean-mask conversion. */
+    @FunctionalInterface
+    private interface XY { boolean test(int x, int y); }
+
+    private static boolean[][] maskWhere(int W, int H, XY p) {
+        boolean[][] m = new boolean[W][H];
+        for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) m[x][y] = p.test(x, y);
+        return m;
+    }
+
+    /**
+     * METAL pixels with at least one 4-neighbor HANDLE pixel — the guard band.
+     * {@code restrict} filters which positions are eligible (used to keep the sword's
+     * pommel out of the guard band even though the pommel is METAL adjacent to HANDLE).
+     */
+    private static boolean[][] metalBoundaryWithHandle(PixelKind[][] kind, int W, int H,
+                                                       java.util.function.BiPredicate<Integer, Integer> restrict) {
+        boolean[][] m = new boolean[W][H];
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                if (kind[x][y] != PixelKind.METAL) continue;
+                if (restrict != null && !restrict.test(x, y)) continue;
+                boolean adj =
+                       (x > 0     && kind[x - 1][y] == PixelKind.HANDLE)
+                    || (x < W - 1 && kind[x + 1][y] == PixelKind.HANDLE)
+                    || (y > 0     && kind[x][y - 1] == PixelKind.HANDLE)
+                    || (y < H - 1 && kind[x][y + 1] == PixelKind.HANDLE);
+                if (adj) m[x][y] = true;
+            }
+        }
+        return m;
+    }
+
+    /** Disc centered on the centroid of the input boolean mask. radius in pixels. */
+    private static boolean[][] centeredDisc(boolean[][] anchor, int W, int H, int radius) {
+        long sx = 0, sy = 0, n = 0;
+        for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) if (anchor[x][y]) { sx += x; sy += y; n++; }
+        boolean[][] m = new boolean[W][H];
+        if (n == 0) return m;
+        int cx = (int) (sx / n), cy = (int) (sy / n);
+        int r2 = radius * radius;
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                int dx = x - cx, dy = y - cy;
+                if (dx * dx + dy * dy <= r2) m[x][y] = true;
+            }
+        }
+        return m;
+    }
+
+    /**
+     * Disc at the centroid of METAL pixels in the upper third of the image (the head proper).
+     * Clipping to the upper region keeps the disc anchored to the head where the handle
+     * attaches — without this, the long descending spike pulls the all-metal centroid
+     * sideways and the binder lands off-center along the spike instead of inside the head.
+     */
+    private static boolean[][] headCenteredDisc(PixelKind[][] kind, int W, int H, int radius) {
+        int upperY = Math.max(1, H / 3);  // top third = head region in 16-tall pickaxe textures
+        long sx = 0, sy = 0, n = 0;
+        for (int y = 0; y < upperY; y++) for (int x = 0; x < W; x++) {
+            if (kind[x][y] == PixelKind.METAL) { sx += x; sy += y; n++; }
+        }
+        // Fall back to all-metal centroid if the top portion is empty (shouldn't happen
+        // for vanilla iron_pickaxe, but defensive in case a modder remaps the source).
+        if (n == 0) {
+            for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+                if (kind[x][y] == PixelKind.METAL) { sx += x; sy += y; n++; }
+            }
+        }
+        boolean[][] m = new boolean[W][H];
+        if (n == 0) return m;
+        int cx = (int) (sx / n), cy = (int) (sy / n);
+        int r2 = radius * radius;
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                int dx = x - cx, dy = y - cy;
+                if (dx * dx + dy * dy <= r2 && kind[x][y] == PixelKind.METAL) m[x][y] = true;
+            }
+        }
+        return m;
+    }
+
+    /**
+     * HANDLE pixels split by Y into upper / lower halves using the handle's own centroid as
+     * the cut. {@code upper=true} keeps pixels with Y < midY (closer to the head, which is at
+     * the top of vanilla pickaxe textures).
+     */
+    private static boolean[][] handleHalf(PixelKind[][] kind, int W, int H, boolean upper) {
+        long sy = 0, n = 0;
+        for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+            if (kind[x][y] == PixelKind.HANDLE) { sy += y; n++; }
+        }
+        boolean[][] m = new boolean[W][H];
+        if (n == 0) return m;
+        int midY = (int) (sy / n);
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                if (kind[x][y] != PixelKind.HANDLE) continue;
+                if (upper ? (y < midY) : (y >= midY)) m[x][y] = true;
+            }
+        }
+        return m;
     }
 
     /** True if there's a registered material with this path AND a non-zero meltingTemp. */
@@ -505,29 +853,56 @@ public class SmitheryGeneratedPack implements PackResources {
                 """.formatted(modelId);
     }
 
+    /**
+     * Builds the model JSON for a tool with one texture layer per slot. Texture path convention:
+     * {@code smithery:item/tool/<tool_path>/<slotIndex>_<partTypePath>} — slot index keeps
+     * duplicate part types (e.g. pickaxe's two handles) disambiguated. Artists drop pre-shaded
+     * silhouettes into {@code assets/smithery/textures/item/tool/<tool>/<index>_<part>.png}.
+     */
     private static String buildToolModelJson(ToolType tt) {
-        return """
-                {
-                  "parent": "item/handheld",
-                  "textures": {
-                    "layer0": "smithery:item/tool/%s"
-                  }
-                }
-                """.formatted(tt.id().getPath());
+        StringBuilder sb = new StringBuilder(512);
+        sb.append("{\n");
+        sb.append("  \"parent\": \"item/handheld\",\n");
+        sb.append("  \"textures\": {\n");
+        List<ToolType.Slot> slots = tt.slots();
+        for (int i = 0; i < slots.size(); i++) {
+            String partPath = slots.get(i).partType().id().getPath();
+            sb.append("    \"layer").append(i).append("\": \"")
+              .append(Smithery.MODID).append(":item/tool/")
+              .append(tt.id().getPath()).append("/")
+              .append(i).append("_").append(partPath).append("\"");
+            if (i < slots.size() - 1) sb.append(",");
+            sb.append("\n");
+        }
+        sb.append("  }\n");
+        sb.append("}\n");
+        return sb.toString();
     }
 
+    /**
+     * Builds the item-definition JSON for a tool. One {@code tool_slot_material} tint per
+     * slot in declaration order — each tint reads {@link com.soul.smithery.item.tool.ToolComposition}
+     * and returns the partColor of the material occupying that slot, so every material in the
+     * tool's composition shows up at render time in its corresponding silhouette layer.
+     */
     private static String buildToolItemDefJson(ToolType tt) {
-        return """
-                {
-                  "model": {
-                    "type": "minecraft:model",
-                    "model": "smithery:item/%s",
-                    "tints": [
-                      { "type": "smithery:tool_primary_material" }
-                    ]
-                  }
-                }
-                """.formatted(tt.id().getPath());
+        StringBuilder sb = new StringBuilder(512);
+        sb.append("{\n");
+        sb.append("  \"model\": {\n");
+        sb.append("    \"type\": \"minecraft:model\",\n");
+        sb.append("    \"model\": \"").append(Smithery.MODID).append(":item/")
+          .append(tt.id().getPath()).append("\",\n");
+        sb.append("    \"tints\": [\n");
+        int n = tt.slots().size();
+        for (int i = 0; i < n; i++) {
+            sb.append("      { \"type\": \"smithery:tool_slot_material\", \"slot\": ").append(i).append(" }");
+            if (i < n - 1) sb.append(",");
+            sb.append("\n");
+        }
+        sb.append("    ]\n");
+        sb.append("  }\n");
+        sb.append("}\n");
+        return sb.toString();
     }
 
     // ---- Molten fluid + bucket JSON ----

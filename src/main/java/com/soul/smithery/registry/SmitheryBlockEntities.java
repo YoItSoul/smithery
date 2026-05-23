@@ -2,6 +2,7 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.block.entity.CastingTableBlockEntity;
+import com.soul.smithery.block.entity.FluidPipeBlockEntity;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
 import com.soul.smithery.block.entity.ForgeDrainBlockEntity;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
@@ -29,6 +30,11 @@ public final class SmitheryBlockEntities {
             FORGE_DRAIN = BLOCK_ENTITIES.register("forge_drain",
                     () -> new BlockEntityType<>(ForgeDrainBlockEntity::new,
                             SmitheryBlocks.FORGE_DRAIN.get()));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<FluidPipeBlockEntity>>
+            FLUID_PIPE = BLOCK_ENTITIES.register("fluid_pipe",
+                    () -> new BlockEntityType<>(FluidPipeBlockEntity::new,
+                            SmitheryBlocks.FLUID_PIPE.get()));
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<CastingTableBlockEntity>>
             CASTING_TABLE = BLOCK_ENTITIES.register("casting_table",

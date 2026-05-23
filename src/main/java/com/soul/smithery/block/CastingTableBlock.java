@@ -64,9 +64,15 @@ public class CastingTableBlock extends Block implements EntityBlock {
 
     @Override
     public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        if (level.isClientSide()) return null;
         if (type != SmitheryBlockEntities.CASTING_TABLE.get()) return null;
-        // Drives the COOLING → COVERED countdown. All other state transitions are interaction-driven.
+        if (level.isClientSide()) {
+            // Client-side prediction of the cooling countdown so the renderer's
+            // coolingFraction transitions smoothly (server doesn't re-sync intermediate
+            // values; without this the molten tint would snap directly to partColor at READY).
+            return (lvl, pos, st, be) -> ((CastingTableBlockEntity) be).clientTick();
+        }
+        // Drives the COOLING → READY countdown server-side. All other state transitions
+        // are interaction-driven.
         return (lvl, pos, st, be) -> ((CastingTableBlockEntity) be).serverTick((ServerLevel) lvl, pos, st);
     }
 
@@ -110,6 +116,16 @@ public class CastingTableBlock extends Block implements EntityBlock {
             if (be.tryImpressPart(stack)) {
                 return InteractionResult.SUCCESS;
             }
+            return InteractionResult.PASS;
+        }
+
+        // --- Registered template item (vanilla ingot/nugget, modder-added ender pearl, etc) ---
+        // CastTemplates is the modder-facing registry: ItemStack → cast-target PartType id.
+        net.minecraft.resources.Identifier castTypeId =
+                com.soul.smithery.api.cast.CastTemplates.resolve(stack);
+        if (castTypeId != null) {
+            if (level.isClientSide()) return InteractionResult.SUCCESS;
+            if (be.tryImpressTemplateItem(castTypeId)) return InteractionResult.SUCCESS;
             return InteractionResult.PASS;
         }
 

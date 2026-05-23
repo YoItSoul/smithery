@@ -32,6 +32,7 @@ public final class MaterialStats {
     private final int moltenColor;
     private final int partColor;
     private final float binderMultiplier;
+    private final boolean castOnly;
     private final Map<Identifier, Integer> modifierSlots;
     private final Map<Identifier, List<ModifierEffect>> modifiers;
 
@@ -44,6 +45,7 @@ public final class MaterialStats {
         this.moltenColor = b.moltenColor;
         this.partColor = b.partColor != 0 ? b.partColor : darken(b.moltenColor);
         this.binderMultiplier = b.binderMultiplier;
+        this.castOnly = b.castOnly;
         this.modifierSlots = Collections.unmodifiableMap(new HashMap<>(b.modifierSlots));
         this.modifiers = Collections.unmodifiableMap(new HashMap<>(b.modifiers));
     }
@@ -56,6 +58,13 @@ public final class MaterialStats {
     public int moltenColor() { return moltenColor; }
     public int partColor() { return partColor; }
     public float binderMultiplier() { return binderMultiplier; }
+    /**
+     * If true, this material exists in fluid form only — it doesn't auto-generate smithery
+     * PartItems for the standard part types (blade/guard/handle/etc). Useful for materials
+     * like ender that only make sense as a special-cast product (vanilla ender pearl) rather
+     * than as a tool material. Set via {@link Builder#castOnly}.
+     */
+    public boolean castOnly() { return castOnly; }
 
     public int modifierSlotsFor(PartType partType) {
         return modifierSlots.getOrDefault(partType.id(), 0);
@@ -85,6 +94,7 @@ public final class MaterialStats {
         private int moltenColor = 0xFFAAAAAA;
         private int partColor = 0;
         private float binderMultiplier = 1.0f;
+        private boolean castOnly = false;
         private final Map<Identifier, Integer> modifierSlots = new HashMap<>();
         private final Map<Identifier, List<ModifierEffect>> modifiers = new HashMap<>();
 
@@ -96,6 +106,12 @@ public final class MaterialStats {
         public Builder moltenColor(int argb) { this.moltenColor = argb; return this; }
         public Builder partColor(int argb) { this.partColor = argb; return this; }
         public Builder binderMultiplier(float v) { this.binderMultiplier = v; return this; }
+        /**
+         * Mark this material as fluid-only — no auto-generated PartItems for the standard
+         * smithery part types. Used for materials that only make sense in cast form
+         * (e.g. ender → ender pearl) and shouldn't appear as blade/guard/handle items.
+         */
+        public Builder castOnly(boolean v) { this.castOnly = v; return this; }
 
         public Builder modifierSlots(PartType pt, int slots) {
             this.modifierSlots.put(Objects.requireNonNull(pt).id(), slots);

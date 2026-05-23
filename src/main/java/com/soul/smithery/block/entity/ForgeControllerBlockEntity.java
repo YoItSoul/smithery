@@ -57,8 +57,15 @@ import java.util.Set;
  */
 public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvider {
 
-    private static final int MAX_INTERIOR_BLOCKS = 1024;
-    private static final int MAX_SHELL_BLOCKS = 2048;
+    // Forge size is unlimited by design — there is intentionally no hard cap on shell or
+    // interior block count. The validation BFS terminates naturally when no more connected
+    // brick/air blocks exist, and the per-tick melting loop only does meaningful work for
+    // slots with items in them. The BE renderer is view-distance culled at 64 blocks, and
+    // realistic item population is capped by how much source material the player feeds in.
+    //
+    // The one practical risk of "limitless" is that a player who accidentally connects their
+    // forge wall to an existing brick mega-structure will validate the entire connected blob.
+    // If that becomes a problem we can revisit with a time-bounded BFS rather than a count cap.
     private static final int VALIDATION_TICK_INTERVAL = 40;
 
     private static final float HEAT_AMBIENT_C        = 20.0f;
@@ -409,10 +416,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         while (!shellQueue.isEmpty()) {
             BlockPos p = shellQueue.remove(shellQueue.size() - 1);
             if (!shellPool.add(p)) continue;
-            if (shellPool.size() > MAX_SHELL_BLOCKS) {
-                lastValidation = ValidationResult.invalid("connected shell too large (>" + MAX_SHELL_BLOCKS + ")");
-                return lastValidation;
-            }
             for (int dx = -1; dx <= 1; dx++) for (int dy = -1; dy <= 1; dy++) for (int dz = -1; dz <= 1; dz++) {
                 if (dx == 0 && dy == 0 && dz == 0) continue;
                 BlockPos n = p.offset(dx, dy, dz);
@@ -448,10 +451,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             BlockPos p = queue.remove(queue.size() - 1);
             if (!inBbox(p, bxMin, bxMax, byMin, byMax, bzMin, bzMax)) continue;
             if (!interior.add(p)) continue;
-            if (interior.size() > MAX_INTERIOR_BLOCKS) {
-                lastValidation = ValidationResult.invalid("interior too large (>" + MAX_INTERIOR_BLOCKS + ")");
-                return lastValidation;
-            }
             for (Direction d : Direction.values()) {
                 BlockPos n = p.relative(d);
                 if (!interior.contains(n) && inBbox(n, bxMin, bxMax, byMin, byMax, bzMin, bzMax) && isInteriorCandidate(n))

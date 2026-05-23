@@ -9,12 +9,16 @@ import net.minecraft.resources.Identifier;
 /**
  * Built-in tool types: Sword and Pickaxe.
  *
- * Slot composition matches the design doc:
- *   Sword    = blade + guard + handle + binder
- *   Pickaxe  = pick_head × 2 + handle × 2 + binder
+ * Slot composition:
+ *   Sword    = blade + guard + handle + binder           (4 slots)
+ *   Pickaxe  = pick_head + handle × 2 + binder           (4 slots)
  *
- * Slot order is significant for shaped recipe consumption order — but does NOT determine
- * the 3×3 grid layout; that lives in the shaped recipe data file.
+ * Pickaxe's pick_head is a single part (no two-piece head). Two handles support
+ * bi-material grips (e.g. wood main + leather fore-grip wrap) — distinct slots that
+ * render as distinct layers in the layered tool model.
+ *
+ * Slot order is significant for shaped recipe consumption order, drives the per-slot
+ * layer order in the dynamic tool model, and indexes into {@link ToolComposition#slotMaterials()}.
  */
 public final class SmitheryToolTypes {
     public static ToolType SWORD;
@@ -29,7 +33,7 @@ public final class SmitheryToolTypes {
                 .build());
 
         PICKAXE = SmitheryAPI.registerToolType(ToolType.builder(id("pickaxe"))
-                .addPart(SmitheryPartTypes.PICK_HEAD, DurabilityRole.ADDITIVE, 2)
+                .addPart(SmitheryPartTypes.PICK_HEAD, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.HANDLE, DurabilityRole.ADDITIVE, 2)
                 .addPart(SmitheryPartTypes.BINDER, DurabilityRole.MULTIPLIER)
                 .build());
