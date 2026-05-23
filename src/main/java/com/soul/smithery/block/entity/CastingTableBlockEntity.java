@@ -6,6 +6,7 @@ import com.soul.smithery.item.PartItem;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -15,8 +16,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.core.Direction;
+import net.neoforged.neoforge.transfer.ResourceHandler;
+import net.neoforged.neoforge.transfer.fluid.FluidResource;
+import net.neoforged.neoforge.transfer.transaction.TransactionContext;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Optional;
@@ -48,11 +55,20 @@ public class CastingTableBlockEntity extends BlockEntity {
 
     /** Number of brush strokes needed to fully sweep the sand off (matches suspicious-sand pacing). */
     public static final int MAX_BRUSH = 4;
+    /** Per-mB cooling rate (in ticks). matches the inline state-machine comment: timer = mB / 5. */
+    public static final int COOLING_TICKS_PER_MB = 1;
 
     private State state = State.EMPTY;
     private @Nullable Identifier impressedPartTypeId; // set when state >= IMPRESSED
     private int requiredMb = 0;                       // set when state >= IMPRESSED
     private int brushProgress = 0;                    // 0..MAX_BRUSH, resets on state transition
+
+    // ---- Filling / cooling state ----
+    // pouredFluid stays Fluids.EMPTY until first pour. filledMb counts toward requiredMb;
+    // when it hits requiredMb we flip to COOLING and set coolingTicksRemaining.
+    private Fluid pouredFluid = Fluids.EMPTY;
+    private int   filledMb = 0;
+    private int   coolingTicksRemaining = 0;
 
     public CastingTableBlockEntity(BlockPos pos, BlockState state) {
         super(SmitheryBlockEntities.CASTING_TABLE.get(), pos, state);
@@ -64,6 +80,14 @@ public class CastingTableBlockEntity extends BlockEntity {
     public @Nullable Identifier impressedPartTypeId() { return impressedPartTypeId; }
     public int requiredMb() { return requiredMb; }
     public int brushProgress() { return brushProgress; }
+    public Fluid pouredFluid() { return pouredFluid; }
+    public int filledMb() { return filledMb; }
+    public int coolingTicksRemaining() { return coolingTicksRemaining; }
+
+    /** True iff this table can currently accept poured fluid (IMPRESSED, or partially FILLING). */
+    public boolean acceptsPour() {
+        return state == State.IMPRESSED || (state == State.FILLING && filledMb < requiredMb);
+    }
 
     // ---- Interactions ----
 
@@ -89,6 +113,52 @@ public class CastingTableBlockEntity extends BlockEntity {
         state = State.IMPRESSED;
         markDirtyAndSync();
         return true;
+    }
+
+    /**
+     * Pour fluid into an IMPRESSED or partially-FILLING table. Mismatched fluids are
+     * rejected outright (return 0). Returns the actual mB accepted. Advances:
+     *   IMPRESSED → FILLING (on first pour; records {@link #pouredFluid})
+     *   FILLING@requiredMb → COOLING (kicks off the cooldown timer)
+     */
+    public int tryPourFluid(Fluid fluid, int mb) {
+        if (fluid == null || fluid == Fluids.EMPTY || mb <= 0) return 0;
+        if (!acceptsPour()) return 0;
+        // Lock the fluid identity on first pour. Subsequent pours must match.
+        if (state == State.IMPRESSED) {
+            pouredFluid = fluid;
+            filledMb = 0;
+        } else if (pouredFluid != fluid) {
+            return 0;
+        }
+
+        int accepted = Math.min(mb, requiredMb - filledMb);
+        if (accepted <= 0) return 0;
+        filledMb += accepted;
+
+        if (state == State.IMPRESSED) {
+            state = State.FILLING;
+            // Pour invalidates any partial brushing the player did pre-pour.
+            brushProgress = 0;
+        }
+        if (filledMb >= requiredMb) {
+            state = State.COOLING;
+            coolingTicksRemaining = Math.max(1, requiredMb * COOLING_TICKS_PER_MB / 5);
+        }
+        markDirtyAndSync();
+        return accepted;
+    }
+
+    /** Server-tick hook for cooling countdown. Other transitions are interaction-driven. */
+    public void serverTick(ServerLevel level, BlockPos pos, BlockState blockState) {
+        if (state != State.COOLING) return;
+        if (coolingTicksRemaining > 0) {
+            coolingTicksRemaining--;
+            if (coolingTicksRemaining == 0) {
+                state = State.COVERED;
+                markDirtyAndSync();
+            }
+        }
     }
 
     /**
@@ -120,6 +190,11 @@ public class CastingTableBlockEntity extends BlockEntity {
                     state = State.EMPTY;
                     impressedPartTypeId = null;
                     requiredMb = 0;
+                    // Brush-out of an IMPRESSED template doesn't normally see a pour, but reset
+                    // defensively so a half-poured-then-brushed-back-to-EMPTY table stays clean.
+                    pouredFluid = Fluids.EMPTY;
+                    filledMb = 0;
+                    coolingTicksRemaining = 0;
                 }
                 case COVERED -> state = State.READY;
                 default -> {}
@@ -144,6 +219,16 @@ public class CastingTableBlockEntity extends BlockEntity {
         if (brushProgress > 0) {
             output.putInt("brushProgress", brushProgress);
         }
+        if (pouredFluid != Fluids.EMPTY) {
+            Identifier fluidId = BuiltInRegistries.FLUID.getKey(pouredFluid);
+            if (fluidId != null) output.putString("pouredFluid", fluidId.toString());
+        }
+        if (filledMb > 0) {
+            output.putInt("filledMb", filledMb);
+        }
+        if (coolingTicksRemaining > 0) {
+            output.putInt("coolingTicks", coolingTicksRemaining);
+        }
     }
 
     @Override
@@ -154,6 +239,18 @@ public class CastingTableBlockEntity extends BlockEntity {
         impressedPartTypeId = ptStr.map(Identifier::tryParse).orElse(null);
         requiredMb = input.getInt("requiredMb").orElse(0);
         brushProgress = input.getInt("brushProgress").orElse(0);
+
+        Optional<String> fluidStr = input.getString("pouredFluid");
+        if (fluidStr.isPresent()) {
+            Identifier fluidId = Identifier.tryParse(fluidStr.get());
+            pouredFluid = fluidId == null
+                    ? Fluids.EMPTY
+                    : BuiltInRegistries.FLUID.get(fluidId).<Fluid>map(r -> r.value()).orElse(Fluids.EMPTY);
+        } else {
+            pouredFluid = Fluids.EMPTY;
+        }
+        filledMb = input.getInt("filledMb").orElse(0);
+        coolingTicksRemaining = input.getInt("coolingTicks").orElse(0);
     }
 
     // ---- Sync helpers ----
@@ -185,5 +282,52 @@ public class CastingTableBlockEntity extends BlockEntity {
     @Override
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         return saveCustomOnly(registries);
+    }
+
+    // ---- Fluid capability exposure ----
+    //
+    // Casting tables expose a *write-only* fluid endpoint: fluid pipes (and any other
+    // mod's plumbing) can fill them, but they don't release fluid via the capability —
+    // the cast is consumed by the player retrieving the part, not by draining.
+    // Acceptance is gated by the table state, which already enforces "IMPRESSED or
+    // partially FILLING and not full" via acceptsPour(). Implementation commits
+    // immediately without transaction journaling (see FluidPipeBlockEntity for the
+    // same caveat).
+
+    public ResourceHandler<FluidResource> fluidHandlerFor(@Nullable Direction side) {
+        return new TableFluidHandler();
+    }
+
+    private final class TableFluidHandler implements ResourceHandler<FluidResource> {
+        @Override public int size() { return 1; }
+
+        @Override public FluidResource getResource(int slot) {
+            return (pouredFluid == Fluids.EMPTY || filledMb <= 0)
+                    ? FluidResource.EMPTY : FluidResource.of(pouredFluid);
+        }
+
+        @Override public long getAmountAsLong(int slot) { return filledMb; }
+
+        @Override public long getCapacityAsLong(int slot, FluidResource resource) {
+            return Math.max(0, requiredMb);
+        }
+
+        @Override public boolean isValid(int slot, FluidResource resource) {
+            if (!acceptsPour() || resource.isEmpty()) return false;
+            return pouredFluid == Fluids.EMPTY || resource.getFluid() == pouredFluid;
+        }
+
+        @Override
+        public int insert(int slot, FluidResource resource, int amount, TransactionContext tx) {
+            if (slot != 0 || !acceptsPour() || resource.isEmpty() || amount <= 0) return 0;
+            if (pouredFluid != Fluids.EMPTY && resource.getFluid() != pouredFluid) return 0;
+            return tryPourFluid(resource.getFluid(), amount);
+        }
+
+        @Override
+        public int extract(int slot, FluidResource resource, int amount, TransactionContext tx) {
+            // Write-only — tables don't yield fluid back to the network.
+            return 0;
+        }
     }
 }

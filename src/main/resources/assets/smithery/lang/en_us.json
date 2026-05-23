@@ -9,6 +9,7 @@
     "block.smithery.forge_drain":  "Forge Drain",
     "block.smithery.casting_sand":  "Casting Sand",
     "block.smithery.casting_table":  "Casting Table",
+    "block.smithery.fluid_pipe":  "Fluid Pipe",
     "item.smithery.part_combo":  "%1$s %2$s",
     "tooltip.smithery.part.harvest_level":  "Harvest Level: %s",
     "tooltip.smithery.part.modifier_slots":  "Modifier Slots: %s",

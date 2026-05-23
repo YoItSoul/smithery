@@ -2,8 +2,10 @@ package com.soul.smithery.block;
 
 import com.soul.smithery.block.entity.CastingTableBlockEntity;
 import com.soul.smithery.item.PartItem;
+import com.soul.smithery.registry.SmitheryBlockEntities;
 import com.soul.smithery.registry.SmitheryBlocks;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -13,6 +15,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -52,6 +56,14 @@ public class CastingTableBlock extends Block implements EntityBlock {
     @Override
     public @Nullable BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new CastingTableBlockEntity(pos, state);
+    }
+
+    @Override
+    public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
+        if (level.isClientSide()) return null;
+        if (type != SmitheryBlockEntities.CASTING_TABLE.get()) return null;
+        // Drives the COOLING → COVERED countdown. All other state transitions are interaction-driven.
+        return (lvl, pos, st, be) -> ((CastingTableBlockEntity) be).serverTick((ServerLevel) lvl, pos, st);
     }
 
     @Override

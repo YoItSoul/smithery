@@ -57,6 +57,7 @@ public class Smithery {
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_DRAIN_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_TABLE_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_SAND_ITEM.get());
+                        output.accept(com.soul.smithery.registry.SmitheryBlocks.FLUID_PIPE_ITEM.get());
                     })
                     .build());
 

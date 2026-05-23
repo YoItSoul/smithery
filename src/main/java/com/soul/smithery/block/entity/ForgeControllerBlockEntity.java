@@ -43,6 +43,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -83,6 +84,13 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     // ---- Fluid storage ----
     private final Map<Identifier, Integer> fluidStorage = new LinkedHashMap<>();
+    /**
+     * Player-selected fluid id to route out through drains/pipes. {@code null} until the
+     * player clicks one in the GUI. The GUI also re-anchors this entry to the END of
+     * {@link #fluidStorage} (LinkedHashMap iteration order) so it renders at the bottom
+     * of the molten-metal stack.
+     */
+    private @Nullable Identifier outputFluidId;
 
     // ---- Slot-based inventory ----
     // One slot per interior air block. Positions are in deterministic order (Y asc, X asc, Z asc).
@@ -146,6 +154,43 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     /** Read-only view of the storage map keyed by Fluid ID. */
     public Map<Identifier, Integer> fluidStorageView() {
         return Collections.unmodifiableMap(fluidStorage);
+    }
+
+    /** Currently-selected output fluid id, or {@code null} if the player hasn't picked one. */
+    public @Nullable Identifier outputFluidId() { return outputFluidId; }
+
+    /** mB stored for the currently-selected output fluid; 0 if none selected or none in stock. */
+    public int outputFluidMb() {
+        return outputFluidId == null ? 0 : fluidStorage.getOrDefault(outputFluidId, 0);
+    }
+
+    /**
+     * Player picked a fluid in the GUI. Validates it's actually stored, then re-anchors
+     * the LinkedHashMap entry so it iterates LAST — that's what positions it at the
+     * bottom of the molten-metal stack in the renderer (which draws top-to-bottom in
+     * insertion order). Returns true if the selection changed.
+     */
+    public boolean setOutputFluid(@Nullable Identifier fluidId) {
+        if (fluidId != null && !fluidStorage.containsKey(fluidId)) {
+            return false;
+        }
+        boolean changed = !Objects.equals(this.outputFluidId, fluidId);
+        this.outputFluidId = fluidId;
+        if (fluidId != null) {
+            // Move the selected fluid to the end of the LinkedHashMap iteration order.
+            // remove + put re-inserts at tail, leaving other entries' relative order intact.
+            Integer amount = fluidStorage.remove(fluidId);
+            if (amount != null) {
+                fluidStorage.put(fluidId, amount);
+            }
+        }
+        if (changed) {
+            setChanged();
+            if (level instanceof ServerLevel sl) {
+                sl.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
+        return changed;
     }
 
     /** Adds mB of the given fluid up to remaining capacity. Returns how many mB were actually added. */
@@ -457,6 +502,16 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         // Rebuild slot list from the new interior.
         rebuildSlots(interior);
 
+        // Link each drain BE in the shell back to this controller so the drain's fluid
+        // capability can passthrough to our storage. Runs every validation pass — cheap,
+        // and keeps the link fresh if drains were added/replaced since the last cycle.
+        for (BlockPos s : shell) {
+            if (level.getBlockState(s).is(SmitheryBlocks.FORGE_DRAIN.get())
+                    && level.getBlockEntity(s) instanceof ForgeDrainBlockEntity drain) {
+                drain.setControllerPos(worldPosition);
+            }
+        }
+
         lastValidation = ValidationResult.valid(
                 Collections.unmodifiableSet(interior), Collections.unmodifiableSet(shell),
                 openTop, Collections.unmodifiableSet(holePositions));
@@ -660,6 +715,13 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
 
+        outputFluidId = input.getString("outputFluidId").map(Identifier::tryParse).orElse(null);
+        // If the persisted output fluid is no longer in storage (e.g. drained dry between
+        // saves), null out the selection so the GUI doesn't show a stale tick mark.
+        if (outputFluidId != null && !fluidStorage.containsKey(outputFluidId)) {
+            outputFluidId = null;
+        }
+
         // Slot items + their in-progress melt amounts are loaded into pending maps and
         // merged into the slot list the next time validateStructure() runs (triggered
         // by onLoad on server side).
@@ -717,6 +779,10 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             ValueOutput entry = fluids.addChild();
             entry.putString("id", e.getKey().toString());
             entry.putInt("mb", e.getValue());
+        }
+
+        if (outputFluidId != null) {
+            output.putString("outputFluidId", outputFluidId.toString());
         }
 
         ValueOutput.ValueOutputList slotsOut = output.childrenList("slots");

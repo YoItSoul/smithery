@@ -1,0 +1,17 @@
+{
+  "texture_size": [64, 64],
+  "textures": { "0": "smithery:block/fluid_pipe", "particle": "smithery:block/fluid_pipe" },
+  "elements": [
+    {
+      "from": [0, 6, 6], "to": [1, 10, 10],
+      "faces": {
+        "north": {"uv": [8.25, 12, 8.5, 13], "texture": "#0"},
+        "east":  {"uv": [10.75, 5, 11.75, 6], "texture": "#0"},
+        "south": {"uv": [11.75, 12.25, 12, 13.25], "texture": "#0"},
+        "west":  {"uv": [7.5, 10.75, 8.5, 11.75], "texture": "#0"},
+        "up":    {"uv": [12.5, 13.25, 12.25, 12.25], "texture": "#0"},
+        "down":  {"uv": [0.75, 12.5, 0.5, 13.5], "texture": "#0"}
+      }
+    }
+  ]
+}

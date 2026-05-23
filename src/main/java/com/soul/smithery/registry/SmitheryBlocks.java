@@ -4,6 +4,7 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.block.CastingTableBlock;
+import com.soul.smithery.block.FluidPipeBlock;
 import com.soul.smithery.block.ForgeControllerBlock;
 import com.soul.smithery.block.ForgeDrainBlock;
 import com.soul.smithery.block.ForgeFuelPortBlock;
@@ -89,6 +90,20 @@ public final class SmitheryBlocks {
                             .strength(2.0f, 4.0f)
                             .sound(SoundType.WOOD));
 
+    /**
+     * Fluid pipe — one-way transport block. Per-face mode + single-fluid storage live on the BE;
+     * the BlockState carries six EnumProperty&lt;FluidPipeFaceVisual&gt; values (4 visuals × 6 faces =
+     * 4096 combinations) so a multipart blockstate can render each face independently.
+     */
+    public static final DeferredBlock<FluidPipeBlock> FLUID_PIPE =
+            BLOCKS.registerBlock("fluid_pipe",
+                    FluidPipeBlock::new,
+                    () -> BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.METAL)
+                            .strength(2.0f, 6.0f)
+                            .sound(SoundType.METAL)
+                            .noOcclusion());
+
     public static final DeferredBlock<ColoredFallingBlock> CASTING_SAND =
             BLOCKS.registerBlock("casting_sand",
                     // Particle color tuned to the darkened texture's average (~dark charcoal gray)
@@ -113,6 +128,8 @@ public final class SmitheryBlocks {
             SmitheryItems.ITEMS.registerSimpleBlockItem("casting_table", CASTING_TABLE);
     public static final DeferredItem<BlockItem> CASTING_SAND_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("casting_sand", CASTING_SAND);
+    public static final DeferredItem<BlockItem> FLUID_PIPE_ITEM =
+            SmitheryItems.ITEMS.registerSimpleBlockItem("fluid_pipe", FLUID_PIPE);
 
     /**
      * Internal "sand with cutout for PartType" block variants. One per registered PartType,
