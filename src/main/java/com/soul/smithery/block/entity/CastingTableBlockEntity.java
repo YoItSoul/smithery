@@ -23,6 +23,7 @@ import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.core.Direction;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.fluid.FluidResource;
+import net.neoforged.neoforge.transfer.item.ItemResource;
 import net.neoforged.neoforge.transfer.transaction.TransactionContext;
 import org.jspecify.annotations.Nullable;
 
@@ -55,7 +56,11 @@ public class CastingTableBlockEntity extends BlockEntity {
 
     /** Number of brush strokes needed to fully sweep the sand off (matches suspicious-sand pacing). */
     public static final int MAX_BRUSH = 4;
-    /** Per-mB cooling rate (in ticks). matches the inline state-machine comment: timer = mB / 5. */
+    /**
+     * Per-mB cooling time, in server ticks. With this set to 1, a 72 mB guard cools in
+     * ~3.6s and a 144 mB sword blade in ~7.2s — noticeable wait, scales linearly with
+     * part size. Bump higher for a slower / more deliberate craft feel.
+     */
     public static final int COOLING_TICKS_PER_MB = 1;
 
     private State state = State.EMPTY;
@@ -91,12 +96,32 @@ public class CastingTableBlockEntity extends BlockEntity {
 
     // ---- Interactions ----
 
-    /** EMPTY → SAND. Returns true if the state advanced (caller should consume 1 sand). */
+    /**
+     * Sand placement, handling both:
+     *   - EMPTY → SAND: fresh layer.
+     *   - IMPRESSED → SAND: smooth over an existing impression (the impressed PartType +
+     *     required mB are cleared so the player can re-impress with something else).
+     *
+     * The brush remains the dedicated "clear everything" tool (IMPRESSED → EMPTY); this
+     * just saves a step when the player only wants to swap the impression.
+     *
+     * Returns true if state actually advanced — caller consumes 1 sand on true.
+     */
     public boolean tryFillSand() {
-        if (state != State.EMPTY) return false;
-        state = State.SAND;
-        markDirtyAndSync();
-        return true;
+        if (state == State.EMPTY) {
+            state = State.SAND;
+            markDirtyAndSync();
+            return true;
+        }
+        if (state == State.IMPRESSED) {
+            state = State.SAND;
+            impressedPartTypeId = null;
+            requiredMb = 0;
+            brushProgress = 0;
+            markDirtyAndSync();
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -143,7 +168,9 @@ public class CastingTableBlockEntity extends BlockEntity {
         }
         if (filledMb >= requiredMb) {
             state = State.COOLING;
-            coolingTicksRemaining = Math.max(1, requiredMb * COOLING_TICKS_PER_MB / 5);
+            // Cooling time scales linearly with part size: requiredMb × per-mB rate.
+            // Old code divided by an extra 5 which made small parts cool in under a second.
+            coolingTicksRemaining = Math.max(1, requiredMb * COOLING_TICKS_PER_MB);
         }
         markDirtyAndSync();
         return accepted;
@@ -155,10 +182,62 @@ public class CastingTableBlockEntity extends BlockEntity {
         if (coolingTicksRemaining > 0) {
             coolingTicksRemaining--;
             if (coolingTicksRemaining == 0) {
-                state = State.COVERED;
+                // Cooling done → directly to READY. The legacy COVERED → brush 4× → READY
+                // step is skipped: the table holds a reusable sand mould, so the player just
+                // right-clicks at READY to take the part (and the cast stays for another pour).
+                // tryBrush still handles COVERED → READY for any existing world saves stuck
+                // in COVERED.
+                state = State.READY;
                 markDirtyAndSync();
             }
         }
+    }
+
+    /**
+     * READY → IMPRESSED: resolves the cooled cast into the matching (Material × PartType)
+     * PartItem and returns the stack for the caller to give / drop. The sand layer AND the
+     * impression (impressedPartTypeId + requiredMb) are preserved so the table is immediately
+     * ready to receive another pour — same cast, multiple parts. Returns {@code ItemStack.EMPTY}
+     * if not in READY state or the resolution fails.
+     *
+     * To actually clear the impression, the player brushes the table down (IMPRESSED → EMPTY).
+     */
+    public ItemStack tryRetrievePart() {
+        if (state != State.READY) return ItemStack.EMPTY;
+        ItemStack result = resolvePartItem();
+        // Reset only the pour-cycle fields. Keep impressedPartTypeId, requiredMb, and the
+        // implicit sand layer so the next pour can use the same mould.
+        state = State.IMPRESSED;
+        pouredFluid = Fluids.EMPTY;
+        filledMb = 0;
+        coolingTicksRemaining = 0;
+        brushProgress = 0;
+        // If the resolution failed (corrupt save?), fall all the way back to EMPTY so the
+        // table doesn't get stuck in an unrecoverable IMPRESSED state.
+        if (result.isEmpty()) {
+            state = State.EMPTY;
+            impressedPartTypeId = null;
+            requiredMb = 0;
+        }
+        markDirtyAndSync();
+        return result;
+    }
+
+    /** Resolves the (pouredFluid, impressedPartTypeId) pair into the registered PartItem stack. */
+    private ItemStack resolvePartItem() {
+        if (impressedPartTypeId == null || pouredFluid == Fluids.EMPTY) return ItemStack.EMPTY;
+        com.soul.smithery.registry.SmitheryFluids.Entry entry =
+                com.soul.smithery.registry.SmitheryFluids.forFluid(pouredFluid);
+        if (entry == null) return ItemStack.EMPTY;
+        var partItem = com.soul.smithery.registry.SmitheryItems.getBuiltInPart(
+                entry.materialId, impressedPartTypeId);
+        if (partItem == null) return ItemStack.EMPTY;
+        return new ItemStack(partItem.get());
+    }
+
+    /** Snapshot of the part item without consuming the cast — used by the renderer. */
+    public ItemStack peekPartItem() {
+        return resolvePartItem();
     }
 
     /**
@@ -328,6 +407,56 @@ public class CastingTableBlockEntity extends BlockEntity {
         public int extract(int slot, FluidResource resource, int amount, TransactionContext tx) {
             // Write-only — tables don't yield fluid back to the network.
             return 0;
+        }
+    }
+
+    // ---- Item capability exposure (hopper-friendly part extraction) ----
+    //
+    // Exposes a single virtual slot that's empty at all non-READY states and yields the
+    // cooled PartItem exactly once at READY. Extracting drops state back to IMPRESSED so
+    // the same mould can keep producing parts on subsequent pours — same as the right-click
+    // retrieve flow. Insert is hard-rejected: hopper-feeding items would bypass the
+    // sand/impression workflow that the block is built around.
+
+    public ResourceHandler<ItemResource> itemHandlerFor(@Nullable Direction side) {
+        return new TableItemHandler();
+    }
+
+    private final class TableItemHandler implements ResourceHandler<ItemResource> {
+        @Override public int size() { return 1; }
+
+        @Override public ItemResource getResource(int slot) {
+            if (slot != 0 || state != State.READY) return ItemResource.EMPTY;
+            ItemStack stack = peekPartItem();
+            return stack.isEmpty() ? ItemResource.EMPTY : ItemResource.of(stack);
+        }
+
+        @Override public long getAmountAsLong(int slot) {
+            if (slot != 0 || state != State.READY) return 0L;
+            return peekPartItem().isEmpty() ? 0L : 1L;
+        }
+
+        @Override public long getCapacityAsLong(int slot, ItemResource resource) {
+            return 1L;
+        }
+
+        @Override public boolean isValid(int slot, ItemResource resource) {
+            return false;
+        }
+
+        @Override
+        public int insert(int slot, ItemResource resource, int amount, TransactionContext tx) {
+            return 0;
+        }
+
+        @Override
+        public int extract(int slot, ItemResource resource, int amount, TransactionContext tx) {
+            if (slot != 0 || state != State.READY || amount <= 0) return 0;
+            if (resource.isEmpty()) return 0;
+            ItemStack peek = peekPartItem();
+            if (peek.isEmpty() || resource.getItem() != peek.getItem()) return 0;
+            ItemStack retrieved = tryRetrievePart();
+            return retrieved.isEmpty() ? 0 : 1;
         }
     }
 }

@@ -79,6 +79,15 @@ public class ForgeDrainBlockEntity extends BlockEntity {
     // ---- Server tick: BFS network, distribute output fluid ----
 
     public void serverTick(ServerLevel level, BlockPos pos, BlockState state) {
+        // Redstone gate: the drain only pumps while it sees a signal on any neighbour.
+        // Button press (≈30 ticks of signal) is enough to fill one cast (a 72 mB guard
+        // fills in 2 ticks at PUMP_RATE_MB=50) and then the downstream casting table
+        // refuses further insert during its cooling window, so the rest of the button's
+        // signal harmlessly idles → "1 press = 1 cast". A held lever keeps the drain
+        // attempting every tick and produces continuous casts as the player retrieves
+        // each finished part (table loops back to IMPRESSED → next pour).
+        if (!level.hasNeighborSignal(pos)) return;
+
         ForgeControllerBlockEntity controller = controller();
         if (controller == null) return;
         Identifier outputFluidId = controller.outputFluidId();

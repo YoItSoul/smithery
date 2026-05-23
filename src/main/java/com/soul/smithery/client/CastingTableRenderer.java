@@ -37,15 +37,14 @@ public class CastingTableRenderer
         implements BlockEntityRenderer<CastingTableBlockEntity, CastingTableRenderer.RenderState> {
 
     /**
-     * Render state captured each frame from the BE.
-     * ItemStackRenderState objects are pre-allocated in the constructor — mirrors
-     * the CampfireRenderState pattern. Lazy allocation in extractRenderState
-     * was suspected of confusing the deferred batcher and rendering nothing.
+     * Render state captured each frame from the BE. Both ItemStackRenderState slots are
+     * pre-allocated and cleared per frame; the sand slot is filled for any state with
+     * a sand layer, the part slot is filled when a cooled cast is visible (COOLING & READY).
      */
     public static final class RenderState extends BlockEntityRenderState {
         public State castState = State.EMPTY;
-        public final ItemStackRenderState sand       = new ItemStackRenderState();
-        public final ItemStackRenderState impression = new ItemStackRenderState();
+        public final ItemStackRenderState sand = new ItemStackRenderState();
+        public final ItemStackRenderState part = new ItemStackRenderState();
     }
 
     private final ItemModelResolver itemModelResolver;
@@ -64,35 +63,53 @@ public class CastingTableRenderer
                                    Vec3 camPos, ModelFeatureRenderer.CrumblingOverlay crumbling) {
         BlockEntityRenderState.extractBase(be, state, crumbling);
         state.castState = be.state();
-        // Always update the pre-allocated render states. Clear if not needed.
         state.sand.clear();
-        state.impression.clear();
+        state.part.clear();
 
-        // State >= SAND: render a sand layer. For IMPRESSED, swap to the per-PartType
-        // "sand with cutout" variant — same rendering path, different block. The block's
-        // model uses RenderType.cutout() with a composite texture that has the part shape
-        // punched to alpha=0, producing an actual hole in the sand instead of a dark blob.
-        if (state.castState.ordinal() >= State.SAND.ordinal()) {
-            ItemStack sandStack = pickSandItemStack(be, state.castState);
-            itemModelResolver.updateForTopItem(state.sand, sandStack,
-                    ItemDisplayContext.FIXED, be.getLevel(), null, 0);
-        }
-        // The old wood-silhouette "impression" layer is gone — the cutout in the sand
-        // itself communicates the impressed shape now. state.impression stays cleared.
-    }
-
-    /** Selects the sand block to render for the current cast state. */
-    private static ItemStack pickSandItemStack(CastingTableBlockEntity be, State castState) {
-        if (castState == State.IMPRESSED) {
-            Identifier ptId = be.impressedPartTypeId();
-            if (ptId != null) {
-                DeferredItem<BlockItem> impressedItem = SmitheryBlocks.getImpressedSandItem(ptId);
-                if (impressedItem != null) {
-                    return new ItemStack(impressedItem.get());
-                }
+        // Per-state visual mix:
+        //   EMPTY                          → nothing
+        //   SAND                           → regular casting sand
+        //   IMPRESSED, FILLING             → sand-with-part-cutout (only the silhouette)
+        //   COOLING, COVERED, READY        → sand-with-cutout + cooled PartItem in the cutout
+        //
+        // The mould is reusable — retrieving the part at READY drops state back to IMPRESSED
+        // (sand intact), so READY shares the same visual as COOLING. The player's cue to
+        // right-click is "I poured and waited; the part is sitting in the cutout."
+        //
+        // COVERED is a legacy state kept for save compatibility; new casts skip straight from
+        // COOLING → READY.
+        switch (state.castState) {
+            case EMPTY -> { /* nothing rendered */ }
+            case SAND -> bindSand(state, new ItemStack(SmitheryBlocks.CASTING_SAND.get()), be);
+            case IMPRESSED, FILLING -> bindSand(state, pickImpressedSandStack(be), be);
+            case COOLING, COVERED, READY -> {
+                bindSand(state, pickImpressedSandStack(be), be);
+                bindPart(state, be);
             }
         }
-        return new ItemStack(SmitheryBlocks.CASTING_SAND.get());
+    }
+
+    private void bindSand(RenderState state, ItemStack stack, CastingTableBlockEntity be) {
+        if (stack.isEmpty()) return;
+        itemModelResolver.updateForTopItem(state.sand, stack, ItemDisplayContext.FIXED,
+                be.getLevel(), null, 0);
+    }
+
+    private void bindPart(RenderState state, CastingTableBlockEntity be) {
+        ItemStack partStack = be.peekPartItem();
+        if (partStack.isEmpty()) return;
+        itemModelResolver.updateForTopItem(state.part, partStack, ItemDisplayContext.FIXED,
+                be.getLevel(), null, 0);
+    }
+
+    /** Returns the per-PartType sand-with-cutout block stack, or plain sand if the variant is missing. */
+    private static ItemStack pickImpressedSandStack(CastingTableBlockEntity be) {
+        Identifier ptId = be.impressedPartTypeId();
+        if (ptId == null) return new ItemStack(SmitheryBlocks.CASTING_SAND.get());
+        DeferredItem<BlockItem> impressedItem = SmitheryBlocks.getImpressedSandItem(ptId);
+        return impressedItem == null
+                ? new ItemStack(SmitheryBlocks.CASTING_SAND.get())
+                : new ItemStack(impressedItem.get());
     }
 
     @Override
@@ -124,9 +141,28 @@ public class CastingTableRenderer
             poseStack.popPose();
         }
 
-        // No separate "impression" pass needed — the sand block itself is rendered with
-        // a part-shaped alpha cutout when IMPRESSED, so the hole reveals the table
-        // surface underneath. Old wood-silhouette code lived here pre-cutout.
+        if (!state.part.isEmpty()) {
+            // Laying a 2D item sprite flat onto the table:
+            //   X-axis rotation +90°: maps the sprite's "up" (item-Y+) to world Z+ (south),
+            //     which aligns with how the impressed-sand voxelizer reads the template texture
+            //     (texture row 0 = north, row 15 = south). Using -90° put the sprite's up
+            //     at world-north — *opposite* to the impression — making the cooled part
+            //     appear 180°-flipped relative to the imprint above. +90° matches.
+            //   Y rotation 180°: a second flip is required because the item rendering pipeline
+            //     creates the voxel-extruded mesh from the texture mirror-imaged left/right
+            //     relative to the BufferedImage column order used by the impression voxelizer.
+            //   Z scale = 2/16: gives 2px thickness after the X rotation (item-local depth →
+            //     world Y), so the part reads visibly without poking out the top of the rim.
+            poseStack.pushPose();
+            // Raised 1 px from the previous y=15.5/16 so the part's top edge lines up
+            // with the top of the sand layer instead of sitting one pixel below it.
+            poseStack.translate(0.5f, 16.5f / 16f, 0.5f);
+            poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(180f));
+            poseStack.mulPose(com.mojang.math.Axis.XP.rotationDegrees(90f));
+            poseStack.scale(14f / 16f, 14f / 16f, 2f / 16f);
+            state.part.submit(poseStack, collector, state.lightCoords, OverlayTexture.NO_OVERLAY, 0);
+            poseStack.popPose();
+        }
     }
 
     @Override

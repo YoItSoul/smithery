@@ -368,13 +368,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
 
     // ---- Right panel: stacked-fluid tank (Tinkers-style) ----
 
-    /**
-     * Pixel-resolved layer used by both the tank renderer and its hover tooltip.
-     * Layers stack from {@code TANK_BOTTOM} upwards in registration order so the
-     * visualization is stable as fluid levels change.
-     */
-    private record FluidLayer(Material material, int storedMb, int topY, int bottomY) {}
-
     private void renderFluidTank(GuiGraphicsExtractor g, int sx, int sy, int mouseX, int mouseY) {
         int cx = sx + PRC_X;
         int cy = sy + PRC_Y;
@@ -413,6 +406,14 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             drawTiledMolten(g, innerX, layer.topY, innerW, layerH, baseV, color);
             // 1px highlight along the top of each layer so adjacent layers don't blur together.
             g.fill(innerX, layer.topY, innerX + innerW, layer.topY + 1, brighten(color));
+            // Selected layer: 1px outline + a subtle inner overlay so it reads as "active".
+            if (layer.selected) {
+                int outline = 0xFFFFD060;
+                g.fill(innerX, layer.topY, innerX + innerW, layer.topY + 1, outline);
+                g.fill(innerX, layer.bottomY - 1, innerX + innerW, layer.bottomY, outline);
+                g.fill(innerX, layer.topY, innerX + 1, layer.bottomY, outline);
+                g.fill(innerX + innerW - 1, layer.topY, innerX + innerW, layer.bottomY, outline);
+            }
         }
 
         // Hover tooltip: which layer is the mouse over?
@@ -429,6 +430,10 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
                     lines.add(Component.literal("Molten " + matName).withStyle(ChatFormatting.WHITE));
                     lines.add(Component.literal(layer.storedMb + " mB (" + pct + "% of tank)")
                             .withStyle(ChatFormatting.GOLD));
+                    lines.add(Component.literal(layer.selected
+                                    ? "Active drain output — click to clear"
+                                    : "Click to set as drain output")
+                            .withStyle(layer.selected ? ChatFormatting.YELLOW : ChatFormatting.GRAY));
                     g.setTooltipForNextFrame(font, lines, Optional.empty(), mouseX, mouseY);
                     break;
                 }
@@ -436,26 +441,55 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         }
     }
 
-    /** Computes pixel ranges for each non-empty fluid layer, stacked from the tank bottom up. */
+    /**
+     * Pixel-resolved layer used by both the tank renderer and its hover tooltip.
+     * Layers stack from {@code TANK_BOTTOM} upwards. The currently-selected output
+     * fluid (if any) is iterated first so it lands at the bottom of the stack —
+     * that's the visual cue "this is what the drains are pumping". {@code matIdx}
+     * tracks the source material index so click handling can identify which layer
+     * the player hit and ship the right id to the server.
+     */
+    private record FluidLayer(Material material, int matIdx, int storedMb,
+                              int topY, int bottomY, boolean selected) {}
+
     private List<FluidLayer> computeFluidLayers(int innerY, int innerH, int capacity) {
         List<FluidLayer> out = new ArrayList<>();
         if (capacity <= 0) return out;
         int bottomY = innerY + innerH;
         int cumPx = 0;
         List<Material> materials = menu.getMaterials();
-        for (int i = 0; i < materials.size(); i++) {
-            int stored = menu.getStoredMbForMaterial(i);
+        int selectedIdx = menu.getOutputFluidMaterialIndex();
+
+        // Build iteration order: selected material first (renders at bottom), then the rest
+        // in registration order. Layers are stacked from the bottom up, so the first
+        // iterated entry occupies the lowest band of pixels.
+        int[] order = buildLayerOrder(materials.size(), selectedIdx);
+        for (int idx : order) {
+            int stored = menu.getStoredMbForMaterial(idx);
             if (stored <= 0) continue;
-            // Min 1px so a trickle of fluid is still visible; clamp so rounding can't overflow.
             int layerPx = Math.max(1, (int)((long) stored * innerH / capacity));
             if (cumPx + layerPx > innerH) layerPx = innerH - cumPx;
             if (layerPx <= 0) break;
             int layerBottom = bottomY - cumPx;
             int layerTop    = layerBottom - layerPx;
-            out.add(new FluidLayer(materials.get(i), stored, layerTop, layerBottom));
+            out.add(new FluidLayer(materials.get(idx), idx, stored, layerTop, layerBottom,
+                    idx == selectedIdx));
             cumPx += layerPx;
         }
         return out;
+    }
+
+    private static int[] buildLayerOrder(int total, int selectedIdx) {
+        int[] order = new int[total];
+        int w = 0;
+        if (selectedIdx >= 0 && selectedIdx < total) {
+            order[w++] = selectedIdx;
+        }
+        for (int i = 0; i < total; i++) {
+            if (i == selectedIdx) continue;
+            order[w++] = i;
+        }
+        return order;
     }
 
     /** Top-edge highlight: brighten an ARGB color by ~30 per channel, clamped. */
@@ -559,6 +593,47 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
                 return true;
             }
         }
+
+        // Fluid tank click — select / deselect output fluid.
+        int tankX = leftPos + TANK_X;
+        int tankY = topPos  + TANK_Y;
+        int innerX = tankX + 1;
+        int innerY = tankY + 1;
+        int innerW = TANK_W - 2;
+        int innerH = TANK_H - 2;
+        int capacity = menu.getFluidCapacityMb();
+        if (capacity > 0 && event.x() >= innerX && event.x() < innerX + innerW
+                && event.y() >= innerY && event.y() < innerY + innerH) {
+            List<FluidLayer> layers = computeFluidLayers(innerY, innerH, capacity);
+            for (FluidLayer layer : layers) {
+                if (event.y() >= layer.topY && event.y() < layer.bottomY) {
+                    sendOutputFluidSelection(layer);
+                    return true;
+                }
+            }
+        }
         return super.mouseClicked(event, doubleClick);
+    }
+
+    /**
+     * Maps the clicked material → fluid id and sends the C2S packet. Server interprets
+     * "click the already-selected layer" as "clear selection" — no special sentinel needed.
+     */
+    private void sendOutputFluidSelection(FluidLayer layer) {
+        net.minecraft.resources.Identifier matId = layer.material.id();
+        com.soul.smithery.registry.SmitheryFluids.Entry entry =
+                com.soul.smithery.registry.SmitheryFluids.forMaterial(matId);
+        if (entry == null) return;
+        net.minecraft.resources.Identifier fluidId =
+                net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(entry.source.get());
+        if (fluidId == null) return;
+        // NeoForge 26.1.x removed PacketDistributor.sendToServer; route the C2S payload through
+        // the client's network handler directly.
+        net.minecraft.client.multiplayer.ClientPacketListener conn =
+                net.minecraft.client.Minecraft.getInstance().getConnection();
+        if (conn != null) {
+            conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
+                    new com.soul.smithery.network.ForgeSelectOutputFluidPayload(menu.getBlockPos(), fluidId)));
+        }
     }
 }

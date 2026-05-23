@@ -4,8 +4,12 @@ import com.soul.smithery.block.entity.CastingTableBlockEntity;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import com.soul.smithery.registry.SmitheryBlocks;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -73,6 +77,23 @@ public class CastingTableBlock extends Block implements EntityBlock {
             return InteractionResult.PASS;
         }
 
+        // --- READY → retrieve part. Lives in useItemOn (rather than useWithoutItem)
+        //     so it fires even when the player is still holding the brush they just
+        //     finished using to advance COVERED → READY. Brush is inert at READY anyway,
+        //     so consuming the right-click as a retrieve is the right behavior. ---
+        if (be.state() == CastingTableBlockEntity.State.READY) {
+            if (level.isClientSide()) return InteractionResult.SUCCESS;
+            ItemStack result = be.tryRetrievePart();
+            if (result.isEmpty()) {
+                player.sendSystemMessage(Component.literal("Cast discarded — no matching part for the poured material")
+                        .withStyle(ChatFormatting.YELLOW));
+            } else {
+                if (!player.getInventory().add(result)) player.drop(result, false);
+                level.playSound(null, pos, SoundEvents.ITEM_PICKUP, SoundSource.BLOCKS, 0.6f, 1.2f);
+            }
+            return InteractionResult.SUCCESS;
+        }
+
         // --- Casting sand: EMPTY → SAND, consume 1 ---
         if (stack.is(SmitheryBlocks.CASTING_SAND_ITEM.get())) {
             if (level.isClientSide()) return InteractionResult.SUCCESS;
@@ -98,4 +119,5 @@ public class CastingTableBlock extends Block implements EntityBlock {
         // brushProgress increments on a 10-tick cadence (matching vanilla).
         return InteractionResult.PASS;
     }
+
 }

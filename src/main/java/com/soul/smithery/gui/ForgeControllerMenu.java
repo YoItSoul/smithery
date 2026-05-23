@@ -43,14 +43,16 @@ import java.util.List;
  */
 public class ForgeControllerMenu extends AbstractContainerMenu {
 
-    public static final int DATA_TEMP        = 0;
-    public static final int DATA_FUEL        = 1;
-    public static final int DATA_FUEL_CAP    = 2;
-    public static final int DATA_VALID       = 3;
-    public static final int DATA_HOLES       = 4;
-    public static final int DATA_FLUID_CAP   = 5;
-    public static final int DATA_FLUID_TOTAL = 6;
-    public static final int DATA_FLUID_BASE  = 7;
+    public static final int DATA_TEMP            = 0;
+    public static final int DATA_FUEL            = 1;
+    public static final int DATA_FUEL_CAP        = 2;
+    public static final int DATA_VALID           = 3;
+    public static final int DATA_HOLES           = 4;
+    public static final int DATA_FLUID_CAP       = 5;
+    public static final int DATA_FLUID_TOTAL     = 6;
+    /** Index into materialList of the player-selected output fluid; -1 if none. */
+    public static final int DATA_OUTPUT_FLUID_IX = 7;
+    public static final int DATA_FLUID_BASE      = 8;
     // Melt progress per slot (in mB) lives after the fluid slots in syncData.
     // dataMeltBase = DATA_FLUID_BASE + materialList.size().
 
@@ -102,6 +104,9 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
         this.forgeSlotCount = forgeSlotCount;
         this.dataMeltBase   = DATA_FLUID_BASE + materialList.size();
         this.syncData       = new int[dataMeltBase + forgeSlotCount];
+        // -1 sentinel until the server's first broadcast arrives; the default Java int 0
+        // would otherwise be misread as "material index 0 is selected" by the client screen.
+        this.syncData[DATA_OUTPUT_FLUID_IX] = -1;
 
         // Forge item slots — rendered manually by the screen. Capped at 1 stack
         // per slot so each interior air block holds exactly one melting item.
@@ -149,6 +154,7 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
             syncData[DATA_HOLES]       = blockEntity.lastValidation().holes();
             syncData[DATA_FLUID_CAP]   = blockEntity.fluidCapacityMb();
             syncData[DATA_FLUID_TOTAL] = blockEntity.totalStoredFluidMb();
+            syncData[DATA_OUTPUT_FLUID_IX] = computeOutputFluidIndex(blockEntity);
             for (int i = 0; i < materialList.size(); i++) {
                 // Storage is now keyed by Fluid (not Material). Look up the molten fluid for
                 // each material; if absent (e.g. wood has no molten form), report 0.
@@ -180,6 +186,29 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     public int getStoredMbForMaterial(int index) {
         int i = DATA_FLUID_BASE + index;
         return (i >= 0 && i < syncData.length) ? syncData[i] : 0;
+    }
+
+    /** Index into {@link #getMaterials()} of the currently-selected output fluid; -1 if none. */
+    public int getOutputFluidMaterialIndex() {
+        return syncData[DATA_OUTPUT_FLUID_IX];
+    }
+
+    /**
+     * Server-side helper to resolve the controller's selected Fluid id into a material-list
+     * index. -1 if no selection or the selected fluid doesn't map to one of our materials.
+     */
+    private int computeOutputFluidIndex(ForgeControllerBlockEntity be) {
+        net.minecraft.resources.Identifier fluidId = be.outputFluidId();
+        if (fluidId == null) return -1;
+        for (int i = 0; i < materialList.size(); i++) {
+            com.soul.smithery.registry.SmitheryFluids.Entry entry =
+                    com.soul.smithery.registry.SmitheryFluids.forMaterial(materialList.get(i).id());
+            if (entry == null) continue;
+            net.minecraft.resources.Identifier matFluidId =
+                    net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(entry.source.get());
+            if (fluidId.equals(matFluidId)) return i;
+        }
+        return -1;
     }
 
     /** Synced melt progress (mB) for the given forge slot; 0 if out of range. */

@@ -101,6 +101,15 @@ public final class SmitheryFluids {
         return ENTRIES.get(materialId);
     }
 
+    /** Reverse lookup: find the entry whose source fluid matches the given Fluid; null if none. */
+    public static Entry forFluid(net.minecraft.world.level.material.Fluid fluid) {
+        if (fluid == null) return null;
+        for (Entry e : ENTRIES.values()) {
+            if (e.source.get() == fluid) return e;
+        }
+        return null;
+    }
+
     /**
      * Bootstrap entries from the populated {@link SmitheryAPI#MATERIALS} registry.
      * Call AFTER SmitheryMaterials.register() and BEFORE the deferred registers fire

@@ -39,6 +39,14 @@ public final class SmitheryCapabilities {
                 SmitheryBlockEntities.CASTING_TABLE.get(),
                 (be, side) -> be.fluidHandlerFor(side));
 
+        // Hopper-friendly part extraction: the casting table yields a finished part via
+        // the Item capability only when state == READY. Extract calls tryRetrievePart so
+        // the table cycles back to IMPRESSED, ready for the drain's next pour.
+        event.registerBlockEntity(
+                Capabilities.Item.BLOCK,
+                SmitheryBlockEntities.CASTING_TABLE.get(),
+                (be, side) -> be.itemHandlerFor(side));
+
         event.registerBlockEntity(
                 Capabilities.Fluid.BLOCK,
                 SmitheryBlockEntities.FORGE_FUEL_PORT.get(),
