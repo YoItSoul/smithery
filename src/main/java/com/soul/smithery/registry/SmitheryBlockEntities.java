@@ -2,7 +2,6 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.block.entity.CastingTableBlockEntity;
-import com.soul.smithery.block.entity.FluidPipeBlockEntity;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
 import com.soul.smithery.block.entity.ForgeDrainBlockEntity;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
@@ -36,10 +35,6 @@ public final class SmitheryBlockEntities {
                     () -> new BlockEntityType<>(CastingTableBlockEntity::new,
                             SmitheryBlocks.CASTING_TABLE.get()));
 
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<FluidPipeBlockEntity>>
-            FLUID_PIPE = BLOCK_ENTITIES.register("fluid_pipe",
-                    () -> new BlockEntityType<>(FluidPipeBlockEntity::new,
-                            SmitheryBlocks.FLUID_PIPE.get()));
 
     public static void register(IEventBus modEventBus) {
         BLOCK_ENTITIES.register(modEventBus);

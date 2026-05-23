@@ -2,34 +2,22 @@
   "multipart": [
     { "apply": { "model": "smithery:block/fluid_pipe/core" } },
 
-    { "when": { "north": "cap_stub"    }, "apply": { "model": "smithery:block/fluid_pipe/cap_stub_north"    } },
     { "when": { "north": "arm_open"    }, "apply": { "model": "smithery:block/fluid_pipe/arm_open_north"    } },
-    { "when": { "north": "arm_topipe"  }, "apply": { "model": "smithery:block/fluid_pipe/arm_topipe_north"  } },
     { "when": { "north": "arm_toother" }, "apply": { "model": "smithery:block/fluid_pipe/arm_toother_north" } },
 
-    { "when": { "south": "cap_stub"    }, "apply": { "model": "smithery:block/fluid_pipe/cap_stub_south"    } },
     { "when": { "south": "arm_open"    }, "apply": { "model": "smithery:block/fluid_pipe/arm_open_south"    } },
-    { "when": { "south": "arm_topipe"  }, "apply": { "model": "smithery:block/fluid_pipe/arm_topipe_south"  } },
     { "when": { "south": "arm_toother" }, "apply": { "model": "smithery:block/fluid_pipe/arm_toother_south" } },
 
-    { "when": { "east": "cap_stub"    }, "apply": { "model": "smithery:block/fluid_pipe/cap_stub_east"    } },
     { "when": { "east": "arm_open"    }, "apply": { "model": "smithery:block/fluid_pipe/arm_open_east"    } },
-    { "when": { "east": "arm_topipe"  }, "apply": { "model": "smithery:block/fluid_pipe/arm_topipe_east"  } },
     { "when": { "east": "arm_toother" }, "apply": { "model": "smithery:block/fluid_pipe/arm_toother_east" } },
 
-    { "when": { "west": "cap_stub"    }, "apply": { "model": "smithery:block/fluid_pipe/cap_stub_west"    } },
     { "when": { "west": "arm_open"    }, "apply": { "model": "smithery:block/fluid_pipe/arm_open_west"    } },
-    { "when": { "west": "arm_topipe"  }, "apply": { "model": "smithery:block/fluid_pipe/arm_topipe_west"  } },
     { "when": { "west": "arm_toother" }, "apply": { "model": "smithery:block/fluid_pipe/arm_toother_west" } },
 
-    { "when": { "up": "cap_stub"    }, "apply": { "model": "smithery:block/fluid_pipe/cap_stub_up"    } },
     { "when": { "up": "arm_open"    }, "apply": { "model": "smithery:block/fluid_pipe/arm_open_up"    } },
-    { "when": { "up": "arm_topipe"  }, "apply": { "model": "smithery:block/fluid_pipe/arm_topipe_up"  } },
     { "when": { "up": "arm_toother" }, "apply": { "model": "smithery:block/fluid_pipe/arm_toother_up" } },
 
-    { "when": { "down": "cap_stub"    }, "apply": { "model": "smithery:block/fluid_pipe/cap_stub_down"    } },
     { "when": { "down": "arm_open"    }, "apply": { "model": "smithery:block/fluid_pipe/arm_open_down"    } },
-    { "when": { "down": "arm_topipe"  }, "apply": { "model": "smithery:block/fluid_pipe/arm_topipe_down"  } },
     { "when": { "down": "arm_toother" }, "apply": { "model": "smithery:block/fluid_pipe/arm_toother_down" } }
   ]
 }

@@ -2,7 +2,6 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.block.entity.CastingTableBlockEntity;
-import com.soul.smithery.block.entity.FluidPipeBlockEntity;
 import com.soul.smithery.block.entity.ForgeDrainBlockEntity;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -31,10 +30,9 @@ public final class SmitheryCapabilities {
 
     @SubscribeEvent
     public static void onRegisterCapabilities(RegisterCapabilitiesEvent event) {
-        event.registerBlockEntity(
-                Capabilities.Fluid.BLOCK,
-                SmitheryBlockEntities.FLUID_PIPE.get(),
-                (be, side) -> be.fluidHandlerFor(side));
+        // Pipes intentionally do NOT expose a fluid capability — they're passive channels
+        // in the new "pipes-are-just-channels" model. The forge drain is the source pump;
+        // sinks (casting tables, tanks, ports) self-gate via their own handlers.
 
         event.registerBlockEntity(
                 Capabilities.Fluid.BLOCK,
