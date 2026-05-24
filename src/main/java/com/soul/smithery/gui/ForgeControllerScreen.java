@@ -81,9 +81,15 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     // Animated lava-flow sprite used as the layer fill texture, tinted per-material.
     // The PNG is the same one used for the actual world fluid; we drive the animation
     // manually here because raw blit() doesn't honor .mcmeta — it sees only the sheet.
+    // Dedicated GUI-only copy of molten_flow.png. We can't reference the in-world
+    // textures/block/molten_flow.png because the fluid atlas registers it as a sprite and
+    // the resulting GPU texture is the cropped current-frame (32×32), not the full 32×512
+    // strip our blit math assumes. Sampling the cropped GPU texture with srcHeight/512 ends
+    // up reading a sub-pixel slice and stretching it 16× vertically → the "stretched stripes"
+    // bug. Keeping a separate copy under textures/gui/ side-steps the atlas entirely.
     private static final net.minecraft.resources.Identifier MOLTEN_FLOW_TEXTURE =
             net.minecraft.resources.Identifier.fromNamespaceAndPath(
-                    com.soul.smithery.Smithery.MODID, "textures/block/molten_flow.png");
+                    com.soul.smithery.Smithery.MODID, "textures/gui/molten_flow.png");
     private static final int FLOW_FRAME_W      = 32;
     private static final int FLOW_FRAME_H      = 32;
     private static final int FLOW_FRAME_COUNT  = 16;       // sheet is 32 × (32 × 16) = 32×512

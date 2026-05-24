@@ -175,11 +175,13 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity, Pa
             poseStack.popPose();
         }
 
-        // Template part — 12×12 quad on top of head, visible only while the press is OPEN
-        // (and not in the closed pose). When the press is activated the head descends and
-        // the template stops being a "what you're going to cut" indicator — at that point the
-        // press is committed, so we hide it.
-        if (!state.closed) {
+        // Template part — 12×12 quad on top of head, visible only when the press is FULLY
+        // open: redstone-off AND the open animation has finished (head Y returned to ~0).
+        // During the closing OR opening transitions, the head is mid-flight and the template
+        // would visibly slide with it — hiding it until the animation settles avoids that
+        // distracting in-between state.
+        boolean fullyOpen = !state.closed && headY >= -0.05f;
+        if (fullyOpen) {
             PartType pt = SmitheryAPI.PART_TYPES.get(state.selectedPartTypeId);
             if (pt != null) {
                 Identifier tmpl = pt.textureTemplate();
