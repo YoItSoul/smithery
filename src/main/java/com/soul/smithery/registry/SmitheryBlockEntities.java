@@ -6,6 +6,7 @@ import com.soul.smithery.block.entity.FluidPipeBlockEntity;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
 import com.soul.smithery.block.entity.ForgeDrainBlockEntity;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
+import com.soul.smithery.block.entity.PartPressBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.bus.api.IEventBus;
@@ -40,6 +41,11 @@ public final class SmitheryBlockEntities {
             CASTING_TABLE = BLOCK_ENTITIES.register("casting_table",
                     () -> new BlockEntityType<>(CastingTableBlockEntity::new,
                             SmitheryBlocks.CASTING_TABLE.get()));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<PartPressBlockEntity>>
+            PART_PRESS = BLOCK_ENTITIES.register("part_press",
+                    () -> new BlockEntityType<>(PartPressBlockEntity::new,
+                            SmitheryBlocks.PART_PRESS.get()));
 
 
     public static void register(IEventBus modEventBus) {

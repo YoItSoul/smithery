@@ -62,6 +62,34 @@ public class CastingTableBlock extends Block implements EntityBlock {
         return new CastingTableBlockEntity(pos, state);
     }
 
+    /**
+     * Drops the casting table's contents at break time. Contents include:
+     * <ul>
+     *   <li>The finished part item if the table is in {@code READY} state (sitting in the cast
+     *       waiting for the player to pick it up).</li>
+     *   <li>A {@code casting_sand} item if the table has any sand layer (any state above EMPTY).
+     *       Note that mid-pour molten fluid is lost — it spills off the broken table.</li>
+     * </ul>
+     * The table block item itself is handled by the loot table at
+     * {@code data/smithery/loot_table/blocks/casting_table.json}.
+     */
+    @Override
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (!level.isClientSide()
+                && level.getBlockEntity(pos) instanceof CastingTableBlockEntity be) {
+            if (be.state() == CastingTableBlockEntity.State.READY) {
+                ItemStack part = be.peekPartItem();
+                if (!part.isEmpty()) {
+                    popResource(level, pos, part.copy());
+                }
+            }
+            if (be.state() != CastingTableBlockEntity.State.EMPTY) {
+                popResource(level, pos, new ItemStack(SmitheryBlocks.CASTING_SAND_ITEM.get()));
+            }
+        }
+        return super.playerWillDestroy(level, pos, state, player);
+    }
+
     @Override
     public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
         if (type != SmitheryBlockEntities.CASTING_TABLE.get()) return null;

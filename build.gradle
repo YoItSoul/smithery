@@ -36,6 +36,13 @@ repositories {
             includeGroup "com.klikli_dev"
         }
     }
+    // Geckolib (animated block models for the Part Press). Geckolib's Cloudsmith maven.
+    maven {
+        url = "https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/"
+        content {
+            includeGroup "com.geckolib"
+        }
+    }
 }
 
 base {
@@ -128,6 +135,9 @@ dependencies {
     implementation("com.klikli_dev:modonomicon-${minecraft_version}-neoforge:${modonomicon_version}") {
         transitive = false
     }
+
+    // Geckolib — animated block models. Powers the Part Press.
+    implementation "com.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
 
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime

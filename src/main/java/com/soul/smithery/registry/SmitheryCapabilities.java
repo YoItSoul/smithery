@@ -56,6 +56,13 @@ public final class SmitheryCapabilities {
                 Capabilities.Fluid.BLOCK,
                 SmitheryBlockEntities.FORGE_DRAIN.get(),
                 (be, side) -> be.fluidHandlerFor(side));
+
+        // Part Press — hoppers can feed raw material into the input slot AND pull cut parts
+        // from the output slot, but only when the press is open. Closed state hard-rejects both.
+        event.registerBlockEntity(
+                Capabilities.Item.BLOCK,
+                SmitheryBlockEntities.PART_PRESS.get(),
+                (be, side) -> be.itemHandlerFor(side));
     }
 
     private SmitheryCapabilities() {}

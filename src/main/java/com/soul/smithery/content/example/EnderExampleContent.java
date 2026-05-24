@@ -71,6 +71,8 @@ public final class EnderExampleContent {
             Identifier.fromNamespaceAndPath(Smithery.MODID, "ender");
     public static final Identifier PEARL_PART_TYPE_ID =
             Identifier.fromNamespaceAndPath(Smithery.MODID, "pearl");
+    public static final Identifier ENDER_AFFINITY_MODIFIER_ID =
+            Identifier.fromNamespaceAndPath(Smithery.MODID, "ender_affinity");
 
     /** Cached PartType handle so other code (renderer / capabilities) can reference it. */
     public static PartType PEARL;
@@ -205,7 +207,36 @@ public final class EnderExampleContent {
                 .build());
 
         // ════════════════════════════════════════════════════════════════════════════════
-        //  3. Cast result mapping — (Material × PartType) → result Item
+        //  3. Modifier — defined entirely in DATA, not code
+        // ════════════════════════════════════════════════════════════════════════════════
+        //
+        // ENDER_AFFINITY ({@code smithery:ender_affinity}) is the showcase for smithery's
+        // data-driven modifier path. The modifier itself lives at
+        //   {@code data/smithery/smithery/modifier/ender_affinity.json}
+        // composed of one action — {@code smithery:teleport_target} (chance to randomly
+        // teleport the target on hit). No Java needed to define the behaviour.
+        //
+        // The "ender pearl applies ENDER_AFFINITY at the anvil" mapping is shipped as a
+        // sibling JSON file at:
+        //   {@code data/smithery/smithery/modifier_source/ender_affinity.json}
+        // mapping {@code minecraft:ender_pearl → smithery:ender_affinity}.
+        //
+        // <h4>What this demonstrates for modders</h4>
+        // <ul>
+        //   <li>Composing a new modifier from existing actions: zero Java. Drop a JSON file
+        //       in your data pack at the right path.</li>
+        //   <li>Mapping a source item to a modifier: zero Java. Drop a sibling JSON file.</li>
+        //   <li>Adding a new ACTION type (e.g. "summon_lightning"): one Java class
+        //       implementing ModifierAction.OnAttack + a one-line register() call. Then any
+        //       modifier JSON in any pack can compose with that new action.</li>
+        // </ul>
+        //
+        // The behaviour callback runs through the same {@link
+        // com.soul.smithery.event.ToolModifierEventRouter} that handles code-defined
+        // modifiers — JSON and code modifiers are runtime-indistinguishable.
+
+        // ════════════════════════════════════════════════════════════════════════════════
+        //  4. Cast result mapping — (Material × PartType) → result Item (unchanged)
         // ════════════════════════════════════════════════════════════════════════════════
         // Pour molten ender into a pearl-shaped cast → vanilla ender pearl drops out.
         // The Supplier<Item> is invoked lazily on cast retrieval, so it's safe to use
@@ -215,14 +246,14 @@ public final class EnderExampleContent {
         CastResults.register(ENDER_MATERIAL_ID, PEARL_PART_TYPE_ID, () -> Items.ENDER_PEARL);
 
         // ════════════════════════════════════════════════════════════════════════════════
-        //  4. Cast template mapping — held Item → PartType to impress
+        //  5. Cast template mapping — held Item → PartType to impress
         // ════════════════════════════════════════════════════════════════════════════════
         // When a player right-clicks a sand-prepared casting table with a vanilla ender
         // pearl, this mapping tells the table "impress the pearl shape into the sand".
         CastTemplates.register(Items.ENDER_PEARL, PEARL_PART_TYPE_ID);
 
         // ════════════════════════════════════════════════════════════════════════════════
-        //  5. Melting recipe — input Item → (Material, mB)
+        //  6. Melting recipe — input Item → (Material, mB)
         // ════════════════════════════════════════════════════════════════════════════════
         // 1 vanilla ender pearl → 64 mB molten ender. The pearl cast is also 64 mB, so the
         // material conserves perfectly: melt a pearl, cast a pearl. Alloy or efficiency mods

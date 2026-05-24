@@ -50,7 +50,7 @@ public class ForgeFuelPortBlock extends Block implements EntityBlock {
                         .withStyle(ChatFormatting.YELLOW));
                 return InteractionResult.SUCCESS;
             }
-            fp.addLava(BUCKET_MB);
+            fp.addFuel(net.minecraft.world.level.material.Fluids.LAVA, BUCKET_MB);
             if (!player.getAbilities().instabuild) {
                 player.setItemInHand(hand, new ItemStack(Items.BUCKET));
             }

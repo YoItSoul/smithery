@@ -3,13 +3,18 @@ package com.soul.smithery.content;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.modifier.Modifier;
+import com.soul.smithery.api.modifier.ModifierEffect;
+import com.soul.smithery.api.modifier.ModifierSources;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+
+import java.util.Map;
 
 /**
  * Built-in modifiers. Behavior callbacks read params from the ModifierEffect attached at
@@ -36,16 +41,18 @@ public final class SmitheryModifiers {
                 .passive((effect, stats) -> stats.bonusAttackDamage += effect.paramFloat("damage", 2.0f))
                 .build());
 
-        // ---- Active: on block break, pull dropped items within radius toward player ----
+        // ---- Active: on BLOCK DROPS (after drops spawn), pull dropped items toward player ----
+        // FIRES FROM BlockDropsEvent, NOT BlockBreakEvent. Drops don't exist yet at break-time;
+        // they're spawned afterwards. Iterating the drops list NeoForge gives us guarantees
+        // we hit every dropped item the block produced.
         MAGNETIZED = id("magnetized");
         SmitheryAPI.registerModifier(Modifier.builder(MAGNETIZED)
                 .category(Modifier.ModifierCategory.ACTIVE)
-                .onBlockBreak((effect, ctx) -> {
-                    float radius = effect.paramFloat("radius", 5.0f);
-                    if (ctx.level().isClientSide() || ctx.player() == null) return;
-                    AABB box = new AABB(ctx.pos()).inflate(radius);
-                    for (ItemEntity drop : ctx.level().getEntitiesOfClass(ItemEntity.class, box)) {
-                        Vec3 toward = ctx.player().position().subtract(drop.position()).normalize().scale(0.4);
+                .onBlockDrops((effect, ctx) -> {
+                    if (ctx.player() == null) return;
+                    Vec3 playerPos = ctx.player().position();
+                    for (ItemEntity drop : ctx.drops()) {
+                        Vec3 toward = playerPos.subtract(drop.position()).normalize().scale(0.4);
                         drop.setDeltaMovement(toward);
                         drop.setPickUpDelay(0);
                     }
@@ -85,17 +92,28 @@ public final class SmitheryModifiers {
                 })
                 .build());
 
-        // ---- Passive: +XP from kills (sword orientation) ----
+        // ---- Active: multiply XP dropped by killed entities ----
         LUCKY_STRIKE = id("lucky_strike");
         SmitheryAPI.registerModifier(Modifier.builder(LUCKY_STRIKE)
-                .category(Modifier.ModifierCategory.PASSIVE)
-                // Multiplier is consumed by the kill-XP hook in Phase 6.
+                .category(Modifier.ModifierCategory.ACTIVE)
+                .onKill((effect, ctx) -> {
+                    float mult = effect.paramFloat("xp_multiplier", 1.25f);
+                    ctx.setXp(Math.round(ctx.xp() * mult));
+                })
                 .build());
 
-        // ---- Passive: +XP from ore mining (pick orientation) ----
+        // ---- Active: multiply XP dropped by broken blocks (ores in particular) ----
+        // BlockDropsEvent exposes both the drops list and the XP amount the block will drop.
+        // We don't gate on "is this an ore" — the multiplier just applies to whatever XP the
+        // block drops naturally (ores being the main source). Stone breaks drop no XP, so
+        // they're naturally unaffected.
         GILDED = id("gilded");
         SmitheryAPI.registerModifier(Modifier.builder(GILDED)
-                .category(Modifier.ModifierCategory.PASSIVE)
+                .category(Modifier.ModifierCategory.ACTIVE)
+                .onBlockDrops((effect, ctx) -> {
+                    float mult = effect.paramFloat("xp_multiplier", 1.25f);
+                    ctx.setXp(Math.round(ctx.xp() * mult));
+                })
                 .build());
 
         // ---- Post-craft, applied at Anvil from a Nether Star: +6 damage ----
@@ -104,6 +122,13 @@ public final class SmitheryModifiers {
                 .category(Modifier.ModifierCategory.PASSIVE)
                 .passive((effect, stats) -> stats.bonusAttackDamage += effect.paramFloat("damage", 6.0f))
                 .build());
+
+        // ---- Built-in anvil source mappings ----
+        // Modders extend by calling ModifierSources.register(...) from their own init class.
+        // Nether Star → NETHER_SHARPENED with +6 damage is the canonical single-shot example.
+        // maxLevel of NETHER_SHARPENED is 1 (default) — one Nether Star per tool, no stacking.
+        ModifierSources.register(Items.NETHER_STAR,
+                ModifierEffect.of(NETHER_SHARPENED, Map.of("damage", 6.0f)));
     }
 
     private static Identifier id(String path) {

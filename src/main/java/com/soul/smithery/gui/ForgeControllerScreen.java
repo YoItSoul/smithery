@@ -91,6 +91,17 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     private static final int FLOW_TEX_H        = 512;
     private static final int FLOW_FRAMETIME_MS = 150;      // mcmeta frametime = 3 ticks → 150 ms
 
+    // ---- Alloy toggle button (top-right corner) ----
+    // 14×14 square. Background colour switches based on the menu's synced isAlloyEnabled.
+    // Clicking sends the BUTTON_TOGGLE_ALLOY menu-button click, which the menu's
+    // clickMenuButton flips on the BE.
+    private static final int ALLOY_BTN_W = 14;
+    private static final int ALLOY_BTN_H = 14;
+    private static final int ALLOY_BTN_X = 222;     // near right edge of the 248-wide GUI
+    private static final int ALLOY_BTN_Y = 4;
+    private static final int COL_ALLOY_ON  = 0xFF2E8B57;   // sea green
+    private static final int COL_ALLOY_OFF = 0xFF8B2E2E;   // muted red
+
     // ---- Colors ----
     private static final int COL_BG       = 0xFFC6C6C6;
     private static final int COL_BORDER   = 0xFF787878;
@@ -152,6 +163,7 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         renderForgeSlots(g, x, y, mouseX, mouseY);
         renderFluidTank(g, x, y, mouseX, mouseY);
         renderStatusStrip(g, x, y);
+        renderAlloyToggleButton(g, x, y, mouseX, mouseY);
 
         // Forge slot tooltip — vanilla's extractTooltip doesn't fire for our
         // off-screen forge slots, so we set the tooltip ourselves. Includes
@@ -268,6 +280,37 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         // Matrix is translated by (leftPos, topPos) before this is called.
         g.text(font, title, titleLabelX, titleLabelY, COL_TEXT, false);
         g.text(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, COL_TEXT, false);
+    }
+
+    /**
+     * Top-right corner toggle. Coloured square (green = alloying on, red = paused) with
+     * an "A" letter in the center. Hover tooltip explains the current state. Clicking
+     * sends a menu button click that flips the BE flag server-side.
+     */
+    private void renderAlloyToggleButton(GuiGraphicsExtractor g, int x, int y, int mouseX, int mouseY) {
+        int bx = x + ALLOY_BTN_X;
+        int by = y + ALLOY_BTN_Y;
+        boolean enabled = menu.isAlloyEnabled();
+        int fill = enabled ? COL_ALLOY_ON : COL_ALLOY_OFF;
+        // Border + fill.
+        g.fill(bx, by, bx + ALLOY_BTN_W, by + ALLOY_BTN_H, COL_BORDER);
+        g.fill(bx + 1, by + 1, bx + ALLOY_BTN_W - 1, by + ALLOY_BTN_H - 1, fill);
+        // "A" letter centered.
+        String label = "A";
+        int textW = font.width(label);
+        g.text(font, net.minecraft.network.chat.Component.literal(label),
+                bx + (ALLOY_BTN_W - textW) / 2,
+                by + (ALLOY_BTN_H - 8) / 2,
+                0xFFFFFFFF, false);
+        // Hover tooltip.
+        if (mouseX >= bx && mouseX < bx + ALLOY_BTN_W && mouseY >= by && mouseY < by + ALLOY_BTN_H) {
+            net.minecraft.network.chat.Component tip = enabled
+                    ? net.minecraft.network.chat.Component.translatable(
+                            "tooltip.smithery.forge.alloy_enabled")
+                    : net.minecraft.network.chat.Component.translatable(
+                            "tooltip.smithery.forge.alloy_disabled");
+            g.setTooltipForNextFrame(font, java.util.List.of(tip), java.util.Optional.empty(), mouseX, mouseY);
+        }
     }
 
     // ---- Drawing helpers ----
@@ -580,6 +623,17 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        // Alloy toggle button (top-right). Sends a menu button click; the server-side
+        // menu's clickMenuButton flips the controller's alloyEnabled flag.
+        int btnX = leftPos + ALLOY_BTN_X;
+        int btnY = topPos  + ALLOY_BTN_Y;
+        if (event.x() >= btnX && event.x() < btnX + ALLOY_BTN_W
+                && event.y() >= btnY && event.y() < btnY + ALLOY_BTN_H) {
+            net.minecraft.client.Minecraft.getInstance().gameMode.handleInventoryButtonClick(
+                    menu.containerId, ForgeControllerMenu.BUTTON_TOGGLE_ALLOY);
+            return true;
+        }
+
         int listTopY  = topPos  + PLC_Y + LIST_HEADER_H;
         int listLeftX = leftPos + PLC_X;
         if (event.x() >= listLeftX && event.x() < listLeftX + ROW_W

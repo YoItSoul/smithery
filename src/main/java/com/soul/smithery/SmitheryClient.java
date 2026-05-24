@@ -5,6 +5,7 @@ import com.soul.smithery.client.FluidPipeRenderer;
 import com.soul.smithery.client.ForgeControllerRenderer;
 import com.soul.smithery.client.MoltenBucketTintSource;
 import com.soul.smithery.client.PartMaterialTintSource;
+import com.soul.smithery.client.PartPressRenderer;
 import com.soul.smithery.client.SmitheryFluidsClient;
 import com.soul.smithery.client.ToolPrimaryMaterialTintSource;
 import com.soul.smithery.client.ToolSlotMaterialTintSource;
@@ -54,6 +55,7 @@ public class SmitheryClient {
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FORGE_CONTROLLER.get(), ForgeControllerRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.CASTING_TABLE.get(), CastingTableRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FLUID_PIPE.get(), FluidPipeRenderer::new);
+        event.registerBlockEntityRenderer(SmitheryBlockEntities.PART_PRESS.get(), PartPressRenderer::new);
     }
 
     /**

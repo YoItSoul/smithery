@@ -1,0 +1,9 @@
+{
+  "_comment": "Modder-extension example. Maps a vanilla ender pearl, placed in the right slot of an anvil opposite a Smithery tool, to the smithery:ender_affinity modifier (30% chance on hit to teleport the target ~4 blocks). The behaviour itself is registered in code in EnderExampleContent.java; this file maps a source ITEM to it. Modpacks can override by shipping their own JSON at the same path in a datapack.",
+  "source_item": "minecraft:ender_pearl",
+  "modifier": "smithery:ender_affinity",
+  "params": {
+    "chance": 0.30,
+    "radius": 4.0
+  }
+}

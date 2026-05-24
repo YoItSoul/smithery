@@ -35,23 +35,44 @@ public final class ToolStats {
     public final float attackDamage;
     public final float miningSpeed;
     public final int harvestLevel;
+    /** All modifier effects on this tool, deduped by modifier id (last-wins on collision). */
+    public final List<ResolvedEffect> allEffects;
+    /** Subset of allEffects with at least one runtime event callback (onAttack/onBreak/etc). */
     public final List<ResolvedEffect> activeEffects;
+    /** Subset of allEffects with an onCompose callback. */
+    public final List<ResolvedEffect> composeEffects;
     public final List<SynergyDefinition> activeSynergies;
 
     private ToolStats(int maxDurability, float attackDamage, float miningSpeed, int harvestLevel,
-                      List<ResolvedEffect> activeEffects, List<SynergyDefinition> activeSynergies) {
+                      List<ResolvedEffect> allEffects,
+                      List<ResolvedEffect> activeEffects, List<ResolvedEffect> composeEffects,
+                      List<SynergyDefinition> activeSynergies) {
         this.maxDurability = maxDurability;
         this.attackDamage = attackDamage;
         this.miningSpeed = miningSpeed;
         this.harvestLevel = harvestLevel;
+        this.allEffects = allEffects;
         this.activeEffects = activeEffects;
+        this.composeEffects = composeEffects;
         this.activeSynergies = activeSynergies;
     }
 
     /** A registered Modifier paired with the ModifierEffect (params) that pointed at it. */
     public record ResolvedEffect(Modifier modifier, ModifierEffect effect) {}
 
+    /** Legacy overload — composition only, no post-craft modifiers. */
     public static ToolStats compute(ToolComposition comp) {
+        return compute(comp, List.of());
+    }
+
+    /**
+     * Computes final tool stats from the composition AND any post-craft modifiers applied
+     * via the anvil (stored in the {@code APPLIED_MODIFIERS} data component). Post-craft
+     * effects layer on top of at-craft effects with the same passive/active treatment —
+     * passive ones bake into stats here, active ones land in {@link #activeEffects} for
+     * the event router to fire at attack / break time.
+     */
+    public static ToolStats compute(ToolComposition comp, List<ModifierEffect> appliedModifiers) {
         ToolType tt = comp.toolType();
         if (tt == null || !comp.isValid()) return broken();
 
@@ -73,16 +94,23 @@ public final class ToolStats {
             }
         }
 
-        // ---- Per-part-type modifiers (each part's material contributes its tool-type modifier) ----
-        Modifier.MutablePassiveStats passive = new Modifier.MutablePassiveStats();
-        List<ResolvedEffect> active = new ArrayList<>();
+        // ---- Collect all modifier effects, deduped by modifier id ----
+        //
+        // Iteration order matters: material grants first, then synergies, then post-craft
+        // applied modifiers. The LinkedHashMap put() overwrites by id — later sources win,
+        // so a player-applied anvil modifier overrides a material grant of the same id,
+        // and a synergy overrides a material grant.
+        //
+        // Net effect for the tooltip-duplicate bug: when (iron + ender) both grant MAGNETIZED
+        // for a pickaxe, the deduped map has ONE Magnetized entry. The runtime callback
+        // fires once. Param values come from whoever wrote last (in this case, ender).
+        java.util.LinkedHashMap<Identifier, ResolvedEffect> effectsMap = new java.util.LinkedHashMap<>();
+
         for (int i = 0; i < slots.size(); i++) {
             Material m = SmitheryAPI.MATERIALS.get(materialIds.get(i));
             if (m == null) continue;
             for (ModifierEffect effect : m.stats().modifiersFor(tt)) {
-                Modifier mod = SmitheryAPI.MODIFIERS.get(effect.modifierId());
-                if (mod == null) continue;
-                applyEffect(mod, effect, passive, active);
+                collectInto(effectsMap, effect);
             }
         }
 
@@ -94,12 +122,24 @@ public final class ToolStats {
                 for (SynergyDefinition s : SmitheryAPI.synergiesFor(distinct.get(i), distinct.get(j))) {
                     ModifierEffect effect = s.effectFor(tt);
                     if (effect == null) continue;
-                    Modifier mod = SmitheryAPI.MODIFIERS.get(effect.modifierId());
-                    if (mod == null) continue;
                     synergies.add(s);
-                    applyEffect(mod, effect, passive, active);
+                    collectInto(effectsMap, effect);
                 }
             }
+        }
+
+        // ---- Post-craft applied modifiers (from APPLIED_MODIFIERS component) — last, so they win ----
+        for (ModifierEffect effect : appliedModifiers) {
+            collectInto(effectsMap, effect);
+        }
+
+        // ---- Now compute passive stats + bucket the effects for runtime / tooltip ----
+        Modifier.MutablePassiveStats passive = new Modifier.MutablePassiveStats();
+        List<ResolvedEffect> all = new ArrayList<>(effectsMap.values());
+        List<ResolvedEffect> active = new ArrayList<>();
+        List<ResolvedEffect> compose = new ArrayList<>();
+        for (ResolvedEffect r : all) {
+            applyEffect(r.modifier(), r.effect(), passive, active, compose);
         }
 
         int finalDurability = Math.max(1, Math.round(additive * multiplier * passive.durabilityMultiplier));
@@ -112,15 +152,30 @@ public final class ToolStats {
         float speed = primarySlotMaterialStat(tt, materialIds, MaterialStats::miningSpeed) + passive.bonusMiningSpeed;
         int harvest = maxAdditiveSlotHarvestLevel(tt, materialIds);
 
-        return new ToolStats(finalDurability, damage, speed, harvest, active, synergies);
+        return new ToolStats(finalDurability, damage, speed, harvest, all, active, compose, synergies);
+    }
+
+    /** Look up the modifier for an effect and store/overwrite in the dedupe map. */
+    private static void collectInto(java.util.LinkedHashMap<Identifier, ResolvedEffect> map,
+                                     ModifierEffect effect) {
+        Modifier mod = SmitheryAPI.MODIFIERS.get(effect.modifierId());
+        if (mod == null) return;
+        map.put(effect.modifierId(), new ResolvedEffect(mod, effect));
     }
 
     private static void applyEffect(Modifier mod, ModifierEffect effect,
-                                    Modifier.MutablePassiveStats passive, List<ResolvedEffect> active) {
+                                    Modifier.MutablePassiveStats passive,
+                                    List<ResolvedEffect> active,
+                                    List<ResolvedEffect> compose) {
         passive.durabilityMultiplier *= mod.durabilityMultiplier();
         if (mod.passive() != null) mod.passive().apply(effect, passive);
-        if (mod.onAttack() != null || mod.onBreak() != null) {
+        if (mod.onAttack() != null || mod.onBreak() != null
+                || mod.onBlockDrops() != null || mod.onKill() != null
+                || mod.onMobDrops() != null) {
             active.add(new ResolvedEffect(mod, effect));
+        }
+        if (mod.onCompose() != null) {
+            compose.add(new ResolvedEffect(mod, effect));
         }
     }
 
@@ -152,7 +207,7 @@ public final class ToolStats {
     }
 
     private static ToolStats broken() {
-        return new ToolStats(1, 0f, 1f, 0, List.of(), List.of());
+        return new ToolStats(1, 0f, 1f, 0, List.of(), List.of(), List.of(), List.of());
     }
 
     /** Compose all parts' modifier names and active synergies into a list for tooltips. */
@@ -162,5 +217,5 @@ public final class ToolStats {
         return out;
     }
 
-    private ToolStats() { this(1, 0f, 1f, 0, List.of(), List.of()); }
+    private ToolStats() { this(1, 0f, 1f, 0, List.of(), List.of(), List.of(), List.of()); }
 }

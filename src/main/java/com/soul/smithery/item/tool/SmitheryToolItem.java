@@ -68,11 +68,53 @@ public class SmitheryToolItem extends Item {
     }
 
     /**
-     * Compute stats from {@code comp} and write them onto {@code stack} as vanilla data components.
-     * Call once at craft time. Returns the (possibly modified) stack for chaining.
+     * Backwards-compat overload — no explicit registry access. Tries to resolve the current
+     * server's HolderLookup.Provider from {@link net.neoforged.neoforge.server.ServerLifecycleHooks};
+     * if no server is running (client-only init, creative tab preview, etc.) the lookup is null
+     * and any compose actions requiring it (notably {@code apply_enchantment}) silently no-op.
      */
     public static ItemStack applyComposition(ItemStack stack, ToolComposition comp) {
-        ToolStats stats = ToolStats.compute(comp);
+        net.minecraft.core.HolderLookup.Provider lookup = null;
+        try {
+            var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+            if (server != null) lookup = server.registryAccess();
+        } catch (Throwable ignored) { /* client / pre-server contexts */ }
+        return applyComposition(stack, comp, lookup);
+    }
+
+    /**
+     * Compute stats from {@code comp} (and any post-craft modifiers already on the stack)
+     * and write them onto {@code stack} as vanilla data components. Call at craft time AND
+     * any time post-craft modifiers change (e.g. after the anvil applies a new modifier) so
+     * the cached vanilla attribute modifiers / durability / tool rules stay in sync.
+     *
+     * <h3>Enchantment handling</h3>
+     * This method <em>clears</em> the stack's {@code ENCHANTMENTS} component at entry, then
+     * invokes every {@link com.soul.smithery.api.modifier.Modifier.OnCompose} hook on the
+     * effective modifier list (composition material grants + applied modifiers + synergies).
+     * Compose actions can write fresh enchantments via the provided {@code HolderLookup.Provider}.
+     * Net effect: enchantments on smithery tools are <em>always</em> driven by the modifier
+     * system and recomputed on every (re)composition. Vanilla enchanting is blocked separately
+     * via {@link #getEnchantmentValue()} and the anvil handler.
+     *
+     * @param lookup registry access for compose actions that need it (enchantment registry,
+     *               attribute registry, etc.). Pass {@code null} only when no live registry
+     *               access is available — affected actions will skip with no error.
+     */
+    public static ItemStack applyComposition(ItemStack stack, ToolComposition comp,
+                                              net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
+        // Clear any prior enchantments — built-in smithery modifiers EMULATE enchantment
+        // effects (e.g. golden_touch's bonus_drops mimics Fortune ore drops via BlockDropsEvent)
+        // rather than writing the vanilla ENCHANTMENTS component. Modders who explicitly want
+        // their modifier to ALSO write a vanilla enchantment (for compat with other mods that
+        // inspect ENCHANTMENTS directly) can use the smithery:apply_enchantment compose action,
+        // which writes here. Cleared at composition entry so any prior enchantment from a
+        // removed modifier doesn't linger.
+        stack.remove(net.minecraft.core.component.DataComponents.ENCHANTMENTS);
+
+        java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
+                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
+        ToolStats stats = ToolStats.compute(comp, applied);
         stack.set(SmitheryDataComponents.TOOL_COMPOSITION.get(), comp);
         stack.set(DataComponents.MAX_DAMAGE, stats.maxDurability);
         stack.set(DataComponents.MAX_STACK_SIZE, 1);
@@ -105,7 +147,89 @@ public class SmitheryToolItem extends Item {
                 stack.set(DataComponents.WEAPON, new Weapon(1, 0.0f));
             }
         }
+
+        // Compose hooks — fire after vanilla components are written so actions can read /
+        // mutate the finalized stack (e.g. apply_enchantment writes to ENCHANTMENTS).
+        com.soul.smithery.api.modifier.Modifier.ComposeContext composeCtx =
+                new com.soul.smithery.api.modifier.Modifier.ComposeContext(stack, lookup);
+        for (ToolStats.ResolvedEffect r : stats.composeEffects) {
+            com.soul.smithery.api.modifier.Modifier mod =
+                    com.soul.smithery.api.SmitheryAPI.MODIFIERS.get(r.effect().modifierId());
+            if (mod == null || mod.onCompose() == null) continue;
+            try {
+                mod.onCompose().apply(r.effect(), composeCtx);
+            } catch (Throwable t) {
+                com.soul.smithery.Smithery.LOGGER.error(
+                        "Modifier {} onCompose failed: {}", r.effect().modifierId(), t.toString());
+            }
+        }
         return stack;
+    }
+
+    // ---- Vanilla enchanting blocked at two layers ----
+    //
+    // In 1.21+ enchantability is the {@code DataComponents.ENCHANTABLE} component (set via
+    // {@code Properties.enchantable(int)}). Smithery tools NEVER set it, so vanilla enchanting
+    // tables already refuse to enchant them. The anvil-book path is blocked separately by
+    // {@link com.soul.smithery.event.AnvilModifierHandler}, which sets the output to empty
+    // when an enchanted book sits in the right slot opposite a smithery tool. Together these
+    // ensure enchantments only land via the smithery modifier system's
+    // {@code smithery:apply_enchantment} on_compose action.
+
+    // ---- Modifier slot accounting ----
+    //
+    // Each part's material grants N slots for that part type (set in MaterialStats.modifierSlots).
+    // The tool's total slot count is the sum across all slots in the composition. Post-craft
+    // modifier application consumes one slot per modifier applied (stored in APPLIED_MODIFIERS).
+
+    /** Total modifier slots a fully-composed tool offers. Derives entirely from the composition. */
+    public static int totalModifierSlots(ToolComposition comp) {
+        ToolType tt = comp.toolType();
+        if (tt == null) return 0;
+        int sum = 0;
+        List<ToolType.Slot> slots = tt.slots();
+        java.util.List<Identifier> matIds = comp.slotMaterials();
+        for (int i = 0; i < slots.size(); i++) {
+            Material m = SmitheryAPI.MATERIALS.get(matIds.get(i));
+            if (m == null) continue;
+            sum += m.stats().modifierSlotsFor(slots.get(i).partType());
+        }
+        return sum;
+    }
+
+    /**
+     * Modifier slots consumed by the post-craft modifier list on this stack. Each modifier
+     * entry counts as {@code level} slots — so a Haste II application uses 2 slots, Haste III
+     * uses 3, etc. Single-level modifiers (most) default to level 1 = 1 slot.
+     */
+    public static int appliedModifierCount(ItemStack stack) {
+        int total = 0;
+        for (com.soul.smithery.api.modifier.ModifierEffect e :
+                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(),
+                        java.util.List.<com.soul.smithery.api.modifier.ModifierEffect>of())) {
+            total += Math.max(1, e.paramInt("level", 1));
+        }
+        return total;
+    }
+
+    /** Standard Roman numeral formatter for tooltip level rendering. */
+    private static String toRoman(int n) {
+        if (n <= 0) return String.valueOf(n);
+        if (n >= 4000) return String.valueOf(n);    // not worth wrestling Romans for absurd numbers
+        StringBuilder sb = new StringBuilder();
+        int[] vals = {1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1};
+        String[] syms = {"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"};
+        for (int i = 0; i < vals.length; i++) {
+            while (n >= vals[i]) { sb.append(syms[i]); n -= vals[i]; }
+        }
+        return sb.toString();
+    }
+
+    /** Free modifier slots remaining on this stack (clamped to ≥ 0). */
+    public static int freeModifierSlots(ItemStack stack) {
+        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        if (comp == null) return 0;
+        return Math.max(0, totalModifierSlots(comp) - appliedModifierCount(stack));
     }
 
     private static float attackSpeedFor(ToolComposition comp) {
@@ -196,7 +320,9 @@ public class SmitheryToolItem extends Item {
             return;
         }
 
-        ToolStats stats = ToolStats.compute(comp);
+        java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
+                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
+        ToolStats stats = ToolStats.compute(comp, applied);
 
         // ---- Parts breakdown ----
         tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")
@@ -219,14 +345,68 @@ public class SmitheryToolItem extends Item {
         tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".part.harvest_level",
                 stats.harvestLevel).withStyle(ChatFormatting.GRAY));
 
-        // ---- Modifiers ----
-        if (!stats.activeEffects.isEmpty()) {
+        // ---- Modifier slots (post-craft application capacity) ----
+        int totalSlots = totalModifierSlots(comp);
+        int usedSlots = applied.size();
+        int freeSlots = Math.max(0, totalSlots - usedSlots);
+        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.modifier_slots",
+                freeSlots, totalSlots).withStyle(ChatFormatting.GRAY));
+
+        // ---- Modifiers (all of them — passive, active, and compose-only alike) ----
+        if (!stats.allEffects.isEmpty()) {
             tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.modifiers")
                     .withStyle(ChatFormatting.GRAY));
-            for (ToolStats.ResolvedEffect r : stats.activeEffects) {
-                tooltip.accept(Component.literal(" • ")
+            // Shift detection: static Screen.hasShiftDown() removed in 1.21+. Query the window
+            // directly via InputConstants. Safe client-side only — appendHoverText never runs
+            // server-side even though the Item class loads on both.
+            com.mojang.blaze3d.platform.Window win =
+                    net.minecraft.client.Minecraft.getInstance().getWindow();
+            boolean shiftDown = com.mojang.blaze3d.platform.InputConstants.isKeyDown(
+                            win, com.mojang.blaze3d.platform.InputConstants.KEY_LSHIFT)
+                    || com.mojang.blaze3d.platform.InputConstants.isKeyDown(
+                            win, com.mojang.blaze3d.platform.InputConstants.KEY_RSHIFT);
+            for (ToolStats.ResolvedEffect r : stats.allEffects) {
+                int level = r.effect().paramInt("level", 1);
+                MutableComponent line = Component.literal(" • ")
                         .append(Component.translatable(PartItem.modifierTranslationKey(r.effect().modifierId()))
-                                .withStyle(ChatFormatting.AQUA))
+                                .withStyle(ChatFormatting.AQUA));
+                // Render level as Roman numeral when > 1 (matches vanilla enchantment style).
+                if (level > 1) {
+                    line.append(Component.literal(" " + toRoman(level)).withStyle(ChatFormatting.AQUA));
+                }
+                tooltip.accept(line.withStyle(ChatFormatting.DARK_GRAY));
+                // Shift held → indented italic description line. Description lang key is
+                // "<modifier_key>.description". Missing keys are gracefully skipped via I18n.exists.
+                if (shiftDown) {
+                    String descKey = PartItem.modifierDescriptionKey(r.effect().modifierId());
+                    if (net.minecraft.client.resources.language.I18n.exists(descKey)) {
+                        tooltip.accept(Component.literal("     ")
+                                .append(Component.translatable(descKey))
+                                .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+                    }
+                }
+            }
+            if (!shiftDown) {
+                tooltip.accept(Component.translatable(
+                        "tooltip." + Smithery.MODID + ".tool.shift_for_descriptions")
+                        .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+            }
+        }
+
+        // ---- In-progress modifier accumulation (from partial anvil applications) ----
+        // Value is the raw count of source items contributed so far. We don't know the target
+        // threshold here without picking a "primary" source; show just the contributed count,
+        // which matches the anvil's actual consumption.
+        java.util.Map<net.minecraft.resources.Identifier, Integer> progress =
+                stack.getOrDefault(SmitheryDataComponents.MODIFIER_PROGRESS.get(),
+                        java.util.Map.<net.minecraft.resources.Identifier, Integer>of());
+        if (!progress.isEmpty()) {
+            for (var entry : progress.entrySet()) {
+                tooltip.accept(Component.literal(" ⌛ ")
+                        .append(Component.translatable(PartItem.modifierTranslationKey(entry.getKey()))
+                                .withStyle(ChatFormatting.YELLOW))
+                        .append(Component.literal(": " + entry.getValue() + " contributed")
+                                .withStyle(ChatFormatting.GRAY))
                         .withStyle(ChatFormatting.DARK_GRAY));
             }
         }

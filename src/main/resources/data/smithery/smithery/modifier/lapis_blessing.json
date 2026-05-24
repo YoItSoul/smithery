@@ -1,0 +1,13 @@
+{
+  "_comment": "Multi-level lucky modifier. Each level needs 90 'lapis units' to commit. Sources: lapis lazuli = 1 unit/item, lapis block = 9 units/item. So level 1 = 90 dust OR 10 blocks OR any mix that sums to 90. Each level x1.5: 90, 135, 203, 304... Each level scales BOTH the ore-drop bonus (vanilla Fortune formula) and the mob-drop bonus (Looting-style) and consumes one modifier slot.",
+  "durability_multiplier": 1.0,
+  "max_level": 999,
+  "level_cost": 90,
+  "level_cost_scaling": 1.5,
+  "on_block_drops": [
+    { "type": "smithery:bonus_drops", "block_tag": "c:ores" }
+  ],
+  "on_mob_drops": [
+    { "type": "smithery:bonus_mob_drops" }
+  ]
+}

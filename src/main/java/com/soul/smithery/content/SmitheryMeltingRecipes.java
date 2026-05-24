@@ -52,6 +52,68 @@ public final class SmitheryMeltingRecipes {
         recipe("minecraft:deepslate_copper_ore",  "smithery:copper", RAW_MB);
         recipe("minecraft:copper_block",          "smithery:copper", BLOCK_MB);
         recipe("minecraft:raw_copper_block",      "smithery:copper", BLOCK_MB);
+
+        // --- Stone ---
+        // Cobblestone is the "ingot equivalent" for stone tools. Vanilla recipes don't have
+        // a nugget; we map a single cobblestone to 144 mB so 1 block = 1 ingot.
+        recipe("minecraft:cobblestone",            "smithery:stone", INGOT_MB);
+        recipe("minecraft:stone",                  "smithery:stone", INGOT_MB);
+        recipe("minecraft:cobbled_deepslate",      "smithery:stone", INGOT_MB);
+        recipe("minecraft:deepslate",              "smithery:stone", INGOT_MB);
+
+        // --- Lapis ---
+        recipe("minecraft:lapis_lazuli",           "smithery:lapis",    NUGGET_MB);
+        recipe("minecraft:lapis_block",            "smithery:lapis",    INGOT_MB);
+        recipe("minecraft:lapis_ore",              "smithery:lapis",    RAW_MB);
+        recipe("minecraft:deepslate_lapis_ore",    "smithery:lapis",    RAW_MB);
+
+        // --- Redstone ---
+        recipe("minecraft:redstone",               "smithery:redstone", NUGGET_MB);
+        recipe("minecraft:redstone_block",         "smithery:redstone", INGOT_MB);
+        recipe("minecraft:redstone_ore",           "smithery:redstone", RAW_MB);
+        recipe("minecraft:deepslate_redstone_ore", "smithery:redstone", RAW_MB);
+
+        // --- Prismarine ---
+        recipe("minecraft:prismarine_shard",       "smithery:prismarine", NUGGET_MB);
+        recipe("minecraft:prismarine_crystals",    "smithery:prismarine", NUGGET_MB);
+        recipe("minecraft:prismarine",             "smithery:prismarine", INGOT_MB);
+        recipe("minecraft:dark_prismarine",        "smithery:prismarine", INGOT_MB);
+
+        // --- Blaze ---
+        recipe("minecraft:blaze_powder",           "smithery:blaze",    NUGGET_MB);
+        recipe("minecraft:blaze_rod",              "smithery:blaze",    INGOT_MB);  // 1 rod = 2 powder vanilla, but as part-material we treat it as ingot
+
+        // --- Amethyst ---
+        recipe("minecraft:amethyst_shard",         "smithery:amethyst", NUGGET_MB);
+        recipe("minecraft:amethyst_block",         "smithery:amethyst", INGOT_MB);
+        recipe("minecraft:amethyst_cluster",       "smithery:amethyst", INGOT_MB);
+
+        // --- Diamond ---
+        recipe("minecraft:diamond",                "smithery:diamond",  INGOT_MB);
+        recipe("minecraft:diamond_block",          "smithery:diamond",  BLOCK_MB);
+        recipe("minecraft:diamond_ore",            "smithery:diamond",  RAW_MB);
+        recipe("minecraft:deepslate_diamond_ore",  "smithery:diamond",  RAW_MB);
+
+        // --- Emerald ---
+        recipe("minecraft:emerald",                "smithery:emerald",  INGOT_MB);
+        recipe("minecraft:emerald_block",          "smithery:emerald",  BLOCK_MB);
+        recipe("minecraft:emerald_ore",            "smithery:emerald",  RAW_MB);
+        recipe("minecraft:deepslate_emerald_ore",  "smithery:emerald",  RAW_MB);
+
+        // --- Netherite (via alloy: gold + ancient debris → netherite, see data alloy JSON) ---
+        // Ancient debris and netherite scrap melt into the smithery:ancient_debris intermediate
+        // fluid. The forge's auto-alloy loop combines that fluid with smithery:gold (at 2200°C)
+        // into smithery:netherite per the netherite.json alloy recipe (576+576 → 144).
+        recipe("minecraft:ancient_debris",         "smithery:ancient_debris", INGOT_MB);
+        recipe("minecraft:netherite_scrap",        "smithery:ancient_debris", NUGGET_MB);
+        // Refined netherite items melt directly (player crafted them via vanilla smithing).
+        recipe("minecraft:netherite_ingot",        "smithery:netherite", INGOT_MB);
+        recipe("minecraft:netherite_block",        "smithery:netherite", BLOCK_MB);
+
+        // --- Bedrock ---
+        // Unobtainable in survival without creative; included so admins/creative players have
+        // an endgame ceiling material.
+        recipe("minecraft:bedrock",                "smithery:bedrock",  INGOT_MB);
     }
 
     private static void recipe(String input, String material, int mb) {

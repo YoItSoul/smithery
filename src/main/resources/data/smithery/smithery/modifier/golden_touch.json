@@ -1,0 +1,10 @@
+{
+  "_comment": "Emulates the EFFECT of Fortune I on ore drops without writing minecraft:fortune to the tool's ENCHANTMENTS component. Uses smithery:bonus_drops which rolls the same multiplier distribution as vanilla Fortune (level+1 range), filtered to the c:ores tag so only ore-like blocks trigger the bonus. Gold material grants this on pickaxes by default — see SmitheryMaterials.GOLD.",
+  "durability_multiplier": 1.0,
+  "on_block_drops": [
+    {
+      "type": "smithery:bonus_drops",
+      "block_tag": "c:ores"
+    }
+  ]
+}

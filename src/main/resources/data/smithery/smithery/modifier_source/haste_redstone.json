@@ -1,0 +1,7 @@
+{
+  "_comment": "1 redstone dust = 1 unit toward smithery:haste's level cost (90 per level, scaling x1.5). Use 90 dust to commit level 1, 135 for level 2, etc.",
+  "source_item": "minecraft:redstone",
+  "modifier": "smithery:haste",
+  "params": {},
+  "unit_value": 1
+}

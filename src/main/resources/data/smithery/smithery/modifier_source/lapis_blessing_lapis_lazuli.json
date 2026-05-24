@@ -1,0 +1,7 @@
+{
+  "_comment": "1 lapis lazuli = 1 unit toward smithery:lapis_blessing's level cost.",
+  "source_item": "minecraft:lapis_lazuli",
+  "modifier": "smithery:lapis_blessing",
+  "params": {},
+  "unit_value": 1
+}

@@ -89,6 +89,13 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     private int totalFuelMb = 0;
     private int totalFuelCapacityMb = 0;
 
+    // ---- Player toggle: auto-alloying ----
+    // When false, processAlloys() skips firing recipes — useful when the player has all the
+    // inputs for a "more-specific" alloy in the forge but actually wants the less-specific
+    // result (silver+gold+iron present but they want electrum, not constantan). Toggle via
+    // the controller GUI button. Persisted and synced.
+    private boolean alloyEnabled = true;
+
     // ---- Fluid storage ----
     private final Map<Identifier, Integer> fluidStorage = new LinkedHashMap<>();
     /**
@@ -118,6 +125,12 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     public ValidationResult lastValidation()    { return lastValidation; }
     public float temperatureC()                 { return temperatureC; }
     public boolean isFueled()                   { return fueledLastTick; }
+    public boolean isAlloyEnabled()             { return alloyEnabled; }
+    public void setAlloyEnabled(boolean v) {
+        if (alloyEnabled == v) return;
+        alloyEnabled = v;
+        setChanged();
+    }
     public int totalFuelMb()                    { return totalFuelMb; }
     public int totalFuelCapacityMb()            { return totalFuelCapacityMb; }
     public float targetTemperatureC()           { return fueledLastTick ? HEAT_TARGET_LAVA_C : HEAT_AMBIENT_C; }
@@ -256,29 +269,52 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             return;
         }
 
-        // Tally fuel across all ports.
+        // Tally fuel across all ports + determine target temperature from the highest-temp
+        // fuel present (lava → 1650, molten blaze → 3500, etc — see ForgeFuels registry).
+        // A forge with mixed lava+blaze ports climbs to blaze's temperature; once blaze is
+        // exhausted it falls back to lava's lower target.
         List<ForgeFuelPortBlockEntity> ports = collectFuelPorts(level);
         totalFuelMb = 0;
         totalFuelCapacityMb = 0;
+        float fuelTarget = HEAT_AMBIENT_C;
         for (ForgeFuelPortBlockEntity p : ports) {
-            totalFuelMb += p.lavaMb();
+            totalFuelMb += p.fuelMb();
             totalFuelCapacityMb += ForgeFuelPortBlockEntity.CAPACITY_MB;
+            if (p.fuelMb() <= 0 || p.fuelFluid() == null) continue;
+            com.soul.smithery.api.forge.ForgeFuels.Profile profile =
+                    com.soul.smithery.api.forge.ForgeFuels.get(p.fuelFluid());
+            if (profile != null && profile.targetTemperatureC() > fuelTarget) {
+                fuelTarget = profile.targetTemperatureC();
+            }
         }
         fueledLastTick = totalFuelMb > 0;
 
-        // Consume fuel (accumulate sub-mB debt, drain first non-empty port when it rolls over).
+        // Consume fuel from the port currently driving the temperature target (highest-temp
+        // fuel runs first; once it's gone the next-hottest takes over for subsequent ticks).
         if (fueledLastTick) {
             fuelConsumptionAccumulator += FUEL_CONSUMPTION_PER_TICK;
             while (fuelConsumptionAccumulator >= 1f && !ports.isEmpty()) {
                 fuelConsumptionAccumulator -= 1f;
+                // Pick the port with the highest-temp fuel that still has any to burn.
+                ForgeFuelPortBlockEntity hot = null;
+                float hotTarget = -1f;
                 for (ForgeFuelPortBlockEntity p : ports) {
-                    if (p.lavaMb() > 0) { p.drainLava(1); totalFuelMb--; break; }
+                    if (p.fuelMb() <= 0 || p.fuelFluid() == null) continue;
+                    var prof = com.soul.smithery.api.forge.ForgeFuels.get(p.fuelFluid());
+                    if (prof == null) continue;
+                    if (prof.targetTemperatureC() > hotTarget) {
+                        hotTarget = prof.targetTemperatureC();
+                        hot = p;
+                    }
                 }
+                if (hot == null) break;
+                hot.drainFuel(1);
+                totalFuelMb--;
             }
         }
 
         // Temperature simulation.
-        float target = fueledLastTick ? HEAT_TARGET_LAVA_C : HEAT_AMBIENT_C;
+        float target = fueledLastTick ? fuelTarget : HEAT_AMBIENT_C;
         boolean heating = target > temperatureC;
         float rate = heating ? HEAT_RATE_PER_TICK : COOL_RATE_PER_TICK;
         if (!lastValidation.openTop) {
@@ -291,6 +327,36 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         // Absorb any item entities that fell into the interior, then melt from slots.
         absorbItemEntities(level);
         meltFromSlots(level);
+
+        // Auto-alloy: scan registered recipes in priority order (more inputs first) and
+        // fire any whose preconditions are met. See AlloyRecipes.all() for sort details.
+        processAlloys();
+    }
+
+    /**
+     * Fires every applicable alloy this tick. Recipes execute in priority order (more inputs
+     * first); a higher-priority recipe that consumes a shared input prevents a lower-priority
+     * one from firing the same tick — the lower-priority recipe's preconditions become unmet
+     * after the deduction. Players control conflicts by managing what they put into the forge.
+     */
+    private void processAlloys() {
+        if (!alloyEnabled) return;
+        for (com.soul.smithery.api.alloy.AlloyRecipe recipe : com.soul.smithery.api.alloy.AlloyRecipes.all()) {
+            if (!recipe.canFire(temperatureC, fluidStorage)) continue;
+
+            // Deduct each input.
+            for (com.soul.smithery.api.alloy.AlloyRecipe.Input in : recipe.inputs()) {
+                int current = fluidStorage.getOrDefault(in.material(), 0);
+                int remaining = current - in.mb();
+                if (remaining <= 0) fluidStorage.remove(in.material());
+                else fluidStorage.put(in.material(), remaining);
+            }
+            // Add the output. fluidStorage's LinkedHashMap iteration order is the GUI display
+            // order, so newly-introduced alloy outputs appear at the bottom (after the inputs
+            // they replaced). Players notice the new entry.
+            fluidStorage.merge(recipe.result().material(), recipe.result().mb(), Integer::sum);
+            setChanged();
+        }
     }
 
     // ---- Item absorption ----
@@ -693,6 +759,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
         temperatureC = input.getFloatOr("temperatureC", HEAT_AMBIENT_C);
+        alloyEnabled = input.getBooleanOr("alloyEnabled", true);
 
         fluidStorage.clear();
         Optional<ValueInput.ValueInputList> fluids = input.childrenList("fluids");
@@ -771,6 +838,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     protected void saveAdditional(ValueOutput output) {
         super.saveAdditional(output);
         output.putFloat("temperatureC", temperatureC);
+        output.putBoolean("alloyEnabled", alloyEnabled);
 
         ValueOutput.ValueOutputList fluids = output.childrenList("fluids");
         for (Map.Entry<Identifier, Integer> e : fluidStorage.entrySet()) {

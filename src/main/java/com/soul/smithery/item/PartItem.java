@@ -108,4 +108,9 @@ public class PartItem extends Item {
     public static String modifierTranslationKey(Identifier modifierId) {
         return Smithery.MODID + ".modifier." + modifierId.getNamespace() + "." + modifierId.getPath();
     }
+
+    /** Description text shown in the tool tooltip when the player holds Shift. */
+    public static String modifierDescriptionKey(Identifier modifierId) {
+        return modifierTranslationKey(modifierId) + ".description";
+    }
 }

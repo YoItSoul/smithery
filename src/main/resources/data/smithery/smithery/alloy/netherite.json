@@ -1,0 +1,9 @@
+{
+  "_comment": "Vanilla-matched netherite alloy. 4 gold + 4 ancient debris (576 mB each = 4 ingots' worth) yields 1 netherite ingot's worth (144 mB). Requires 2200°C — netherite's meltingTemp — gating it behind high-tier fuel. Modpack authors can ship a more generous recipe at the same path to override this.",
+  "inputs": [
+    { "material": "smithery:gold",           "mb": 576 },
+    { "material": "smithery:ancient_debris", "mb": 576 }
+  ],
+  "result": { "material": "smithery:netherite", "mb": 144 },
+  "min_temperature_c": 2200
+}

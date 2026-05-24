@@ -1,0 +1,7 @@
+{
+  "_comment": "1 redstone block = 9 units (matches the 9:1 crafting ratio with dust). Combines naturally with the dust source: 45 dust + 5 blocks = 90 units = level 1.",
+  "source_item": "minecraft:redstone_block",
+  "modifier": "smithery:haste",
+  "params": {},
+  "unit_value": 9
+}

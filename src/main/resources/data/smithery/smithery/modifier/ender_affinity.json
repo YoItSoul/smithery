@@ -1,0 +1,11 @@
+{
+  "_comment": "Modifier defined entirely in DATA. The file path determines the modifier id: data/smithery/smithery/modifier/ender_affinity.json registers smithery:ender_affinity. Composes one built-in action (smithery:teleport_target). Modpack authors can ship their own JSON at this path to change defaults, or define new modifiers elsewhere by combining the action types in SmitheryModifierActions.",
+  "durability_multiplier": 1.0,
+  "on_attack": [
+    {
+      "type": "smithery:teleport_target",
+      "chance": 0.30,
+      "radius": 4.0
+    }
+  ]
+}

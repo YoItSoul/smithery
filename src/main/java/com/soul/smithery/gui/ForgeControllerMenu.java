@@ -52,7 +52,9 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     public static final int DATA_FLUID_TOTAL     = 6;
     /** Index into materialList of the player-selected output fluid; -1 if none. */
     public static final int DATA_OUTPUT_FLUID_IX = 7;
-    public static final int DATA_FLUID_BASE      = 8;
+    /** 1 = alloying enabled (default), 0 = paused. Toggled via the screen's alloy button. */
+    public static final int DATA_ALLOY_ENABLED   = 8;
+    public static final int DATA_FLUID_BASE      = 9;
     // Melt progress per slot (in mB) lives after the fluid slots in syncData.
     // dataMeltBase = DATA_FLUID_BASE + materialList.size().
 
@@ -155,6 +157,7 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
             syncData[DATA_FLUID_CAP]   = blockEntity.fluidCapacityMb();
             syncData[DATA_FLUID_TOTAL] = blockEntity.totalStoredFluidMb();
             syncData[DATA_OUTPUT_FLUID_IX] = computeOutputFluidIndex(blockEntity);
+            syncData[DATA_ALLOY_ENABLED]   = blockEntity.isAlloyEnabled() ? 1 : 0;
             for (int i = 0; i < materialList.size(); i++) {
                 // Storage is now keyed by Fluid (not Material). Look up the molten fluid for
                 // each material; if absent (e.g. wood has no molten form), report 0.
@@ -191,6 +194,24 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     /** Index into {@link #getMaterials()} of the currently-selected output fluid; -1 if none. */
     public int getOutputFluidMaterialIndex() {
         return syncData[DATA_OUTPUT_FLUID_IX];
+    }
+
+    /** Whether the controller's auto-alloy loop is enabled (synced from server). */
+    public boolean isAlloyEnabled() { return syncData[DATA_ALLOY_ENABLED] == 1; }
+
+    // ---- Menu button IDs (used by clickMenuButton) ----
+    /** Toggles {@link ForgeControllerBlockEntity#isAlloyEnabled()}. */
+    public static final int BUTTON_TOGGLE_ALLOY = 0;
+
+    @Override
+    public boolean clickMenuButton(Player player, int id) {
+        if (blockEntity == null) return false;
+        if (id == BUTTON_TOGGLE_ALLOY) {
+            blockEntity.setAlloyEnabled(!blockEntity.isAlloyEnabled());
+            broadcastChanges();
+            return true;
+        }
+        return false;
     }
 
     /**

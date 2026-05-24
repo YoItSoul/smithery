@@ -8,6 +8,7 @@ import com.soul.smithery.block.FluidPipeBlock;
 import com.soul.smithery.block.ForgeControllerBlock;
 import com.soul.smithery.block.ForgeDrainBlock;
 import com.soul.smithery.block.ForgeFuelPortBlock;
+import com.soul.smithery.block.PartPressBlock;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.ColorRGBA;
 import net.minecraft.world.item.BlockItem;
@@ -104,6 +105,20 @@ public final class SmitheryBlocks {
                             .sound(SoundType.METAL)
                             .noOcclusion());
 
+    /**
+     * Part Press — in-world part cutting block. Redstone-driven open/closed pose; uses
+     * Geckolib for the head animation. Internal state on {@link com.soul.smithery.block.entity.PartPressBlockEntity}.
+     */
+    public static final DeferredBlock<PartPressBlock> PART_PRESS =
+            BLOCKS.registerBlock("part_press",
+                    PartPressBlock::new,
+                    () -> BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.METAL)
+                            .strength(3.0f, 6.0f)
+                            .sound(SoundType.METAL)
+                            .noOcclusion()
+                            .requiresCorrectToolForDrops());
+
     public static final DeferredBlock<ColoredFallingBlock> CASTING_SAND =
             BLOCKS.registerBlock("casting_sand",
                     // Particle color tuned to the darkened texture's average (~dark charcoal gray)
@@ -130,6 +145,8 @@ public final class SmitheryBlocks {
             SmitheryItems.ITEMS.registerSimpleBlockItem("casting_sand", CASTING_SAND);
     public static final DeferredItem<BlockItem> FLUID_PIPE_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("fluid_pipe", FLUID_PIPE);
+    public static final DeferredItem<BlockItem> PART_PRESS_ITEM =
+            SmitheryItems.ITEMS.registerSimpleBlockItem("part_press", PART_PRESS);
 
     /**
      * Internal "sand with cutout for PartType" block variants. One per registered PartType,

@@ -58,6 +58,7 @@ public class Smithery {
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_TABLE_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_SAND_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FLUID_PIPE_ITEM.get());
+                        output.accept(com.soul.smithery.registry.SmitheryBlocks.PART_PRESS_ITEM.get());
                     })
                     .build());
 
@@ -118,6 +119,10 @@ public class Smithery {
         //    - Synergies need both Materials and Modifiers registered first.
         SmitheryPartTypes.register();
         SmitheryToolTypes.register();
+        // Action library must register BEFORE modifier reload (server start) so JSON modifiers
+        // can resolve their action type ids. Also before SmitheryModifiers in case code-defined
+        // modifiers ever want to reference action types directly.
+        com.soul.smithery.content.SmitheryModifierActions.register();
         SmitheryModifiers.register();
         SmitheryMaterials.register();
         SmitherySynergies.register();
@@ -164,6 +169,24 @@ public class Smithery {
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
+        // Forge fuels — must run after Fluids deferred-register fires (i.e. now in common
+        // setup). Modders can register their own hot fuels by calling ForgeFuels.register
+        // from their own setup event. Built-ins: vanilla lava (1650°C — vanilla forge target)
+        // and smithery:molten_blaze (3500°C — high enough to melt netherite, gates post-nether
+        // material recipes behind blaze farming).
+        event.enqueueWork(() -> {
+            com.soul.smithery.api.forge.ForgeFuels.register(
+                    net.minecraft.world.level.material.Fluids.LAVA,
+                    new com.soul.smithery.api.forge.ForgeFuels.Profile(1650f));
+            var blazeEntry = com.soul.smithery.registry.SmitheryFluids.forMaterial(
+                    com.soul.smithery.content.SmitheryMaterials.BLAZE);
+            if (blazeEntry != null) {
+                com.soul.smithery.api.forge.ForgeFuels.register(
+                        blazeEntry.source.get(),
+                        new com.soul.smithery.api.forge.ForgeFuels.Profile(3500f));
+            }
+        });
+
         var api = com.soul.smithery.api.SmitheryAPI.MATERIALS;
         LOGGER.info("Smithery: {} materials × {} part types = {} part items; {} modifiers, {} synergies, {} tool types",
                 api.size(),

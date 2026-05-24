@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "powered=false": { "model": "smithery:block/part_press" },
+    "powered=true":  { "model": "smithery:block/part_press" }
+  }
+}

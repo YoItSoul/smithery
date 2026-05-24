@@ -1,0 +1,7 @@
+{
+  "_comment": "1 lapis block = 9 units (matches the 9:1 crafting ratio with lapis lazuli).",
+  "source_item": "minecraft:lapis_block",
+  "modifier": "smithery:lapis_blessing",
+  "params": {},
+  "unit_value": 9
+}
