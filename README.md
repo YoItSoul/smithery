@@ -45,7 +45,7 @@ Smithery is in active development. The roadmap is documented in [`SMITHERY_DESIG
 | Molten fluid system (auto-generated per material) | ✅ implemented |
 | Forge controller GUI (tanks, temperature, alloy toggle) | ✅ implemented |
 | Fluid pipe network + Forge drain | ✅ implemented |
-| Casting table (sand mold, impress, fill, cool, brush) | 🚧 in progress |
+| Casting table (sand mold, impress, fill, cool, retrieve) | ✅ implemented |
 | JEI recipe integration | ✅ implemented |
 | Item melting feedback (particles + sound) | ⏳ planned |
 | RF heat coils (Tier 1 + Tier 2) | ⏳ planned |
