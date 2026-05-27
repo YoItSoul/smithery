@@ -50,7 +50,7 @@ Smithery is in active development. The roadmap is documented in [`SMITHERY_DESIG
 | Item melting feedback (particles + sound) | ⏳ planned |
 | RF heat coils (Tier 1 + Tier 2) | ⏳ planned |
 | Sharpening stones (repair) | ⏳ planned |
-| Anvil-applied modifier items | ⏳ planned |
+| Anvil-applied modifier items (partial progress, levelling) | ✅ implemented |
 | Datapack JSON override loaders | 🚧 in progress |
 | In-game Field Guide (Modonomicon) | 🚧 in progress |
 
