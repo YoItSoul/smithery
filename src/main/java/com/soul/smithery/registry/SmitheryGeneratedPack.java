@@ -66,6 +66,20 @@ public class SmitheryGeneratedPack implements PackResources {
     private static final String TOOL_LAYER_TEX_PREFIX = "textures/item/tool/";
     private static final String PNG_SUFFIX = ".png";
 
+    /**
+     * Prefix for synthesized PartType template textures. Static part PNGs live under the same
+     * directory in {@code src/main/resources}; when a request comes in for one of the names
+     * listed in {@link #SYNTHESIZED_PART_TEMPLATES} we generate it on the fly from a vanilla
+     * (or other smithery) source instead. Static PNGs in the resources folder take precedence
+     * because vanilla resource loading checks earlier packs first.
+     */
+    private static final String PART_TEMPLATE_TEX_PREFIX = "textures/item/part/";
+
+    /** Path prefix for synthesized block textures (currently just red_slime_block). */
+    private static final String BLOCK_TEX_PREFIX = "textures/block/";
+    /** Block id whose textures + model + blockstate + item def are runtime-synthesized. */
+    private static final String RED_SLIME_BLOCK = "red_slime_block";
+
     @Override
     public @Nullable IoSupplier<InputStream> getRootResource(String... path) {
         // pack.mcmeta is served via getMetadataSection; nothing else lives at root.
@@ -84,6 +98,27 @@ public class SmitheryGeneratedPack implements PackResources {
         if (path.endsWith(PNG_SUFFIX) && path.startsWith(TOOL_LAYER_TEX_PREFIX)
                 && Smithery.MODID.equals(namespace)) {
             return resolveToolSlotTexture(path);
+        }
+
+        // Synthesized PartType template textures (bow_limb / bowstring / arrow_shaft). Each
+        // derives from another texture via a small transformation (rotate, crop, copy). Used
+        // both for the part item icons and the impressed-sand voxelizer.
+        if (path.endsWith(PNG_SUFFIX) && path.startsWith(PART_TEMPLATE_TEX_PREFIX)
+                && Smithery.MODID.equals(namespace)) {
+            String partName = path.substring(PART_TEMPLATE_TEX_PREFIX.length(),
+                    path.length() - PNG_SUFFIX.length());
+            return resolveSynthesizedPartTemplate(partName);
+        }
+
+        // Red slime block texture — vanilla slime_block.png recolored toward red while
+        // preserving the alpha channel and per-pixel detail (luminance-driven tint).
+        if (path.endsWith(PNG_SUFFIX) && path.startsWith(BLOCK_TEX_PREFIX)
+                && Smithery.MODID.equals(namespace)) {
+            String blockName = path.substring(BLOCK_TEX_PREFIX.length(),
+                    path.length() - PNG_SUFFIX.length());
+            if (RED_SLIME_BLOCK.equals(blockName)) {
+                return () -> emitPng(synthesizeRedSlimeTexture());
+            }
         }
 
         if (!path.endsWith(JSON_SUFFIX)) return null;
@@ -124,18 +159,36 @@ public class SmitheryGeneratedPack implements PackResources {
                         () -> resolveModelJson(namespace, path), output);
                 emitIfMatches(namespace, ITEMS_PREFIX  + path + JSON_SUFFIX, prefix,
                         () -> resolveItemDefJson(namespace, path), output);
+
+                // Bow gets three extra layered model JSONs for the draw animation: bow_pulling_0/1/2.
+                // The item def's range_dispatch references these by name. Each is layered with
+                // the same number of slots as the base bow.
+                boolean isBow = "bow".equals(path);
+                int frameCount = isBow ? 3 : 0;
+                for (int frame = 0; frame < frameCount; frame++) {
+                    String pullName = "bow_pulling_" + frame;
+                    final String capturedPull = pullName;
+                    emitIfMatches(namespace, MODELS_PREFIX + pullName + JSON_SUFFIX, prefix,
+                            () -> resolveModelJson(namespace, capturedPull), output);
+                }
+
                 // Per-slot layer textures (synthesized from vanilla iron tool sources).
                 // Must be advertised here — the item-sprite atlas builder discovers candidate
                 // PNGs via listResources, not via direct getResource calls. Without this,
                 // the atlas has no entry for our synthesized textures and tools render
                 // with the missing-texture placeholder per layer.
+                //
+                // For the bow, also advertise the per-frame variants (slot × pulling_0/1/2).
                 List<ToolType.Slot> slots = tt.slots();
                 for (int i = 0; i < slots.size(); i++) {
-                    String texName = path + "/" + i + "_" + slots.get(i).partType().id().getPath();
-                    String pngPath = TOOL_LAYER_TEX_PREFIX + texName + PNG_SUFFIX;
-                    final String capturedPng = pngPath;
-                    emitIfMatches(namespace, pngPath, prefix,
-                            () -> resolveToolSlotTexture(capturedPng), output);
+                    String partPath = slots.get(i).partType().id().getPath();
+                    String texBase = path + "/" + i + "_" + partPath;
+                    emitToolLayerTexture(namespace, texBase, prefix, output);
+                    if (isBow) {
+                        for (int frame = 0; frame < frameCount; frame++) {
+                            emitToolLayerTexture(namespace, texBase + "_pulling_" + frame, prefix, output);
+                        }
+                    }
                 }
             }
         }
@@ -149,6 +202,19 @@ public class SmitheryGeneratedPack implements PackResources {
                         () -> resolveModelJson(namespace, itemName), output);
                 emitIfMatches(namespace, ITEMS_PREFIX + itemName + JSON_SUFFIX, prefix,
                         () -> resolveItemDefJson(namespace, itemName), output);
+            }
+        }
+
+        // Synthesized PartType template textures (advertise so the atlas + voxelizer find them).
+        // Static PNGs in src/main/resources for the other parts continue to win because
+        // resource loading walks packs in order — these only fire when no static file exists.
+        if (Smithery.MODID.equals(namespace)) {
+            String[] synthParts = { "bow_limb", "bowstring", "arrow_shaft", "fletching" };
+            for (String partName : synthParts) {
+                String pngPath = PART_TEMPLATE_TEX_PREFIX + partName + PNG_SUFFIX;
+                final String captured = partName;
+                emitIfMatches(namespace, pngPath, prefix,
+                        () -> resolveSynthesizedPartTemplate(captured), output);
             }
         }
 
@@ -184,6 +250,28 @@ public class SmitheryGeneratedPack implements PackResources {
                         () -> resolveItemDefJson(namespace, name), output);
             }
         }
+
+        // Red slime block: blockstate + block model + item model + item def + texture.
+        if (Smithery.MODID.equals(namespace)) {
+            String name = RED_SLIME_BLOCK;
+            emitIfMatches(namespace, BLOCKSTATES_PREFIX  + name + JSON_SUFFIX, prefix,
+                    () -> resolveBlockstateJson(namespace, name), output);
+            emitIfMatches(namespace, BLOCK_MODELS_PREFIX + name + JSON_SUFFIX, prefix,
+                    () -> resolveBlockModelJson(namespace, name), output);
+            emitIfMatches(namespace, MODELS_PREFIX       + name + JSON_SUFFIX, prefix,
+                    () -> resolveModelJson(namespace, name), output);
+            emitIfMatches(namespace, ITEMS_PREFIX        + name + JSON_SUFFIX, prefix,
+                    () -> resolveItemDefJson(namespace, name), output);
+            emitIfMatches(namespace, BLOCK_TEX_PREFIX    + name + PNG_SUFFIX, prefix,
+                    () -> {
+                        try {
+                            BufferedImage img = synthesizeRedSlimeTexture();
+                            return () -> emitPng(img);
+                        } catch (IOException e) {
+                            return null;
+                        }
+                    }, output);
+        }
     }
 
     private static void emitIfMatches(String namespace, String fullPath, String requestedPrefix,
@@ -193,6 +281,15 @@ public class SmitheryGeneratedPack implements PackResources {
         IoSupplier<InputStream> content = contentSupplier.get();
         if (content == null) return;
         output.accept(Identifier.fromNamespaceAndPath(namespace, fullPath), content);
+    }
+
+    /** Advertises one synthesized tool-layer PNG path to the item-sprite atlas. */
+    private void emitToolLayerTexture(String namespace, String texName, String requestedPrefix,
+                                       ResourceOutput output) {
+        String pngPath = TOOL_LAYER_TEX_PREFIX + texName + PNG_SUFFIX;
+        final String captured = pngPath;
+        emitIfMatches(namespace, pngPath, requestedPrefix,
+                () -> resolveToolSlotTexture(captured), output);
     }
 
     @Override
@@ -236,6 +333,17 @@ public class SmitheryGeneratedPack implements PackResources {
                 if (tt.id().getPath().equals(itemName)) {
                     return jsonStream(buildToolModelJson(tt));
                 }
+                // Bow draw-state model variants: "bow_pulling_0" / "bow_pulling_1" / "bow_pulling_2".
+                // Each is a layered model identical to "bow" except texture paths reference the
+                // corresponding pulling-frame slot textures.
+                if ("bow".equals(tt.id().getPath())) {
+                    for (int frame = 0; frame < 3; frame++) {
+                        String pullName = "bow_pulling_" + frame;
+                        if (pullName.equals(itemName)) {
+                            return jsonStream(buildToolModelJsonFrame(tt, pullName.substring(4))); // "pulling_N"
+                        }
+                    }
+                }
             }
             // Impressed-sand item model parents the block model so the BER can render
             // it via the standard ItemStackRenderState pipeline.
@@ -248,6 +356,15 @@ public class SmitheryGeneratedPack implements PackResources {
                             }
                             """).formatted(Smithery.MODID, itemName));
                 }
+            }
+            // Red slime block: item model parents the block model so the inventory icon
+            // shows the same translucent geometry as the placed block.
+            if (RED_SLIME_BLOCK.equals(itemName)) {
+                return jsonStream(("""
+                        {
+                          "parent": "%s:block/%s"
+                        }
+                        """).formatted(Smithery.MODID, itemName));
             }
         }
         // Then parts: find a registered (material × part) where material is in this namespace.
@@ -294,6 +411,17 @@ public class SmitheryGeneratedPack implements PackResources {
                             """).formatted(Smithery.MODID, itemName));
                 }
             }
+            // Red slime block item def — references the item model that parents the block model.
+            if (RED_SLIME_BLOCK.equals(itemName)) {
+                return jsonStream(("""
+                        {
+                          "model": {
+                            "type": "minecraft:model",
+                            "model": "%s:item/%s"
+                          }
+                        }
+                        """).formatted(Smithery.MODID, itemName));
+            }
         }
         for (Material m : SmitheryAPI.MATERIALS.all()) {
             if (!m.id().getNamespace().equals(namespace)) continue;
@@ -328,6 +456,15 @@ public class SmitheryGeneratedPack implements PackResources {
                     }
                     """).formatted(Smithery.MODID, blockName));
         }
+        if (RED_SLIME_BLOCK.equals(blockName)) {
+            return jsonStream(("""
+                    {
+                      "variants": {
+                        "": { "model": "%s:block/%s" }
+                      }
+                    }
+                    """).formatted(Smithery.MODID, blockName));
+        }
         return null;
     }
 
@@ -337,6 +474,21 @@ public class SmitheryGeneratedPack implements PackResources {
             String matPath = blockName.substring(MOLTEN_PREFIX.length());
             if (!isMeltableMaterialPath(matPath)) return null;
             return jsonStream(buildMoltenBlockModelJson());
+        }
+        if (RED_SLIME_BLOCK.equals(blockName)) {
+            // Parents vanilla's slime_block model (inner+outer cube geometry, translucent
+            // rendering) and overrides only the texture lookups so we inherit every behaviour
+            // automatically. Pointing both `particle` and `texture` keys at the synthesized
+            // red PNG is what vanilla does too.
+            return jsonStream(("""
+                    {
+                      "parent": "minecraft:block/slime_block",
+                      "textures": {
+                        "particle": "%s:block/%s",
+                        "texture":  "%s:block/%s"
+                      }
+                    }
+                    """).formatted(Smithery.MODID, RED_SLIME_BLOCK, Smithery.MODID, RED_SLIME_BLOCK));
         }
         if (blockName.startsWith(IMPRESSED_SAND_PREFIX)) {
             String partPath = blockName.substring(IMPRESSED_SAND_PREFIX.length());
@@ -534,8 +686,8 @@ public class SmitheryGeneratedPack implements PackResources {
     //     slot 2 handle      : HANDLE pixels (the wooden grip)
     //     slot 3 binder      : small disc centered on the guard centroid
     //
-    //   Pickaxe (from minecraft:item/iron_pickaxe):
-    //     slot 0 pick_head   : METAL pixels except the binder disc
+    //   Pickaxe-family (pickaxe / axe / shovel / hoe / spear, each from its vanilla iron tool):
+    //     slot 0 <head>      : METAL pixels except the binder disc
     //     slot 1 handle (main): HANDLE pixels in the upper half of the shaft
     //     slot 2 handle (fore): HANDLE pixels in the lower half of the shaft
     //     slot 3 binder      : small disc at the head's centroid
@@ -545,7 +697,12 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private enum PixelKind { TRANSPARENT, METAL, HANDLE }
 
-    /** Texture path format: textures/item/tool/<tool>/<slotIndex>_<partTypePath>.png */
+    /**
+     * Texture path format: {@code textures/item/tool/<tool>/<slotIndex>_<partTypePath>[_<frame>].png}
+     *
+     * The optional {@code _<frame>} tail (currently only {@code _pulling_0|1|2} for bows) picks
+     * which source frame to synthesize from. Static tools omit it and use the single source PNG.
+     */
     private @Nullable IoSupplier<InputStream> resolveToolSlotTexture(String path) {
         String stripped = path.substring(TOOL_LAYER_TEX_PREFIX.length(),
                 path.length() - PNG_SUFFIX.length());
@@ -561,9 +718,20 @@ public class SmitheryGeneratedPack implements PackResources {
         } catch (NumberFormatException e) {
             return null;
         }
+        // Detect optional frame suffix on the form "<slot>_<partpath>_<frame>". The first
+        // underscore after the slot index introduces the part path; any further underscore-
+        // separated tail starting with "pulling_" is treated as the frame suffix.
+        String partAndFrame = slotPart.substring(underscore + 1);
+        String frameSuffix = null;
+        int pullingIdx = partAndFrame.lastIndexOf("_pulling_");
+        if (pullingIdx > 0) {
+            // partAndFrame e.g. "bow_limb_pulling_2" → frameSuffix "pulling_2"
+            frameSuffix = partAndFrame.substring(pullingIdx + 1);
+        }
+        final String capturedFrame = frameSuffix;
         return () -> {
             try {
-                BufferedImage png = synthesizeToolSlotTexture(toolPath, slotIndex);
+                BufferedImage png = synthesizeToolSlotTextureFrame(toolPath, slotIndex, capturedFrame);
                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
                 ImageIO.write(png, "PNG", out);
                 return new ByteArrayInputStream(out.toByteArray());
@@ -574,9 +742,196 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     private static BufferedImage synthesizeToolSlotTexture(String toolPath, int slotIndex) throws IOException {
+        return synthesizeToolSlotTextureFrame(toolPath, slotIndex, null);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    //  Synthesized PartType template textures (bow_limb / bowstring / arrow_shaft)
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    //
+    // Returns an IoSupplier producing the PNG bytes for one of three derived textures, or null
+    // for any other partName (in which case the resource loader keeps walking other packs to
+    // find a static file). Each entry pairs the part path with a source texture + transform.
+
+    private @Nullable IoSupplier<InputStream> resolveSynthesizedPartTemplate(String partName) {
+        return switch (partName) {
+            case "bow_limb"    -> () -> emitPng(synthesizeBowLimbTemplate());
+            case "bowstring"   -> () -> emitPng(synthesizeBowstringTemplate());
+            case "arrow_shaft" -> () -> emitPng(synthesizeArrowShaftTemplate());
+            case "fletching"   -> () -> emitPng(synthesizeFletchingTemplate());
+            default            -> null;
+        };
+    }
+
+    /** Vanilla string copied verbatim as the bowstring template. */
+    private static BufferedImage synthesizeBowstringTemplate() throws IOException {
+        return readTemplateTexture(Identifier.fromNamespaceAndPath("minecraft", "item/string"));
+    }
+
+    /**
+     * Bow limb: pick_head rotated -45° (45° counter-clockwise) around its center, then
+     * upper-half cropped (lower half cleared to fully transparent). The shallower diagonal
+     * curve reads as one half of a bow's arc.
+     */
+    private static BufferedImage synthesizeBowLimbTemplate() throws IOException {
+        BufferedImage src = readTemplateTexture(
+                Identifier.fromNamespaceAndPath(Smithery.MODID, "item/part/pick_head"));
+        BufferedImage rotated = rotateAroundCenter(src, -45.0);
+        clearLowerHalf(rotated);
+        return rotated;
+    }
+
+    /**
+     * Arrow shaft: handle cropped to its upper half and re-centered vertically. Without the
+     * recenter step the stick sits flush against the top of the 16×16 frame which reads as
+     * "off-center" — centering shifts it down by H/4 so it sits in the middle of the icon.
+     */
+    private static BufferedImage synthesizeArrowShaftTemplate() throws IOException {
+        BufferedImage src = readTemplateTexture(
+                Identifier.fromNamespaceAndPath(Smithery.MODID, "item/part/handle"));
+        return centeredUpperHalf(src);
+    }
+
+    /**
+     * Fletching: vanilla feather cropped to its upper half and re-centered vertically. Same
+     * centering treatment as arrow_shaft so the half-feather doesn't hug the top of the icon.
+     */
+    private static BufferedImage synthesizeFletchingTemplate() throws IOException {
+        BufferedImage src = readTemplateTexture(
+                Identifier.fromNamespaceAndPath("minecraft", "item/feather"));
+        return centeredUpperHalf(src);
+    }
+
+    /** Encode a BufferedImage as a PNG byte stream. */
+    private static InputStream emitPng(BufferedImage img) throws IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        ImageIO.write(img, "PNG", out);
+        return new ByteArrayInputStream(out.toByteArray());
+    }
+
+    /**
+     * Red slime block texture: vanilla slime_block recolored toward red. Each pixel is
+     * collapsed to its luminance (preserving the per-pixel detail in the source), then
+     * remapped into a red-dominant tint:
+     *   R = Y, G = Y/4, B = Y/4
+     * The alpha channel is preserved so the translucent outer shell still reads as
+     * see-through. Result: a red slime block silhouette with the same fine detail and
+     * transparency profile as vanilla.
+     */
+    private static BufferedImage synthesizeRedSlimeTexture() throws IOException {
+        BufferedImage src = readTemplateTexture(
+                Identifier.fromNamespaceAndPath("minecraft", "block/slime_block"));
+        int W = src.getWidth(), H = src.getHeight();
+        BufferedImage out = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                int argb = src.getRGB(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                if (a == 0) { out.setRGB(x, y, 0); continue; }
+                int r = (argb >>> 16) & 0xFF;
+                int g = (argb >>> 8)  & 0xFF;
+                int b = (argb)        & 0xFF;
+                int luma = (299 * r + 587 * g + 114 * b + 500) / 1000;
+                int rOut = Math.min(255, luma);
+                int gOut = luma / 4;
+                int bOut = luma / 4;
+                out.setRGB(x, y, (a << 24) | (rOut << 16) | (gOut << 8) | bOut);
+            }
+        }
+        return out;
+    }
+
+    /** Rotates an ARGB image 90° clockwise. New width = old height, new height = old width. */
+    private static BufferedImage rotate90Clockwise(BufferedImage src) {
+        int W = src.getWidth(), H = src.getHeight();
+        BufferedImage dst = new BufferedImage(H, W, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                // (x, y) → (H-1-y, x)
+                dst.setRGB(H - 1 - y, x, src.getRGB(x, y));
+            }
+        }
+        return dst;
+    }
+
+    /**
+     * Rotates an ARGB image around its geometric center by an arbitrary angle (degrees,
+     * positive = clockwise). Output is the same dimensions as the input; pixels that rotate
+     * out of bounds are clipped. Uses nearest-neighbor interpolation to keep the pixelated
+     * Minecraft look — bilinear/bicubic would smear the silhouette into a fuzzy ghost.
+     */
+    private static BufferedImage rotateAroundCenter(BufferedImage src, double angleDegrees) {
+        int W = src.getWidth(), H = src.getHeight();
+        BufferedImage dst = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
+        java.awt.geom.AffineTransform tx = java.awt.geom.AffineTransform.getRotateInstance(
+                Math.toRadians(angleDegrees), W / 2.0, H / 2.0);
+        java.awt.Graphics2D g = dst.createGraphics();
+        try {
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g.setTransform(tx);
+            g.drawImage(src, 0, 0, null);
+        } finally {
+            g.dispose();
+        }
+        return dst;
+    }
+
+    /** Clears the lower half of an image to fully transparent — pixels at y ≥ H/2 → 0. */
+    private static void clearLowerHalf(BufferedImage img) {
+        int W = img.getWidth(), H = img.getHeight();
+        int mid = H / 2;
+        for (int y = mid; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                img.setRGB(x, y, 0);
+            }
+        }
+    }
+
+    /**
+     * Copies the upper half of {@code src} (rows {@code 0..H/2-1}) into a fresh ARGB canvas
+     * of the same dimensions, offset down by {@code H/4} so the cropped content sits centered
+     * vertically. Used by arrow_shaft and fletching — without this the cropped silhouette
+     * hugs the top of the 16×16 frame and reads as off-center.
+     */
+    private static BufferedImage centeredUpperHalf(BufferedImage src) {
+        int W = src.getWidth(), H = src.getHeight();
+        int halfH = H / 2;
+        int offsetY = (H - halfH) / 2;          // shift down by H/4 to center vertically
+        BufferedImage dst = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < halfH; y++) {
+            for (int x = 0; x < W; x++) {
+                dst.setRGB(x, y + offsetY, src.getRGB(x, y));
+            }
+        }
+        return dst;
+    }
+
+    /**
+     * Source-texture mapping + per-frame variant for animated tools (bow). For static tools
+     * (sword, pickaxe, axe, shovel, hoe, spear, arrow) {@code frameSuffix} is null and the
+     * single source PNG is used. For the bow, callers pass {@code "pulling_0"},
+     * {@code "pulling_1"}, or {@code "pulling_2"} to pick up the matching draw-frame source.
+     */
+    private static BufferedImage synthesizeToolSlotTextureFrame(String toolPath, int slotIndex,
+                                                                 @Nullable String frameSuffix) throws IOException {
+        // Source-texture mapping: every tool path maps to a vanilla equivalent whose silhouette
+        // we slice into per-slot masks. Modders adding new tool paths can extend this switch
+        // (or override the generated PNG with a static one in their own resource pack).
         Identifier sourceId = switch (toolPath) {
             case "sword"   -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_sword");
             case "pickaxe" -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_pickaxe");
+            case "axe"     -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_axe");
+            case "shovel"  -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_shovel");
+            case "hoe"     -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_hoe");
+            case "spear"   -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_spear");
+            case "bow"     -> {
+                // Bow has four source frames: bow.png (rested) + bow_pulling_0/1/2.png (drawing).
+                // frameSuffix picks the right one; null = rested.
+                String path = "item/bow" + (frameSuffix == null ? "" : "_" + frameSuffix);
+                yield Identifier.fromNamespaceAndPath("minecraft", path);
+            }
+            case "arrow"   -> Identifier.fromNamespaceAndPath("minecraft", "item/arrow");
             default        -> null;
         };
         if (sourceId == null) {
@@ -686,13 +1041,59 @@ public class SmitheryGeneratedPack implements PackResources {
                     default -> new boolean[W][H];
                 };
             }
-            case "pickaxe" -> {
+            // Pickaxe-family tools (head + 2×handle + binder) all share the same slot layout:
+            //   0 = head (METAL pixels minus the binder disc)
+            //   1 = upper handle (HANDLE pixels above the handle centroid)
+            //   2 = lower handle (HANDLE pixels at/below the handle centroid)
+            //   3 = binder      (small METAL disc centered on the head)
+            // Axe / shovel / hoe / spear / pickaxe all map cleanly onto this — the per-tool
+            // source texture switch above determines silhouette; the mask is the same shape.
+            case "pickaxe", "axe", "shovel", "hoe", "spear" -> {
                 boolean[][] binder = headCenteredDisc(kind, W, H, 2);
                 return switch (slotIndex) {
                     case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
                     case 1 -> handleHalf(kind, W, H, true);
                     case 2 -> handleHalf(kind, W, H, false);
                     case 3 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+            // Bow: 3 slots — upper limb, lower limb, bowstring.
+            //   Vanilla bow.png runs roughly top-left → bottom-right, with the bowstring as the
+            //   thin straight line cutting across. We split the opaque pixels into:
+            //     0 = upper limb (HANDLE pixels above the bow centroid Y)
+            //     1 = lower limb (HANDLE pixels at/below the bow centroid Y)
+            //     2 = bowstring  (METAL/non-HANDLE pixels — the string is grey/silver in the
+            //                     source so it falls into the metal bucket of the classifier)
+            //   Works across bow.png and bow_pulling_0/1/2.png because the centroid Y stays
+            //   roughly the same as the bow flexes.
+            case "bow" -> {
+                return switch (slotIndex) {
+                    case 0 -> handleHalf(kind, W, H, true);
+                    case 1 -> handleHalf(kind, W, H, false);
+                    case 2 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL);
+                    default -> new boolean[W][H];
+                };
+            }
+            // Arrow: 3 slots — head, shaft, fletching. Vanilla arrow.png runs from bottom-left
+            // (fletching) to top-right (head tip). We split by anti-diagonal progress:
+            //   progress(x,y) = (x + (H-1-y)) / (W-1 + H-1) ∈ [0,1]
+            //     ≥ 0.7  → arrow_head (top-right ~30%)
+            //     ≥ 0.25 → arrow_shaft (middle ~45%)
+            //     else   → fletching (bottom-left ~25%)
+            // Operates on opaque pixels only (TRANSPARENT excluded).
+            case "arrow" -> {
+                int span = (W - 1) + (H - 1);
+                java.util.function.BiPredicate<Integer, Integer> opaque =
+                        (x, y) -> kind[x][y] != PixelKind.TRANSPARENT;
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> opaque.test(x, y)
+                                                          && (x + (H - 1 - y)) * 100 >= 70 * span);
+                    case 1 -> maskWhere(W, H, (x, y) -> opaque.test(x, y)
+                                                          && (x + (H - 1 - y)) * 100 >= 25 * span
+                                                          && (x + (H - 1 - y)) * 100 < 70 * span);
+                    case 2 -> maskWhere(W, H, (x, y) -> opaque.test(x, y)
+                                                          && (x + (H - 1 - y)) * 100 < 25 * span);
                     default -> new boolean[W][H];
                 };
             }
@@ -860,9 +1261,25 @@ public class SmitheryGeneratedPack implements PackResources {
      * silhouettes into {@code assets/smithery/textures/item/tool/<tool>/<index>_<part>.png}.
      */
     private static String buildToolModelJson(ToolType tt) {
+        return buildToolModelJsonFrame(tt, null);
+    }
+
+    /**
+     * Builds a layered model JSON for the given tool type and optional pulling frame. When
+     * {@code frameSuffix} is null the texture paths reference the base
+     * {@code tool/<tool>/<slot>_<part>}; when non-null (e.g. {@code "pulling_0"}) they
+     * reference {@code tool/<tool>/<slot>_<part>_<frameSuffix>}. Used for the bow's draw
+     * animation: one model JSON per (bow × pull state), all sharing the same per-slot tint
+     * indices so material colors stay consistent across frames.
+     *
+     * <p>Bow uses {@code item/bow} as its parent instead of {@code item/handheld} so vanilla's
+     * cherry-picked bow display rotation kicks in.
+     */
+    private static String buildToolModelJsonFrame(ToolType tt, @Nullable String frameSuffix) {
         StringBuilder sb = new StringBuilder(512);
+        boolean isBow = "bow".equals(tt.id().getPath());
         sb.append("{\n");
-        sb.append("  \"parent\": \"item/handheld\",\n");
+        sb.append("  \"parent\": \"").append(isBow ? "item/bow" : "item/handheld").append("\",\n");
         sb.append("  \"textures\": {\n");
         List<ToolType.Slot> slots = tt.slots();
         for (int i = 0; i < slots.size(); i++) {
@@ -870,7 +1287,9 @@ public class SmitheryGeneratedPack implements PackResources {
             sb.append("    \"layer").append(i).append("\": \"")
               .append(Smithery.MODID).append(":item/tool/")
               .append(tt.id().getPath()).append("/")
-              .append(i).append("_").append(partPath).append("\"");
+              .append(i).append("_").append(partPath);
+            if (frameSuffix != null) sb.append("_").append(frameSuffix);
+            sb.append("\"");
             if (i < slots.size() - 1) sb.append(",");
             sb.append("\n");
         }
@@ -886,23 +1305,83 @@ public class SmitheryGeneratedPack implements PackResources {
      * tool's composition shows up at render time in its corresponding silhouette layer.
      */
     private static String buildToolItemDefJson(ToolType tt) {
+        // Bows get the vanilla predicate-driven model swap so the draw animation plays. Three
+        // pulling states wrap the base "rested" model via a using_item-conditional + a
+        // use_duration range_dispatch — same structure as vanilla bow.json.
+        if ("bow".equals(tt.id().getPath())) {
+            return buildBowItemDefJson(tt);
+        }
+        return buildStaticToolItemDefJson(tt, tt.id().getPath());
+    }
+
+    private static String buildStaticToolItemDefJson(ToolType tt, String modelName) {
         StringBuilder sb = new StringBuilder(512);
         sb.append("{\n");
         sb.append("  \"model\": {\n");
-        sb.append("    \"type\": \"minecraft:model\",\n");
-        sb.append("    \"model\": \"").append(Smithery.MODID).append(":item/")
-          .append(tt.id().getPath()).append("\",\n");
-        sb.append("    \"tints\": [\n");
-        int n = tt.slots().size();
-        for (int i = 0; i < n; i++) {
-            sb.append("      { \"type\": \"smithery:tool_slot_material\", \"slot\": ").append(i).append(" }");
-            if (i < n - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append("    ]\n");
+        appendLayeredModelBlock(sb, tt, modelName, "    ");
         sb.append("  }\n");
         sb.append("}\n");
         return sb.toString();
+    }
+
+    /**
+     * Bow item def: nested condition (using_item?) → range_dispatch on use_duration → one of
+     * three pulling-frame models, with the rested model as the false branch. Each nested model
+     * has its own tints array (one tool_slot_material per slot), so material tinting tracks the
+     * draw frames correctly.
+     */
+    private static String buildBowItemDefJson(ToolType tt) {
+        StringBuilder sb = new StringBuilder(2048);
+        sb.append("{\n");
+        sb.append("  \"model\": {\n");
+        sb.append("    \"type\": \"minecraft:condition\",\n");
+        sb.append("    \"property\": \"minecraft:using_item\",\n");
+        sb.append("    \"on_false\": {\n");
+        appendLayeredModelBlock(sb, tt, "bow", "      ");
+        sb.append("    },\n");
+        sb.append("    \"on_true\": {\n");
+        sb.append("      \"type\": \"minecraft:range_dispatch\",\n");
+        sb.append("      \"property\": \"minecraft:use_duration\",\n");
+        sb.append("      \"scale\": 0.05,\n");
+        sb.append("      \"fallback\": {\n");
+        appendLayeredModelBlock(sb, tt, "bow_pulling_0", "        ");
+        sb.append("      },\n");
+        sb.append("      \"entries\": [\n");
+        sb.append("        {\n");
+        sb.append("          \"threshold\": 0.65,\n");
+        sb.append("          \"model\": {\n");
+        appendLayeredModelBlock(sb, tt, "bow_pulling_1", "            ");
+        sb.append("          }\n");
+        sb.append("        },\n");
+        sb.append("        {\n");
+        sb.append("          \"threshold\": 0.9,\n");
+        sb.append("          \"model\": {\n");
+        appendLayeredModelBlock(sb, tt, "bow_pulling_2", "            ");
+        sb.append("          }\n");
+        sb.append("        }\n");
+        sb.append("      ]\n");
+        sb.append("    }\n");
+        sb.append("  }\n");
+        sb.append("}\n");
+        return sb.toString();
+    }
+
+    /**
+     * Emits a {@code minecraft:model} block (type + model path + tints array) at the given
+     * indent. Shared between the static-tool path and the bow pulling-state nested models.
+     */
+    private static void appendLayeredModelBlock(StringBuilder sb, ToolType tt, String modelName, String indent) {
+        sb.append(indent).append("\"type\": \"minecraft:model\",\n");
+        sb.append(indent).append("\"model\": \"").append(Smithery.MODID).append(":item/")
+          .append(modelName).append("\",\n");
+        sb.append(indent).append("\"tints\": [\n");
+        int n = tt.slots().size();
+        for (int i = 0; i < n; i++) {
+            sb.append(indent).append("  { \"type\": \"smithery:tool_slot_material\", \"slot\": ").append(i).append(" }");
+            if (i < n - 1) sb.append(",");
+            sb.append("\n");
+        }
+        sb.append(indent).append("]\n");
     }
 
     // ---- Molten fluid + bucket JSON ----

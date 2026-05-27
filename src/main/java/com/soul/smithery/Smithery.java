@@ -99,14 +99,18 @@ public class Smithery {
                             SmitheryItems.SWORD.get().getDefaultInstance(),
                             com.soul.smithery.content.SmitheryToolPresets.iron(SmitheryToolTypes.SWORD)))
                     .displayItems((params, output) -> {
-                        // Show one example tool per material as a starter set until recipes land.
+                        // Show one example tool per (material × tool type) as a starter set until
+                        // recipes land. Iterates the live tool registry so any tool type added by a
+                        // downstream mod also shows up here automatically.
                         for (var mat : com.soul.smithery.api.SmitheryAPI.MATERIALS.all()) {
-                            output.accept(com.soul.smithery.item.tool.SmitheryToolItem.applyComposition(
-                                    SmitheryItems.SWORD.get().getDefaultInstance(),
-                                    com.soul.smithery.content.SmitheryToolPresets.uniform(SmitheryToolTypes.SWORD, mat.id())));
-                            output.accept(com.soul.smithery.item.tool.SmitheryToolItem.applyComposition(
-                                    SmitheryItems.PICKAXE.get().getDefaultInstance(),
-                                    com.soul.smithery.content.SmitheryToolPresets.uniform(SmitheryToolTypes.PICKAXE, mat.id())));
+                            for (var tt : com.soul.smithery.api.SmitheryAPI.TOOL_TYPES.all()) {
+                                var toolItem = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                                        .getValue(tt.id());
+                                if (toolItem == null) continue;
+                                output.accept(com.soul.smithery.item.tool.SmitheryToolItem.applyComposition(
+                                        new net.minecraft.world.item.ItemStack(toolItem),
+                                        com.soul.smithery.content.SmitheryToolPresets.uniform(tt, mat.id())));
+                            }
                         }
                     })
                     .build());
@@ -160,6 +164,7 @@ public class Smithery {
         com.soul.smithery.registry.SmitheryRecipes.register(modEventBus);
         com.soul.smithery.registry.SmitheryMenus.register(modEventBus);
         com.soul.smithery.registry.SmitheryFluids.register(modEventBus);
+        com.soul.smithery.registry.SmitheryEntityTypes.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
 
         modEventBus.addListener(this::commonSetup);

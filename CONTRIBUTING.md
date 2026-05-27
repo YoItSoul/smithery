@@ -33,6 +33,8 @@ terms, this document for the practical workflow.
 ## What to work on
 
 - Issues tagged `good first issue` or `help wanted` are great starting points.
+- **Translations are very welcome** — see [`TRANSLATIONS.md`](TRANSLATIONS.md)
+  for a no-Java workflow that adds a new locale by copying one JSON file.
 - Larger features — new tool types, new subsystems, anything that touches the
   Forge multiblock simulation — should be discussed in an issue first to align on
   design.

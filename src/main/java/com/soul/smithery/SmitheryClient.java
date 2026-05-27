@@ -56,6 +56,12 @@ public class SmitheryClient {
         event.registerBlockEntityRenderer(SmitheryBlockEntities.CASTING_TABLE.get(), CastingTableRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FLUID_PIPE.get(), FluidPipeRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.PART_PRESS.get(), PartPressRenderer::new);
+        // Smithery arrow uses vanilla's TippableArrowRenderer — it handles potion-tipped + plain
+        // arrows by sampling the entity's color. Smithery arrows extend vanilla Arrow so the
+        // existing render pipeline (texture flip on potion contents, in-flight orientation,
+        // ground stick) carries over unchanged.
+        event.registerEntityRenderer(com.soul.smithery.registry.SmitheryEntityTypes.ARROW.get(),
+                net.minecraft.client.renderer.entity.TippableArrowRenderer::new);
     }
 
     /**

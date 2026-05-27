@@ -5,7 +5,6 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
-import com.soul.smithery.item.tool.SmitheryToolItem;
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.registry.SmitheryDataComponents;
 import net.minecraft.client.color.item.ItemTintSource;
@@ -46,7 +45,11 @@ public record ToolSlotMaterialTintSource(int slot) implements ItemTintSource {
 
     @Override
     public int calculate(ItemStack stack, @Nullable ClientLevel level, @Nullable LivingEntity owner) {
-        if (!(stack.getItem() instanceof SmitheryToolItem)) return 0xFFFFFFFF;
+        // No item-type instanceof gate — checking for TOOL_COMPOSITION presence below is the
+        // authoritative test for "smithery-composed item". This used to filter on
+        // SmitheryToolItem only, which silently broke the bow & arrow tints (their items
+        // extend BowItem / ArrowItem, not SmitheryToolItem, so the tint short-circuited to
+        // white and every layer rendered in the raw template color).
         ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
         if (comp == null) return 0xFFFFFFFF;
         if (slot < 0 || slot >= comp.slotMaterials().size()) return 0xFFFFFFFF;

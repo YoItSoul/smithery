@@ -57,6 +57,13 @@ public final class SmitheryMaterials {
     public static Identifier SLIME;
     public static Identifier RESIN;
     public static Identifier CORAL;
+    // Bowstring-class materials — restricted via PartEligibility to the BOWSTRING part type
+    // (and any future ranged-weapon string slot — crossbow etc.).
+    public static Identifier STRING;
+    public static Identifier FLAMESTRING;
+    public static Identifier BREEZESTRING;
+    public static Identifier RED_SLIME;
+    public static Identifier KELP_STRING;
 
     public static void register() {
         // ────────────────────────── Starters ──────────────────────────
@@ -309,6 +316,90 @@ public final class SmitheryMaterials {
         // TODO support per-coral-color variants (tube/brain/bubble/fire/horn) that tint the
         // tool to match. Either as 5 separate material ids or a single material with dynamic
         // partColor stored on the ItemStack.
+
+        // ────────────────────────── Bowstring-class materials ──────────────────────────
+        //
+        // Restricted to the BOWSTRING part type (see PartEligibility registrations at the
+        // bottom of this method). Stats lean light & low-durability (these are string-like
+        // materials, not structural). binderMultiplier is set on the bowstring side — the
+        // bow's bowstring slot is the multiplicative role, so the multiplier scales total
+        // bow durability. Higher = more shots before breaking.
+
+        STRING = id("string");
+        SmitheryAPI.registerMaterial(STRING, binderSlots(MaterialStats.builder()
+                .harvestLevel(0)
+                .miningSpeed(1.0f)
+                .attackDamage(0.0f)
+                .durabilityPerIngot(50)
+                .meltingTemp(0f)
+                .partColor(0xFFE8E0C8)            // off-white
+                .binderMultiplier(0.9f), 1).build());
+
+        FLAMESTRING = id("flamestring");
+        SmitheryAPI.registerMaterial(FLAMESTRING, binderSlots(MaterialStats.builder()
+                .harvestLevel(0)
+                .miningSpeed(1.0f)
+                .attackDamage(1.0f)
+                .durabilityPerIngot(120)
+                .meltingTemp(0f)
+                .partColor(0xFFFF6622)            // fiery orange
+                .binderMultiplier(1.0f), 2).build());
+
+        BREEZESTRING = id("breezestring");
+        SmitheryAPI.registerMaterial(BREEZESTRING, binderSlots(MaterialStats.builder()
+                .harvestLevel(0)
+                .miningSpeed(1.0f)
+                .attackDamage(0.5f)
+                .durabilityPerIngot(140)
+                .meltingTemp(0f)
+                .partColor(0xFFB0E2FF)            // light wind blue
+                .binderMultiplier(1.1f), 2).build());
+
+        RED_SLIME = id("red_slime");
+        SmitheryAPI.registerMaterial(RED_SLIME, binderSlots(MaterialStats.builder()
+                .harvestLevel(0)
+                .miningSpeed(1.0f)
+                .attackDamage(1.0f)
+                .durabilityPerIngot(100)
+                .meltingTemp(0f)
+                .partColor(0xFFCC2233)            // redstone-tinted slime
+                .binderMultiplier(1.3f), 3).build());
+
+        KELP_STRING = id("kelp_string");
+        SmitheryAPI.registerMaterial(KELP_STRING, binderSlots(MaterialStats.builder()
+                .harvestLevel(0)
+                .miningSpeed(1.0f)
+                .attackDamage(0.5f)
+                .durabilityPerIngot(160)
+                .meltingTemp(0f)
+                .partColor(0xFF3F8E45)            // kelp green
+                .binderMultiplier(1.1f), 2).build());
+
+        // ────── Bowstring eligibility whitelist ──────
+        // SLIME is also eligible (already a registered material). Code-registered here so
+        // the allow-list applies at SmitheryItems.registerBuiltInParts time — data-pack
+        // entries augment this set on /reload.
+        Identifier bowstringId = SmitheryPartTypes.BOWSTRING.id();
+        com.soul.smithery.api.part.PartEligibility.allow(bowstringId, STRING);
+        com.soul.smithery.api.part.PartEligibility.allow(bowstringId, SLIME);
+        com.soul.smithery.api.part.PartEligibility.allow(bowstringId, FLAMESTRING);
+        com.soul.smithery.api.part.PartEligibility.allow(bowstringId, BREEZESTRING);
+        com.soul.smithery.api.part.PartEligibility.allow(bowstringId, RED_SLIME);
+        com.soul.smithery.api.part.PartEligibility.allow(bowstringId, KELP_STRING);
+
+        // Material-side restriction: the five new bowstring-class materials are eligible
+        // ONLY for the BOWSTRING part type (and any future ranged-weapon string slots — add
+        // additional part-type ids here when crossbow string / bowtruss land). Without this,
+        // a "string sword blade" would auto-generate as a part item since other part types
+        // are unrestricted by default.
+        //
+        // SLIME stays unrestricted because it's a general-purpose material with established
+        // use as a binder, handle wrap, etc. — restricting it would break existing tools.
+        com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(STRING,       bowstringId);
+        com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(FLAMESTRING,  bowstringId);
+        com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(BREEZESTRING, bowstringId);
+        com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(RED_SLIME,    bowstringId);
+        com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(KELP_STRING,  bowstringId);
     }
 
     /**

@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "group": "smithery_bowstrings",
+  "ingredients": [
+    "minecraft:redstone",
+    "minecraft:redstone",
+    "minecraft:redstone",
+    "minecraft:redstone",
+    "minecraft:slime_ball",
+    "minecraft:slime_ball",
+    "minecraft:slime_ball",
+    "minecraft:slime_ball"
+  ],
+  "result": {
+    "id": "smithery:red_slime",
+    "count": 4
+  }
+}

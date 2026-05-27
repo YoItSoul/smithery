@@ -22,15 +22,18 @@ public final class SmitheryPartTypes {
     public static PartType HANDLE;
     public static PartType BINDER;
     public static PartType PICK_HEAD;
-    /** Additional tool heads. Registered as PartTypes (and thus auto-generate PartItems +
-     *  impressed-sand variants + remelt recipes per material), but no ToolType yet references
-     *  them — they exist as ingredients waiting for axe / shovel / hoe / spear / bow tool
-     *  types to be wired up. castMb sized per "vanilla tool ingot count × head fraction". */
     public static PartType AXE_HEAD;
     public static PartType SHOVEL_HEAD;
     public static PartType HOE_HEAD;
     public static PartType SPEAR_HEAD;
     public static PartType ARROW_HEAD;
+    /** Ranged-weapon parts. Bow uses two limbs + a string; arrow uses head + shaft + fletching.
+     *  Bowstring and fletching opt out of partColorTint where appropriate (string is typically
+     *  off-white regardless of material; fletching's color is feather-like, set via material). */
+    public static PartType BOW_LIMB;
+    public static PartType BOWSTRING;
+    public static PartType ARROW_SHAFT;
+    public static PartType FLETCHING;
     /**
      * "Synthetic" cast targets. INGOT/NUGGET re-use the PartType infrastructure for impression
      * block generation (the casting_sand_impressed_<id> voxelized model) but don't produce a
@@ -107,6 +110,42 @@ public final class SmitheryPartTypes {
                 .durabilityScalar(0.5f)   // small/consumable — contributes less to tool durability
                 .partColorTint(true)
                 .castMb(144)
+                .build());
+
+        // Bow limbs: structural, drive draw weight and base durability. Two per bow.
+        // Texture is synthesized at runtime by SmitheryGeneratedPack — pick_head rotated 90°
+        // clockwise then cropped to its upper half, producing a curved limb silhouette.
+        BOW_LIMB = SmitheryAPI.registerPartType(PartType.builder(id("bow_limb"))
+                .durabilityScalar(0.8f)
+                .partColorTint(true)
+                .castMb(144)
+                .build());
+
+        // Bowstring: light, drives accuracy / draw speed. Renders off-tinted (most strings
+        // look near-white regardless of material) but still tinted so unusual materials read.
+        // Texture is synthesized at runtime from vanilla minecraft:item/string.
+        BOWSTRING = SmitheryAPI.registerPartType(PartType.builder(id("bowstring"))
+                .durabilityScalar(0.2f)
+                .partColorTint(true)
+                .castMb(72)               // half-ingot — strings are slight
+                .build());
+
+        // Arrow shaft: wood-like default but any material. Drives arrow durability (shot count).
+        // Texture is synthesized at runtime by SmitheryGeneratedPack — handle cropped to its
+        // upper half, producing a half-length stick silhouette.
+        ARROW_SHAFT = SmitheryAPI.registerPartType(PartType.builder(id("arrow_shaft"))
+                .durabilityScalar(0.4f)
+                .partColorTint(true)
+                .castMb(72)
+                .build());
+
+        // Fletching: feathers / membrane / similar. Drives arrow accuracy / range modifiers.
+        // Texture is synthesized at runtime from vanilla minecraft:item/feather with the
+        // lower half cleared, producing a half-feather silhouette.
+        FLETCHING = SmitheryAPI.registerPartType(PartType.builder(id("fletching"))
+                .durabilityScalar(0.2f)
+                .partColorTint(true)
+                .castMb(72)
                 .build());
 
         // Synthetic cast targets. The textureTemplate points at vanilla item textures so the

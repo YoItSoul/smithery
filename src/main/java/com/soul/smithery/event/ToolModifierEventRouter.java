@@ -19,7 +19,6 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
 import net.neoforged.neoforge.event.entity.living.LivingExperienceDropEvent;
-import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.level.BlockDropsEvent;
 import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
 
@@ -32,20 +31,26 @@ import java.util.List;
  *
  * <h3>Event coverage</h3>
  * <ul>
- *   <li><b>{@link AttackEntityEvent}</b> — fires when a player melee-attacks an entity. Every
- *       active effect on the held Smithery tool's {@code onAttackEntity} is invoked with the
- *       attacker, target, and tool stack.</li>
  *   <li><b>{@link BreakBlockEvent}</b> — fires when a player breaks a block. Every
  *       active effect's {@code onBlockBreak} is invoked with the player, level, position,
  *       and pre-break block state.</li>
+ *   <li><b>{@link BlockDropsEvent}</b>, <b>{@link LivingDropsEvent}</b>,
+ *       <b>{@link LivingExperienceDropEvent}</b> — drop / XP modifier hooks.</li>
  * </ul>
+ *
+ * <h3>Attack-modifier dispatch lives elsewhere</h3>
+ * {@code onAttackEntity} is NOT routed from {@code AttackEntityEvent} here. It would only fire
+ * from {@code Player.attack} (standard LMB melee) and miss spear charged-stab attacks, which
+ * route via {@code PiercingWeapon.attack} → {@code LivingEntity.stabAttack} → {@code Item.hurtEnemy}
+ * and never call {@code Player.attack}. Instead, {@code SmitheryToolItem.hurtEnemy} (server-side,
+ * fires on BOTH LMB and stab paths) calls the modifiers directly with per-pierced-entity
+ * granularity. Once-per-attack modifiers gate themselves (see {@code SmitheryModifiers.LUNGE}'s
+ * per-player cooldown).
  *
  * <h3>Coverage caveats</h3>
  * <ul>
  *   <li>Only the player's <em>main-hand</em> stack is checked. Off-hand tool use doesn't
  *       trigger modifiers — matches vanilla mining / attack behaviour.</li>
- *   <li>Indirect damage (arrows, projectiles, falling anvils) is intentionally not routed
- *       here. {@code onAttackEntity} is a melee-attack hook, not a generic damage source hook.</li>
  *   <li>If the attacker isn't a {@link Player} (e.g. a mob with a Smithery tool — possible
  *       only through unusual setups), the router silently skips. Modifier behaviour is
  *       defined for player-driven combat in v1.</li>
@@ -60,30 +65,6 @@ import java.util.List;
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class ToolModifierEventRouter {
     private ToolModifierEventRouter() {}
-
-    @SubscribeEvent
-    public static void onAttackEntity(AttackEntityEvent event) {
-        Player player = event.getEntity();
-        if (player == null || player.level().isClientSide()) return;
-        Entity target = event.getTarget();
-
-        ItemStack tool = player.getMainHandItem();
-        if (!(tool.getItem() instanceof SmitheryToolItem)) return;
-
-        List<ResolvedEffect> effects = activeEffectsFor(tool);
-        if (effects.isEmpty()) return;
-
-        Modifier.AttackContext ctx = new Modifier.AttackContext(tool, player, target, 0f);
-        for (ResolvedEffect r : effects) {
-            if (r.modifier.onAttack() == null) continue;
-            try {
-                r.modifier.onAttack().onAttack(r.effect, ctx);
-            } catch (Throwable t) {
-                Smithery.LOGGER.error("Modifier {} onAttack failed: {}",
-                        r.modifier.id(), t.toString());
-            }
-        }
-    }
 
     @SubscribeEvent
     public static void onBlockBreak(BreakBlockEvent event) {

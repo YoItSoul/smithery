@@ -21,10 +21,11 @@ public record ToolPrimaryMaterialTintSource() implements ItemTintSource {
 
     @Override
     public int calculate(ItemStack stack, @Nullable ClientLevel level, @Nullable LivingEntity owner) {
-        if (stack.getItem() instanceof SmitheryToolItem tool) {
-            return tool.primaryTintColor(stack);
-        }
-        return 0xFFFFFFFF;
+        // Composition-presence-based — covers SmitheryToolItem as well as SmitheryBowItem and
+        // SmitheryArrowItem (which don't extend SmitheryToolItem). The static helper returns
+        // opaque white when no composition is present, so non-smithery items also pass through
+        // untinted as before.
+        return SmitheryToolItem.primaryTintColorFor(stack);
     }
 
     @Override

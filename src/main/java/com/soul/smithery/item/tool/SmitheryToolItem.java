@@ -11,26 +11,39 @@ import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.registry.SmitheryDataComponents;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageType;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemInstance;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.SwingAnimationType;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.component.AttackRange;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.component.KineticWeapon;
+import net.minecraft.world.item.component.PiercingWeapon;
+import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.item.component.Tool;
 import net.minecraft.world.item.component.TooltipDisplay;
+import net.minecraft.world.item.component.UseEffects;
 import net.minecraft.world.item.component.Weapon;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -116,6 +129,18 @@ public class SmitheryToolItem extends Item {
                 stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
         ToolStats stats = ToolStats.compute(comp, applied);
         stack.set(SmitheryDataComponents.TOOL_COMPOSITION.get(), comp);
+
+        // Arrows are stackable consumables — vanilla rejects items that are both stackable AND
+        // damage-bearing, so the durability + attribute + mining/weapon-component block below
+        // is skipped for arrows. Each arrow's damage / shot-count meaning lives in the per-stack
+        // ToolComposition + ToolStats lookup at fire time (see SmitheryBowItem).
+        boolean stackable = comp.toolType() != null && "arrow".equals(comp.toolType().id().getPath());
+        if (stackable) {
+            // Still fire compose hooks so any onCompose modifier on an arrow part runs.
+            fireComposeHooks(stack, stats, lookup);
+            return stack;
+        }
+
         stack.set(DataComponents.MAX_DAMAGE, stats.maxDurability);
         stack.set(DataComponents.MAX_STACK_SIZE, 1);
         stack.set(DataComponents.DAMAGE, 0);
@@ -135,21 +160,41 @@ public class SmitheryToolItem extends Item {
                 .build();
         stack.set(DataComponents.ATTRIBUTE_MODIFIERS, attrs);
 
-        // Tool component: mining rules. For Pickaxe-type tools, mineable_with_pickaxe blocks get
-        // the computed mining speed and become drop-correct. For Sword-type tools, just sets up
-        // cobweb / leaves mining like vanilla swords.
+        // Tool component (mining rules) — only set when the tool type actually mines anything.
+        // Pickaxe / axe / shovel / hoe → minable-with-X tag at computed speed, tier-gated by
+        // incorrect_for_<tier>. Sword → SWORD_EFFICIENT (cobweb / leaves / bamboo).
+        // Spear → no TOOL component (matches vanilla; spears don't mine).
         ToolType tt = comp.toolType();
         if (tt != null) {
-            stack.set(DataComponents.TOOL, buildToolComponent(tt, stats));
-            // Swords are weapons: they take 1 durability per attack and don't disable shields.
-            // Pickaxes don't get this component (their attack damage is taken from the tool component).
-            if ("sword".equals(tt.id().getPath())) {
+            Tool tool = buildToolComponent(tt, stats);
+            if (tool != null) stack.set(DataComponents.TOOL, tool);
+
+            // Swords & spears are weapons: 1 durability per attack and don't disable shields.
+            // Mining tools don't get this component (their attack damage comes from the tool component).
+            String ttPath = tt.id().getPath();
+            if ("sword".equals(ttPath) || "spear".equals(ttPath)) {
                 stack.set(DataComponents.WEAPON, new Weapon(1, 0.0f));
+            }
+            // Spear: write the vanilla spear data-component bundle (kinetic/piercing/range/etc.)
+            // so charging, run-and-stab momentum damage, piercing, stab animation, and the spear
+            // damage type all route through the stock Item.use / Item.releaseUsing pipeline.
+            if ("spear".equals(ttPath)) {
+                applySpearComponents(stack, comp, lookup);
             }
         }
 
-        // Compose hooks — fire after vanilla components are written so actions can read /
-        // mutate the finalized stack (e.g. apply_enchantment writes to ENCHANTMENTS).
+        fireComposeHooks(stack, stats, lookup);
+        return stack;
+    }
+
+    /**
+     * Fires every onCompose hook on the given stats list against {@code stack}. Extracted so
+     * the arrow path (which skips the durability / attribute / tool component writes) still
+     * triggers compose modifiers — e.g. an arrow_head material with an onCompose action would
+     * otherwise silently no-op on arrows.
+     */
+    private static void fireComposeHooks(ItemStack stack, ToolStats stats,
+                                          net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
         com.soul.smithery.api.modifier.Modifier.ComposeContext composeCtx =
                 new com.soul.smithery.api.modifier.Modifier.ComposeContext(stack, lookup);
         for (ToolStats.ResolvedEffect r : stats.composeEffects) {
@@ -163,7 +208,6 @@ public class SmitheryToolItem extends Item {
                         "Modifier {} onCompose failed: {}", r.effect().modifierId(), t.toString());
             }
         }
-        return stack;
     }
 
     // ---- Vanilla enchanting blocked at two layers ----
@@ -213,7 +257,12 @@ public class SmitheryToolItem extends Item {
     }
 
     /** Standard Roman numeral formatter for tooltip level rendering. */
-    private static String toRoman(int n) {
+    /** Indented gray bullet for the Stats block — shared with PartItem's per-tool sections. */
+    public static net.minecraft.network.chat.MutableComponent statLine(Component body) {
+        return Component.literal(" ▸ ").append(body).withStyle(ChatFormatting.DARK_GRAY);
+    }
+
+    public static String toRoman(int n) {
         if (n <= 0) return String.valueOf(n);
         if (n >= 4000) return String.valueOf(n);    // not worth wrestling Romans for absurd numbers
         StringBuilder sb = new StringBuilder();
@@ -233,28 +282,156 @@ public class SmitheryToolItem extends Item {
     }
 
     private static float attackSpeedFor(ToolComposition comp) {
-        // Simple model: sword swings at -2.4 (vanilla sword pace); pickaxe at -2.8.
+        // Simple model: matches vanilla pacing — sword fastest, hoe medium-fast, pickaxe/shovel
+        // slower, axe slowest. Spear is computed from its kinetic attackDuration so it lines up
+        // with the SwingAnimation duration written by applySpearComponents.
         ToolType tt = comp.toolType();
         if (tt == null) return -2.4f;
         String path = tt.id().getPath();
         return switch (path) {
             case "sword"   -> -2.4f;
             case "pickaxe" -> -2.8f;
+            case "axe"     -> -3.2f;
+            case "shovel"  -> -3.0f;
+            case "hoe"     -> -3.0f;
+            case "spear"   -> 1.0f / spearAttackDuration(headHarvestLevel(comp)) - 4.0f;
             default        -> -2.6f;
         };
     }
 
-    private static Tool buildToolComponent(ToolType tt, ToolStats stats) {
+    /** Primary-additive-slot harvest level (the spear head). Falls back to iron-tier (2). */
+    private static int headHarvestLevel(ToolComposition comp) {
+        ToolType tt = comp.toolType();
+        if (tt == null) return 2;
+        for (int i = 0; i < tt.slots().size(); i++) {
+            if (tt.slots().get(i).role() == com.soul.smithery.api.tool.DurabilityRole.ADDITIVE) {
+                Material m = SmitheryAPI.MATERIALS.get(comp.slotMaterials().get(i));
+                if (m != null) return m.stats().harvestLevel();
+                break;
+            }
+        }
+        return 2;
+    }
+
+    /**
+     * Vanilla spear curve, parameterized by tier 0..4 (wooden..netherite):
+     *   t=0 → 0.65 (wooden), t=4 → 1.15 (netherite). Linear interpolation.
+     * Higher tiers swing faster (lower duration = higher attacks/sec) and pack more momentum
+     * damage. Smithery uses the head material's harvest level as the tier proxy.
+     */
+    private static float spearAttackDuration(int harvestLevel) {
+        float t = Mth.clamp(harvestLevel, 0, 4) / 4.0f;
+        return 0.65f + t * 0.5f;
+    }
+
+    /**
+     * Writes the vanilla spear data-component bundle onto {@code stack}. Constants are interpolated
+     * across the wooden→netherite range using the head material's harvest level as the tier proxy,
+     * matching {@code Item.Properties.spear(...)} from {@code Items.java}.
+     *
+     * Components written:
+     *   - KINETIC_WEAPON     — charge / dismount / knockback / damage thresholds
+     *   - PIERCING_WEAPON    — single thrust pierces multiple entities
+     *   - ATTACK_RANGE       — extended reach (2.0..4.5 player, 2.0..6.5 creative)
+     *   - MINIMUM_ATTACK_CHARGE — 1.0 (must fully charge)
+     *   - SWING_ANIMATION    — STAB anim, duration matched to attackDuration
+     *   - USE_EFFECTS        — sprint locked, slow-walk while charging
+     *   - DAMAGE_TYPE        — minecraft:spear (only if {@code lookup} is available)
+     *
+     * Sound profile is wood-flavored for harvest-level 0 (wooden tier), generic spear sounds
+     * otherwise — same split vanilla uses.
+     */
+    private static void applySpearComponents(ItemStack stack, ToolComposition comp,
+                                              net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
+        int hl = headHarvestLevel(comp);
+        float t = Mth.clamp(hl, 0, 4) / 4.0f;
+
+        float attackDuration     = spearAttackDuration(hl);
+        float damageMultiplier   = 0.7f  + t * 0.5f;        // wooden 0.70 → netherite 1.20
+        float delay              = 0.75f - t * 0.35f;       // wooden 0.75 → netherite 0.40
+        float dismountTime       = 5.0f  - t * 2.5f;        // wooden 5.0  → netherite 2.5
+        float dismountThreshold  = 14.0f - t * 5.0f;        // wooden 14   → netherite 9
+        float knockbackTime      = 10.0f - t * 4.5f;        // wooden 10   → netherite 5.5
+        float knockbackThreshold = 5.1f;                    // vanilla constant across tiers
+        float damageTime         = 15.0f - t * 6.25f;       // wooden 15   → netherite 8.75
+        float damageThreshold    = 4.6f;                    // vanilla constant across tiers
+
+        boolean wooden = (hl <= 0);
+        Holder<SoundEvent> useSound    = wooden ? SoundEvents.SPEAR_WOOD_USE    : SoundEvents.SPEAR_USE;
+        Holder<SoundEvent> attackSound = wooden ? SoundEvents.SPEAR_WOOD_ATTACK : SoundEvents.SPEAR_ATTACK;
+        Holder<SoundEvent> hitSound    = wooden ? SoundEvents.SPEAR_WOOD_HIT    : SoundEvents.SPEAR_HIT;
+
+        stack.set(DataComponents.KINETIC_WEAPON, new KineticWeapon(
+                10,
+                (int)(delay * 20.0f),
+                KineticWeapon.Condition.ofAttackerSpeed((int)(dismountTime * 20.0f), dismountThreshold),
+                KineticWeapon.Condition.ofAttackerSpeed((int)(knockbackTime * 20.0f), knockbackThreshold),
+                KineticWeapon.Condition.ofRelativeSpeed((int)(damageTime * 20.0f), damageThreshold),
+                0.38f,
+                damageMultiplier,
+                Optional.of(useSound),
+                Optional.of(hitSound)));
+
+        stack.set(DataComponents.PIERCING_WEAPON, new PiercingWeapon(
+                true, false, Optional.of(attackSound), Optional.of(hitSound)));
+
+        stack.set(DataComponents.ATTACK_RANGE,
+                new AttackRange(2.0f, 4.5f, 2.0f, 6.5f, 0.125f, 0.5f));
+        stack.set(DataComponents.MINIMUM_ATTACK_CHARGE, 1.0f);
+        stack.set(DataComponents.SWING_ANIMATION,
+                new SwingAnimation(SwingAnimationType.STAB, (int)(attackDuration * 20.0f)));
+        stack.set(DataComponents.USE_EFFECTS, new UseEffects(true, false, 1.0f));
+
+        // DAMAGE_TYPE = minecraft:spear. Requires a HolderLookup.Provider — when called from a
+        // client-only preview path (creative tab icon before server start) the lookup is null,
+        // so we skip; the spear still functions, just falls back to generic player_attack on hit.
+        if (lookup != null) {
+            try {
+                Holder<DamageType> spearDamageType =
+                        lookup.lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(DamageTypes.SPEAR);
+                stack.set(DataComponents.DAMAGE_TYPE, spearDamageType);
+            } catch (Throwable t2) {
+                // Damage type registry not yet populated — non-fatal, log once and continue.
+                Smithery.LOGGER.debug("Spear DAMAGE_TYPE unset (registry unavailable): {}", t2.toString());
+            }
+        }
+    }
+
+    private static @org.jspecify.annotations.Nullable Tool buildToolComponent(ToolType tt, ToolStats stats) {
         List<Tool.Rule> rules = new ArrayList<>();
         String path = tt.id().getPath();
-        if ("pickaxe".equals(path)) {
-            HolderSet<Block> minable = blockTag(BlockTags.MINEABLE_WITH_PICKAXE);
-            HolderSet<Block> incorrect = incorrectForTier(stats.harvestLevel);
-            if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
-            rules.add(Tool.Rule.minesAndDrops(minable, stats.miningSpeed));
-        } else if ("sword".equals(path)) {
-            // Swords mine cobweb at sword speed; leaves at 1.5; bamboo plant at 1.0.
-            rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.SWORD_EFFICIENT), stats.miningSpeed));
+        switch (path) {
+            case "pickaxe" -> {
+                HolderSet<Block> minable = blockTag(BlockTags.MINEABLE_WITH_PICKAXE);
+                HolderSet<Block> incorrect = incorrectForTier(stats.harvestLevel);
+                if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
+                rules.add(Tool.Rule.minesAndDrops(minable, stats.miningSpeed));
+            }
+            case "axe" -> {
+                HolderSet<Block> minable = blockTag(BlockTags.MINEABLE_WITH_AXE);
+                HolderSet<Block> incorrect = incorrectForTier(stats.harvestLevel);
+                if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
+                rules.add(Tool.Rule.minesAndDrops(minable, stats.miningSpeed));
+            }
+            case "shovel" -> {
+                HolderSet<Block> minable = blockTag(BlockTags.MINEABLE_WITH_SHOVEL);
+                HolderSet<Block> incorrect = incorrectForTier(stats.harvestLevel);
+                if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
+                rules.add(Tool.Rule.minesAndDrops(minable, stats.miningSpeed));
+            }
+            case "hoe" -> {
+                HolderSet<Block> minable = blockTag(BlockTags.MINEABLE_WITH_HOE);
+                HolderSet<Block> incorrect = incorrectForTier(stats.harvestLevel);
+                if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
+                rules.add(Tool.Rule.minesAndDrops(minable, stats.miningSpeed));
+            }
+            case "sword" -> {
+                // Cobweb / leaves / bamboo, at the tool's mining speed.
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.SWORD_EFFICIENT), stats.miningSpeed));
+            }
+            // "spear" and any other tool type with no mining rules: no TOOL component.
+            // Vanilla spears intentionally have no TOOL component — they don't mine blocks at all.
+            default -> { return null; }
         }
         return new Tool(rules, 1.0f, 2, true);
     }
@@ -341,9 +518,19 @@ public class SmitheryToolItem extends Item {
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
 
-        // ---- Harvest level ----
-        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".part.harvest_level",
-                stats.harvestLevel).withStyle(ChatFormatting.GRAY));
+        // ---- Stats block ----
+        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.stats")
+                .withStyle(ChatFormatting.GRAY));
+        tooltip.accept(statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.durability", stats.maxDurability)));
+        tooltip.accept(statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.attack_damage",
+                String.format("%.1f", stats.attackDamage))));
+        tooltip.accept(statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.mining_speed",
+                String.format("%.1f", stats.miningSpeed))));
+        tooltip.accept(statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".part.harvest_level", stats.harvestLevel)));
 
         // ---- Modifier slots (post-craft application capacity) ----
         int totalSlots = totalModifierSlots(comp);
@@ -439,15 +626,44 @@ public class SmitheryToolItem extends Item {
         ToolType tt = toolType();
         if (tt == null) return super.canPerformAction(stack, ability);
         String path = tt.id().getPath();
-        if ("sword".equals(path) && ability == ItemAbilities.SWORD_SWEEP) return true;
+        switch (path) {
+            case "sword" -> {
+                if (ability == ItemAbilities.SWORD_SWEEP) return true;
+            }
+            case "axe" -> {
+                if (ItemAbilities.DEFAULT_AXE_ACTIONS.contains(ability)) return true;
+            }
+            case "shovel" -> {
+                if (ItemAbilities.DEFAULT_SHOVEL_ACTIONS.contains(ability)) return true;
+            }
+            case "hoe" -> {
+                if (ItemAbilities.DEFAULT_HOE_ACTIONS.contains(ability)) return true;
+            }
+            default -> {}
+        }
         return super.canPerformAction(stack, ability);
     }
 
     // ---- Active modifier hooks ----
 
-    /** Vanilla calls this after damage is applied through this item. Fires all active onAttack modifier callbacks. */
+    /**
+     * Fires onAttack modifier callbacks. Routed through {@code Item.hurtEnemy} (called per
+     * damaged entity, server-side) instead of {@code postHurtEnemy} so spears' charged stab
+     * attack — which goes through {@code LivingEntity.stabAttack} → {@code Item.hurtEnemy}
+     * and never touches {@code postHurtEnemy} — also fires its on-hit modifiers (corrosive,
+     * verdant, lunge, …).
+     *
+     * Path coverage:
+     *   LMB melee → {@code Player.attack} → {@code Player.itemAttackInteraction} → here.
+     *   Charged stab (right-click hold + STAB packet) → {@code PiercingWeapon.attack} →
+     *     {@code LivingEntity.stabAttack} → here, ONCE PER PIERCED ENTITY.
+     *
+     * Per-pierce semantics are correct for hit-driven effects (corrosive, verdant — each pierced
+     * entity rolls its own chance). Modifiers that want once-per-attack semantics (lunge in
+     * particular) gate themselves via a per-player cooldown — see {@code SmitheryModifiers.LUNGE}.
+     */
     @Override
-    public void postHurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+    public void hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         ToolComposition comp = compositionOf(stack);
         if (comp == null) return;
         ToolStats stats = ToolStats.compute(comp);
@@ -486,10 +702,29 @@ public class SmitheryToolItem extends Item {
 
     /** Get the material color used for primary tinting (drives ToolPrimaryMaterialTintSource). */
     public int primaryTintColor(ItemStack stack) {
-        ToolComposition comp = compositionOf(stack);
+        return primaryTintColorFor(stack);
+    }
+
+    /**
+     * Static variant — derives the tool type from the {@link ToolComposition} itself rather
+     * than the calling Item instance, so it works for {@code SmitheryBowItem} and
+     * {@code SmitheryArrowItem} too (neither extends {@code SmitheryToolItem}).
+     *
+     * Returns opaque white when no composition is present, the composition is invalid, or
+     * the primary additive material has been removed from the registry.
+     */
+    public static int primaryTintColorFor(ItemStack stack) {
+        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
         if (comp == null) return 0xFFFFFFFF;
-        Identifier primary = primaryAdditiveMaterial(comp);
-        Material m = primary != null ? SmitheryAPI.MATERIALS.get(primary) : null;
-        return m != null ? m.stats().partColor() : 0xFFFFFFFF;
+        ToolType tt = comp.toolType();
+        if (tt == null) return 0xFFFFFFFF;
+        for (int i = 0; i < tt.slots().size(); i++) {
+            if (tt.slots().get(i).role() == com.soul.smithery.api.tool.DurabilityRole.ADDITIVE) {
+                Identifier matId = comp.slotMaterials().get(i);
+                Material m = matId != null ? SmitheryAPI.MATERIALS.get(matId) : null;
+                return m != null ? (m.stats().partColor() | 0xFF000000) : 0xFFFFFFFF;
+            }
+        }
+        return 0xFFFFFFFF;
     }
 }

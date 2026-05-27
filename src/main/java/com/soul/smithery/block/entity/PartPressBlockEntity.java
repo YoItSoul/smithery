@@ -139,6 +139,20 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         if (stack.is(net.minecraft.world.item.Items.SLIME_BALL))   return SmitheryMaterials.SLIME;
         if (stack.is(net.minecraft.world.item.Items.RESIN_CLUMP))  return SmitheryMaterials.RESIN;
         if (isCoralBlockItem(stack)) return SmitheryMaterials.CORAL;
+        // Bowstring-class crafted items map straight onto their material id. The part press
+        // produces a BOWSTRING-shaped part item; PartEligibility's per-material allow-list
+        // confines each of these to the bowstring slot, so other selected part types yield
+        // no output (performCut no-ops if getBuiltInPart returns null).
+        if (stack.is(net.minecraft.world.item.Items.STRING))
+            return SmitheryMaterials.STRING;
+        if (stack.is(com.soul.smithery.registry.SmitheryItems.FLAMESTRING.get()))
+            return SmitheryMaterials.FLAMESTRING;
+        if (stack.is(com.soul.smithery.registry.SmitheryItems.BREEZESTRING.get()))
+            return SmitheryMaterials.BREEZESTRING;
+        if (stack.is(com.soul.smithery.registry.SmitheryItems.RED_SLIME.get()))
+            return SmitheryMaterials.RED_SLIME;
+        if (stack.is(com.soul.smithery.registry.SmitheryItems.KELP_STRING.get()))
+            return SmitheryMaterials.KELP_STRING;
         return null;
     }
 

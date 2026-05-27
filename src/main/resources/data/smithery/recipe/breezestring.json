@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "group": "smithery_bowstrings",
+  "pattern": [
+    "SSS",
+    "SBS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:string",
+    "B": "minecraft:breeze_rod"
+  },
+  "result": {
+    "id": "smithery:breezestring",
+    "count": 1
+  }
+}

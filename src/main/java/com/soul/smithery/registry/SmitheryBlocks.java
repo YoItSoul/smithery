@@ -130,6 +130,27 @@ public final class SmitheryBlocks {
                             .sound(SoundType.SAND)
                             .pushReaction(PushReaction.NORMAL));
 
+    /**
+     * Red slime block — vanilla SlimeBlock properties (sticky/bouncy + low friction +
+     * translucent rendering via noOcclusion) plus a constant redstone signal source, tinted
+     * red. Behaves exactly like a slime block in every interaction; just powers everything
+     * adjacent like a redstone block.
+     *
+     * <p>Properties mirror vanilla's {@code SLIME_BLOCK} registration in
+     * {@code Blocks.java}, swapping the MapColor for COLOR_RED so the block reads red on a
+     * filled map. Texture + model + blockstate are runtime-synthesized in
+     * {@link com.soul.smithery.registry.SmitheryGeneratedPack} so no static asset files
+     * ship for this block.
+     */
+    public static final DeferredBlock<com.soul.smithery.block.RedSlimeBlock> RED_SLIME_BLOCK =
+            BLOCKS.registerBlock("red_slime_block",
+                    com.soul.smithery.block.RedSlimeBlock::new,
+                    () -> BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.COLOR_RED)
+                            .friction(0.8f)
+                            .sound(SoundType.SLIME_BLOCK)
+                            .noOcclusion());
+
     // Corresponding BlockItems live in the Smithery item register so they appear with parts/tools.
     public static final DeferredItem<BlockItem> FURNACE_BRICKS_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("furnace_bricks", FURNACE_BRICKS);
@@ -147,6 +168,8 @@ public final class SmitheryBlocks {
             SmitheryItems.ITEMS.registerSimpleBlockItem("fluid_pipe", FLUID_PIPE);
     public static final DeferredItem<BlockItem> PART_PRESS_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("part_press", PART_PRESS);
+    public static final DeferredItem<BlockItem> RED_SLIME_BLOCK_ITEM =
+            SmitheryItems.ITEMS.registerSimpleBlockItem("red_slime_block", RED_SLIME_BLOCK);
 
     /**
      * Internal "sand with cutout for PartType" block variants. One per registered PartType,
