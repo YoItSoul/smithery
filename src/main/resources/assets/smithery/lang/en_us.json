@@ -1,8 +1,9 @@
 {
     "itemGroup.smithery.parts":  "Smithery Parts",
     "itemGroup.smithery.tools":  "Smithery Tools",
-    "itemGroup.smithery.forge":  "Smithery Forge",
-    "itemGroup.smithery.molten":  "Smithery Molten",
+    "itemGroup.smithery.blocks": "Smithery Blocks",
+    "itemGroup.smithery.fluids": "Smithery Fluids",
+    "itemGroup.smithery.items":  "Smithery Items",
 
     "block.smithery.furnace_bricks":  "Furnace Bricks",
     "block.smithery.forge_controller":  "Forge Controller",
@@ -50,6 +51,9 @@
     "tooltip.smithery.tool.synergies":          "Synergies:",
     "tooltip.smithery.forge.alloy_enabled":     "Auto-alloy: ENABLED (click to pause)",
     "tooltip.smithery.forge.alloy_disabled":    "Auto-alloy: PAUSED (click to resume)",
+    "tooltip.smithery.source.parts_header":     "Can be made into parts:",
+    "tooltip.smithery.source.melt":             "Can be melted into: %s",
+    "tooltip.smithery.source.alloys_header":    "Used in alloys:",
 
     "smithery.material.smithery.copper":         "Copper",
     "smithery.material.smithery.wood":           "Wood",
@@ -145,8 +149,10 @@
     "item.smithery.flamestring":            "Flamestring",
     "item.smithery.breezestring":           "Breezestring",
     "item.smithery.red_slime":              "Red Slime",
-    "item.smithery.kelp_string":            "Kelp String",
-    "item.smithery.unfinished_kelp_string": "Unfinished Kelp String",
+    "item.smithery.kelp_string":              "Kelp String",
+    "item.smithery.unfinished_kelp_string_1": "Unfinished Kelp String I",
+    "item.smithery.unfinished_kelp_string_2": "Unfinished Kelp String II",
+    "item.smithery.unfinished_kelp_string_3": "Unfinished Kelp String III",
 
     "block.smithery.molten_copper":         "Molten Copper",
     "block.smithery.molten_gold":           "Molten Gold",

@@ -3,6 +3,7 @@ package com.soul.smithery.block;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -10,10 +11,14 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jspecify.annotations.Nullable;
 
@@ -21,17 +26,55 @@ import org.jspecify.annotations.Nullable;
  * Lava input/storage port for the Forge multiblock. Right-click with a lava bucket to add
  * 1000 mB (the bucket comes back empty). Right-click with an empty bucket to drain 1000 mB
  * (you get a lava bucket back). Capacity per port: {@link ForgeFuelPortBlockEntity#CAPACITY_MB}.
+ *
+ * <p>Carries two boolean blockstate properties — {@link #CONNECTED_UP} and
+ * {@link #CONNECTED_DOWN} — that are set when an adjacent vertical neighbor is also a
+ * ForgeFuelPort. The blockstate JSON uses them to swap in the appropriate "open cap"
+ * texture variants so a vertical stack of ports reads as one continuous tank.
  */
 public class ForgeFuelPortBlock extends Block implements EntityBlock {
     private static final int BUCKET_MB = 1000;
 
+    public static final BooleanProperty CONNECTED_UP   = BooleanProperty.create("connected_up");
+    public static final BooleanProperty CONNECTED_DOWN = BooleanProperty.create("connected_down");
+
     public ForgeFuelPortBlock(Properties properties) {
         super(properties);
+        registerDefaultState(getStateDefinition().any()
+                .setValue(CONNECTED_UP, false)
+                .setValue(CONNECTED_DOWN, false));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(CONNECTED_UP, CONNECTED_DOWN);
     }
 
     @Override
     public @Nullable BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new ForgeFuelPortBlockEntity(pos, state);
+    }
+
+    /** Recomputes connection flags when a neighbor changes; called via {@code updateShape}. */
+    @Override
+    protected BlockState updateShape(BlockState state, LevelReader level, net.minecraft.world.level.ScheduledTickAccess ticks,
+                                     BlockPos pos, Direction direction, BlockPos neighborPos, BlockState neighborState,
+                                     net.minecraft.util.RandomSource random) {
+        if (direction == Direction.UP) {
+            state = state.setValue(CONNECTED_UP, neighborState.getBlock() instanceof ForgeFuelPortBlock);
+        } else if (direction == Direction.DOWN) {
+            state = state.setValue(CONNECTED_DOWN, neighborState.getBlock() instanceof ForgeFuelPortBlock);
+        }
+        return state;
+    }
+
+    @Override
+    public @Nullable BlockState getStateForPlacement(net.minecraft.world.item.context.BlockPlaceContext ctx) {
+        Level level = ctx.getLevel();
+        BlockPos pos = ctx.getClickedPos();
+        boolean up   = level.getBlockState(pos.above()).getBlock() instanceof ForgeFuelPortBlock;
+        boolean down = level.getBlockState(pos.below()).getBlock() instanceof ForgeFuelPortBlock;
+        return defaultBlockState().setValue(CONNECTED_UP, up).setValue(CONNECTED_DOWN, down);
     }
 
     @Override

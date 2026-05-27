@@ -42,14 +42,6 @@ public final class SmitheryDatagen {
                 Smithery.MODID,
                 subProviders);
         event.getGenerator().addProvider(true, bookProvider);
-
-        // Placeholder stonecutter recipes for non-meltable materials. Re-emits on every
-        // ./gradlew runData run so material/part-type changes get picked up automatically.
-        // Lives on the Client event because the dev build only invokes clientData() — works
-        // fine since recipes just write JSON to the shared PackOutput.
-        event.getGenerator().addProvider(true, new SmitheryRecipeProvider.Runner(
-                event.getGenerator().getPackOutput(),
-                event.getLookupProvider()));
     }
 
     private SmitheryDatagen() {}

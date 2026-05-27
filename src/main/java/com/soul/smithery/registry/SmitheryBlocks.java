@@ -8,6 +8,7 @@ import com.soul.smithery.block.FluidPipeBlock;
 import com.soul.smithery.block.ForgeControllerBlock;
 import com.soul.smithery.block.ForgeDrainBlock;
 import com.soul.smithery.block.ForgeFuelPortBlock;
+import com.soul.smithery.block.ForgeItemPortBlock;
 import com.soul.smithery.block.PartPressBlock;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.ColorRGBA;
@@ -62,13 +63,31 @@ public final class SmitheryBlocks {
                             .mapColor(MapColor.COLOR_ORANGE)
                             .strength(5.0f, 1200.0f)
                             .sound(SoundType.COPPER)
-                            .requiresCorrectToolForDrops());
+                            .requiresCorrectToolForDrops()
+                            // Cutout texture has transparent center pixels — without noOcclusion,
+                            // adjacent block faces get hidden and we lose the "looking through
+                            // the window into the tank" effect entirely.
+                            .noOcclusion());
 
     public static final DeferredBlock<ForgeDrainBlock> FORGE_DRAIN =
             BLOCKS.registerBlock("forge_drain",
                     ForgeDrainBlock::new,
                     () -> BlockBehaviour.Properties.of()
                             .mapColor(MapColor.GOLD)
+                            .strength(5.0f, 1200.0f)
+                            .sound(SoundType.METAL)
+                            .requiresCorrectToolForDrops());
+
+    /**
+     * Item input port — accepts items via right-click or hopper insertion and forwards them
+     * into the connected forge's nearest empty interior slot. Rejects when the forge is full.
+     * Counts as part of the shell for structure validation.
+     */
+    public static final DeferredBlock<ForgeItemPortBlock> FORGE_ITEM_PORT =
+            BLOCKS.registerBlock("forge_item_port",
+                    ForgeItemPortBlock::new,
+                    () -> BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.METAL)
                             .strength(5.0f, 1200.0f)
                             .sound(SoundType.METAL)
                             .requiresCorrectToolForDrops());
@@ -160,6 +179,8 @@ public final class SmitheryBlocks {
             SmitheryItems.ITEMS.registerSimpleBlockItem("forge_fuel_port", FORGE_FUEL_PORT);
     public static final DeferredItem<BlockItem> FORGE_DRAIN_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("forge_drain", FORGE_DRAIN);
+    public static final DeferredItem<BlockItem> FORGE_ITEM_PORT_ITEM =
+            SmitheryItems.ITEMS.registerSimpleBlockItem("forge_item_port", FORGE_ITEM_PORT);
     public static final DeferredItem<BlockItem> CASTING_TABLE_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("casting_table", CASTING_TABLE);
     public static final DeferredItem<BlockItem> CASTING_SAND_ITEM =

@@ -6,6 +6,7 @@ import com.soul.smithery.block.entity.FluidPipeBlockEntity;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
 import com.soul.smithery.block.entity.ForgeDrainBlockEntity;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
+import com.soul.smithery.block.entity.ForgeItemPortBlockEntity;
 import com.soul.smithery.block.entity.PartPressBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -31,6 +32,11 @@ public final class SmitheryBlockEntities {
             FORGE_DRAIN = BLOCK_ENTITIES.register("forge_drain",
                     () -> new BlockEntityType<>(ForgeDrainBlockEntity::new,
                             SmitheryBlocks.FORGE_DRAIN.get()));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ForgeItemPortBlockEntity>>
+            FORGE_ITEM_PORT = BLOCK_ENTITIES.register("forge_item_port",
+                    () -> new BlockEntityType<>(ForgeItemPortBlockEntity::new,
+                            SmitheryBlocks.FORGE_ITEM_PORT.get()));
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<FluidPipeBlockEntity>>
             FLUID_PIPE = BLOCK_ENTITIES.register("fluid_pipe",

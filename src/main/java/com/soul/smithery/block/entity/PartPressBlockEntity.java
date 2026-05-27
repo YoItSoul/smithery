@@ -129,9 +129,9 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
      * Domains don't overlap; iron ingots are rejected here on purpose so players can't bypass
      * the forge with a redstone tick.
      *
-     * <p>Accepted inputs mirror {@code SmitheryRecipeProvider}'s stonecutter inputs:
-     * logs (any), flint, slime balls, resin clumps, and live or dead coral blocks. Returns
-     * {@code null} for anything else.
+     * <p>Accepted inputs: any log, flint, slime balls (regular + red), resin clumps, and
+     * live or dead coral blocks. Returns {@code null} for anything else — the press is the
+     * sole non-meltable→part path, so this list is authoritative.
      */
     public static @Nullable Identifier resolveMaterialFor(ItemStack stack) {
         if (stack.is(net.minecraft.tags.ItemTags.LOGS))   return SmitheryMaterials.WOOD;
@@ -139,20 +139,13 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         if (stack.is(net.minecraft.world.item.Items.SLIME_BALL))   return SmitheryMaterials.SLIME;
         if (stack.is(net.minecraft.world.item.Items.RESIN_CLUMP))  return SmitheryMaterials.RESIN;
         if (isCoralBlockItem(stack)) return SmitheryMaterials.CORAL;
-        // Bowstring-class crafted items map straight onto their material id. The part press
-        // produces a BOWSTRING-shaped part item; PartEligibility's per-material allow-list
-        // confines each of these to the bowstring slot, so other selected part types yield
-        // no output (performCut no-ops if getBuiltInPart returns null).
-        if (stack.is(net.minecraft.world.item.Items.STRING))
-            return SmitheryMaterials.STRING;
-        if (stack.is(com.soul.smithery.registry.SmitheryItems.FLAMESTRING.get()))
-            return SmitheryMaterials.FLAMESTRING;
-        if (stack.is(com.soul.smithery.registry.SmitheryItems.BREEZESTRING.get()))
-            return SmitheryMaterials.BREEZESTRING;
+        // Red slime mirrors slime in part-press coverage — every part type slime can make,
+        // red slime can too. It also keeps its bowstring eligibility for shaped recipes.
         if (stack.is(com.soul.smithery.registry.SmitheryItems.RED_SLIME.get()))
             return SmitheryMaterials.RED_SLIME;
-        if (stack.is(com.soul.smithery.registry.SmitheryItems.KELP_STRING.get()))
-            return SmitheryMaterials.KELP_STRING;
+        // Other bowstring-class materials (string / flamestring / breezestring / kelp_string)
+        // are NOT pressed — those bowstring PartItems are produced via shaped crafting recipes
+        // (data/smithery/recipe/*_bowstring.json) so each one is a deliberate, hand-formed part.
         return null;
     }
 
@@ -362,10 +355,15 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
 
     // ---- Helpers ----
 
-    /** All registered PartTypes with {@code syntheticCast == false}, in registration order. */
+    /**
+     * Selectable PartTypes for the press: registered, non-synthetic, and not bowstring.
+     * Bowstrings are excluded because every bowstring PartItem is hand-crafted via shaped
+     * recipes (data/smithery/recipe/*_bowstring.json) — the press isn't a valid producer.
+     */
     private static List<PartType> nonSyntheticPartTypes() {
         return SmitheryAPI.PART_TYPES.all().stream()
                 .filter(pt -> !pt.syntheticCast())
+                .filter(pt -> !"bowstring".equals(pt.id().getPath()))
                 .toList();
     }
 }

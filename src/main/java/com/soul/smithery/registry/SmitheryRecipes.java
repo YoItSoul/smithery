@@ -2,8 +2,6 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.item.tool.ToolAssemblyRecipe;
-import com.soul.smithery.recipe.KelpStringCombineRecipe;
-import com.soul.smithery.recipe.KelpStringProgressRecipe;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.neoforged.bus.api.IEventBus;
@@ -20,14 +18,6 @@ public final class SmitheryRecipes {
 
     public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<ToolAssemblyRecipe>>
             TOOL_ASSEMBLY = SERIALIZERS.register("tool_assembly", () -> ToolAssemblyRecipe.SERIALIZER);
-
-    public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<KelpStringProgressRecipe>>
-            KELP_STRING_PROGRESS = SERIALIZERS.register("kelp_string_progress",
-                    () -> KelpStringProgressRecipe.SERIALIZER);
-
-    public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<KelpStringCombineRecipe>>
-            KELP_STRING_COMBINE = SERIALIZERS.register("kelp_string_combine",
-                    () -> KelpStringCombineRecipe.SERIALIZER);
 
     public static void register(IEventBus modEventBus) {
         SERIALIZERS.register(modEventBus);

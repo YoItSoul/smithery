@@ -45,9 +45,9 @@ public class Smithery {
                             .forEach(di -> output.accept(di.get())))
                     .build());
 
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> FORGE_TAB =
-            CREATIVE_MODE_TABS.register("forge_tab", () -> CreativeModeTab.builder()
-                    .title(Component.translatable("itemGroup." + MODID + ".forge"))
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> BLOCKS_TAB =
+            CREATIVE_MODE_TABS.register("blocks_tab", () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup." + MODID + ".blocks"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> com.soul.smithery.registry.SmitheryBlocks.FORGE_CONTROLLER_ITEM.get().getDefaultInstance())
                     .displayItems((params, output) -> {
@@ -55,16 +55,18 @@ public class Smithery {
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_CONTROLLER_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_FUEL_PORT_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_DRAIN_ITEM.get());
+                        output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_ITEM_PORT_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_TABLE_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_SAND_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.FLUID_PIPE_ITEM.get());
                         output.accept(com.soul.smithery.registry.SmitheryBlocks.PART_PRESS_ITEM.get());
+                        output.accept(com.soul.smithery.registry.SmitheryBlocks.RED_SLIME_BLOCK_ITEM.get());
                     })
                     .build());
 
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> MOLTEN_TAB =
-            CREATIVE_MODE_TABS.register("molten_tab", () -> CreativeModeTab.builder()
-                    .title(Component.translatable("itemGroup." + MODID + ".molten"))
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> FLUIDS_TAB =
+            CREATIVE_MODE_TABS.register("fluids_tab", () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup." + MODID + ".fluids"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> {
                         // Default-icon fallback: iron bucket if registered, otherwise the first
@@ -88,6 +90,28 @@ public class Smithery {
                         for (var entry : com.soul.smithery.registry.SmitheryFluids.entries().values()) {
                             output.accept(entry.bucket.get());
                         }
+                    })
+                    .build());
+
+    /**
+     * Player-facing crafting materials that aren't parts (which live in PARTS_TAB) and aren't
+     * placeable blocks (BLOCKS_TAB) or fluids (FLUIDS_TAB). The bowstring-class items live
+     * here: flamestring, breezestring, red_slime, kelp_string, plus the in-progress
+     * unfinished_kelp_string. Future smithery-crafted resource items go here too.
+     */
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> ITEMS_TAB =
+            CREATIVE_MODE_TABS.register("items_tab", () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup." + MODID + ".items"))
+                    .withTabsBefore(CreativeModeTabs.COMBAT)
+                    .icon(() -> SmitheryItems.FLAMESTRING.get().getDefaultInstance())
+                    .displayItems((params, output) -> {
+                        output.accept(SmitheryItems.FLAMESTRING.get());
+                        output.accept(SmitheryItems.BREEZESTRING.get());
+                        output.accept(SmitheryItems.RED_SLIME.get());
+                        output.accept(SmitheryItems.UNFINISHED_KELP_STRING_1.get());
+                        output.accept(SmitheryItems.UNFINISHED_KELP_STRING_2.get());
+                        output.accept(SmitheryItems.UNFINISHED_KELP_STRING_3.get());
+                        output.accept(SmitheryItems.KELP_STRING.get());
                     })
                     .build());
 

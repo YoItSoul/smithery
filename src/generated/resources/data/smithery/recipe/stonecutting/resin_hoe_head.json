@@ -1,7 +1,0 @@
-{
-  "type": "minecraft:stonecutting",
-  "ingredient": "minecraft:resin_clump",
-  "result": {
-    "id": "smithery:resin_hoe_head"
-  }
-}

@@ -387,18 +387,17 @@ public final class SmitheryMaterials {
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, RED_SLIME);
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, KELP_STRING);
 
-        // Material-side restriction: the five new bowstring-class materials are eligible
+        // Material-side restriction: the four remaining bowstring-class materials are eligible
         // ONLY for the BOWSTRING part type (and any future ranged-weapon string slots — add
         // additional part-type ids here when crossbow string / bowtruss land). Without this,
         // a "string sword blade" would auto-generate as a part item since other part types
         // are unrestricted by default.
         //
-        // SLIME stays unrestricted because it's a general-purpose material with established
-        // use as a binder, handle wrap, etc. — restricting it would break existing tools.
+        // SLIME and RED_SLIME stay unrestricted — they're general-purpose binder/handle
+        // materials, and the design calls for red slime to mirror slime's part coverage.
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(STRING,       bowstringId);
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(FLAMESTRING,  bowstringId);
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(BREEZESTRING, bowstringId);
-        com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(RED_SLIME,    bowstringId);
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(KELP_STRING,  bowstringId);
     }
 

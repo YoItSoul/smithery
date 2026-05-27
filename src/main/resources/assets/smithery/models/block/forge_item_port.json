@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:block/cube_all",
   "textures": {
-    "all": "smithery:block/forge_drain"
+    "all": "smithery:block/forge_item_port"
   }
 }

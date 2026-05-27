@@ -1,0 +1,34 @@
+{
+  "credit": "Smithery — composite middle-of-stack model. Side faces split into two halves: top half samples the open-top half of forge_fuel_port_bottom (which is the bottom-of-stack texture, so its top half is the open continuation upward). Bottom half samples the open-bottom half of forge_fuel_port_top (top-of-stack texture, its bottom half is the open continuation downward). Top + bottom of the block use furnace_bricks like the other variants. Internal up/down faces between the two halves are omitted to avoid z-fighting.",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "cap":      "smithery:block/furnace_bricks",
+    "upper":    "smithery:block/forge_fuel_port_bottom",
+    "lower":    "smithery:block/forge_fuel_port_top",
+    "particle": "smithery:block/forge_fuel_port_bottom"
+  },
+  "elements": [
+    {
+      "from": [0, 8, 0],
+      "to":   [16, 16, 16],
+      "faces": {
+        "north": {"uv": [0, 0, 16, 8], "texture": "#upper"},
+        "east":  {"uv": [0, 0, 16, 8], "texture": "#upper"},
+        "south": {"uv": [0, 0, 16, 8], "texture": "#upper"},
+        "west":  {"uv": [0, 0, 16, 8], "texture": "#upper"},
+        "up":    {"uv": [0, 0, 16, 16], "texture": "#cap"}
+      }
+    },
+    {
+      "from": [0, 0, 0],
+      "to":   [16, 8, 16],
+      "faces": {
+        "north": {"uv": [0, 8, 16, 16], "texture": "#lower"},
+        "east":  {"uv": [0, 8, 16, 16], "texture": "#lower"},
+        "south": {"uv": [0, 8, 16, 16], "texture": "#lower"},
+        "west":  {"uv": [0, 8, 16, 16], "texture": "#lower"},
+        "down":  {"uv": [0, 0, 16, 16], "texture": "#cap"}
+      }
+    }
+  ]
+}

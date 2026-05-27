@@ -4,7 +4,7 @@
   "textures": {
     "top":      "smithery:block/furnace_bricks",
     "bottom":   "smithery:block/furnace_bricks",
-    "side":     "smithery:block/forge_fuel_port_solo",
-    "particle": "smithery:block/forge_fuel_port_solo"
+    "side":     "smithery:block/forge_fuel_port_top",
+    "particle": "smithery:block/forge_fuel_port_top"
   }
 }

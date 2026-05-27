@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "group": "smithery_kelp_string",
+  "ingredients": [
+    "minecraft:kelp",
+    "minecraft:kelp",
+    "minecraft:kelp",
+    "minecraft:kelp",
+    "minecraft:string",
+    "minecraft:string",
+    "minecraft:string",
+    "minecraft:string",
+    "smithery:unfinished_kelp_string_1"
+  ],
+  "result": {
+    "id": "smithery:unfinished_kelp_string_2",
+    "count": 1
+  }
+}

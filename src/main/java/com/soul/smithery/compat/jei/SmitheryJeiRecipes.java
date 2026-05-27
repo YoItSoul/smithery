@@ -113,19 +113,8 @@ public final class SmitheryJeiRecipes {
         simpleInputs.put(Items.FLINT,       SmitheryMaterials.FLINT);
         simpleInputs.put(Items.SLIME_BALL,  SmitheryMaterials.SLIME);
         simpleInputs.put(Items.RESIN_CLUMP, SmitheryMaterials.RESIN);
-        // Bowstring-class inputs. Each maps to its bowstring material id; the
-        // addPressEntry path filters via getBuiltInPart, so JEI only shows rows for
-        // (material × part) combos that actually produce a part item — covering the
-        // material-side restriction (bowstring materials are confined to BOWSTRING parts).
-        simpleInputs.put(Items.STRING,                                SmitheryMaterials.STRING);
-        simpleInputs.put(com.soul.smithery.registry.SmitheryItems.FLAMESTRING.get(),
-                                                                       SmitheryMaterials.FLAMESTRING);
-        simpleInputs.put(com.soul.smithery.registry.SmitheryItems.BREEZESTRING.get(),
-                                                                       SmitheryMaterials.BREEZESTRING);
-        simpleInputs.put(com.soul.smithery.registry.SmitheryItems.RED_SLIME.get(),
-                                                                       SmitheryMaterials.RED_SLIME);
-        simpleInputs.put(com.soul.smithery.registry.SmitheryItems.KELP_STRING.get(),
-                                                                       SmitheryMaterials.KELP_STRING);
+        // Bowstring-class materials intentionally absent — bowstring PartItems are crafted
+        // by hand via shaped recipes, not produced by the press.
 
         Item[] coralBlocks = new Item[] {
                 Items.TUBE_CORAL_BLOCK, Items.BRAIN_CORAL_BLOCK, Items.BUBBLE_CORAL_BLOCK,

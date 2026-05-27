@@ -1,7 +1,0 @@
-{
-  "type": "minecraft:stonecutting",
-  "ingredient": "minecraft:flint",
-  "result": {
-    "id": "smithery:flint_binder"
-  }
-}

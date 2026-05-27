@@ -80,6 +80,35 @@ public class SmitheryGeneratedPack implements PackResources {
     /** Block id whose textures + model + blockstate + item def are runtime-synthesized. */
     private static final String RED_SLIME_BLOCK = "red_slime_block";
 
+    /** Path prefix for synthesized "simple item" textures (the bowstring-class crafting items). */
+    private static final String SIMPLE_ITEM_TEX_PREFIX = "textures/item/";
+
+    /**
+     * Synthesized "simple items" — flat smithery items (not parts, not tools, not blocks) that
+     * need a model + item-def + texture but don't fit either the part-material grid or the
+     * layered-tool pipeline. Each entry pairs a vanilla source texture with a tint color;
+     * synthesis multiplies the source pixel by the tint to produce a recolored variant.
+     */
+    private record SimpleItem(Identifier source, int tintArgb) {}
+
+    private static final java.util.Map<String, SimpleItem> SIMPLE_ITEMS;
+    static {
+        Identifier vanillaString    = Identifier.fromNamespaceAndPath("minecraft", "item/string");
+        Identifier vanillaSlimeBall = Identifier.fromNamespaceAndPath("minecraft", "item/slime_ball");
+        // Tints are full-alpha so the multiply by source preserves the source's own alpha.
+        // Kelp string tiers progress in saturation: tier 1 is muted (early weave), tier 3
+        // approaches the finished kelp_string green.
+        SIMPLE_ITEMS = java.util.Map.of(
+                "flamestring",              new SimpleItem(vanillaString,    0xFFFF6622),
+                "breezestring",             new SimpleItem(vanillaString,    0xFFB0E2FF),
+                "kelp_string",              new SimpleItem(vanillaString,    0xFF3F8E45),
+                "unfinished_kelp_string_1", new SimpleItem(vanillaString,    0xFF7C9479),
+                "unfinished_kelp_string_2", new SimpleItem(vanillaString,    0xFF5F9059),
+                "unfinished_kelp_string_3", new SimpleItem(vanillaString,    0xFF4A8F49),
+                "red_slime",                new SimpleItem(vanillaSlimeBall, 0xFFCC2233)
+        );
+    }
+
     @Override
     public @Nullable IoSupplier<InputStream> getRootResource(String... path) {
         // pack.mcmeta is served via getMetadataSection; nothing else lives at root.
@@ -118,6 +147,19 @@ public class SmitheryGeneratedPack implements PackResources {
                     path.length() - PNG_SUFFIX.length());
             if (RED_SLIME_BLOCK.equals(blockName)) {
                 return () -> emitPng(synthesizeRedSlimeTexture());
+            }
+        }
+
+        // Simple-item textures — synthesized from a vanilla source + multiplicative tint. The
+        // namespace check + lookup against SIMPLE_ITEMS naturally excludes part textures (which
+        // also live under textures/item/ but resolve through different paths above).
+        if (path.endsWith(PNG_SUFFIX) && path.startsWith(SIMPLE_ITEM_TEX_PREFIX)
+                && Smithery.MODID.equals(namespace)) {
+            String name = path.substring(SIMPLE_ITEM_TEX_PREFIX.length(),
+                    path.length() - PNG_SUFFIX.length());
+            SimpleItem si = SIMPLE_ITEMS.get(name);
+            if (si != null) {
+                return () -> emitPng(synthesizeSimpleItemTexture(si));
             }
         }
 
@@ -272,6 +314,24 @@ public class SmitheryGeneratedPack implements PackResources {
                         }
                     }, output);
         }
+
+        // Smithery simple items: each entry advertises model + item-def + texture so the
+        // sprite atlas + model loader pick them up.
+        if (Smithery.MODID.equals(namespace)) {
+            for (var entry : SIMPLE_ITEMS.entrySet()) {
+                String name = entry.getKey();
+                final SimpleItem captured = entry.getValue();
+                emitIfMatches(namespace, MODELS_PREFIX       + name + JSON_SUFFIX, prefix,
+                        () -> resolveModelJson(namespace, name), output);
+                emitIfMatches(namespace, ITEMS_PREFIX        + name + JSON_SUFFIX, prefix,
+                        () -> resolveItemDefJson(namespace, name), output);
+                emitIfMatches(namespace, SIMPLE_ITEM_TEX_PREFIX + name + PNG_SUFFIX, prefix,
+                        () -> () -> {
+                            try { return emitPng(synthesizeSimpleItemTexture(captured)); }
+                            catch (IOException e) { throw new IOException("simple item texture: " + name, e); }
+                        }, output);
+            }
+        }
     }
 
     private static void emitIfMatches(String namespace, String fullPath, String requestedPrefix,
@@ -366,6 +426,19 @@ public class SmitheryGeneratedPack implements PackResources {
                         }
                         """).formatted(Smithery.MODID, itemName));
             }
+            // Smithery simple items — flat item/generated model layered on the synthesized
+            // texture. layer0 references textures/item/<name>.png; that PNG is produced by
+            // the texture-synthesis branch in getResource above.
+            if (SIMPLE_ITEMS.containsKey(itemName)) {
+                return jsonStream(("""
+                        {
+                          "parent": "item/generated",
+                          "textures": {
+                            "layer0": "%s:item/%s"
+                          }
+                        }
+                        """).formatted(Smithery.MODID, itemName));
+            }
         }
         // Then parts: find a registered (material × part) where material is in this namespace.
         for (Material m : SmitheryAPI.MATERIALS.all()) {
@@ -413,6 +486,18 @@ public class SmitheryGeneratedPack implements PackResources {
             }
             // Red slime block item def — references the item model that parents the block model.
             if (RED_SLIME_BLOCK.equals(itemName)) {
+                return jsonStream(("""
+                        {
+                          "model": {
+                            "type": "minecraft:model",
+                            "model": "%s:item/%s"
+                          }
+                        }
+                        """).formatted(Smithery.MODID, itemName));
+            }
+            // Smithery simple items — item def points at the generated item model. No tints
+            // (the synthesis baked the tint into the texture directly).
+            if (SIMPLE_ITEMS.containsKey(itemName)) {
                 return jsonStream(("""
                         {
                           "model": {
@@ -807,6 +892,37 @@ public class SmitheryGeneratedPack implements PackResources {
         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
         ImageIO.write(img, "PNG", out);
         return new ByteArrayInputStream(out.toByteArray());
+    }
+
+    /**
+     * Simple-item texture synthesis: pixelwise multiply of the vanilla source by the tint
+     * (treating each channel as a normalized 0..1 multiplier). Alpha is preserved from the
+     * source so transparent regions stay transparent. Source's per-pixel brightness drives
+     * the result intensity — white pixels become full tint, mid-grays become muted tint,
+     * blacks stay black.
+     */
+    private static BufferedImage synthesizeSimpleItemTexture(SimpleItem si) throws IOException {
+        BufferedImage src = readTemplateTexture(si.source());
+        int W = src.getWidth(), H = src.getHeight();
+        int tintR = (si.tintArgb() >>> 16) & 0xFF;
+        int tintG = (si.tintArgb() >>>  8) & 0xFF;
+        int tintB = (si.tintArgb())        & 0xFF;
+        BufferedImage out = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                int argb = src.getRGB(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                if (a == 0) { out.setRGB(x, y, 0); continue; }
+                int r = (argb >>> 16) & 0xFF;
+                int g = (argb >>>  8) & 0xFF;
+                int b = (argb)        & 0xFF;
+                int rOut = (r * tintR + 127) / 255;
+                int gOut = (g * tintG + 127) / 255;
+                int bOut = (b * tintB + 127) / 255;
+                out.setRGB(x, y, (a << 24) | (rOut << 16) | (gOut << 8) | bOut);
+            }
+        }
+        return out;
     }
 
     /**

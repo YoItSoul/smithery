@@ -1,5 +1,8 @@
 {
   "variants": {
-    "": { "model": "smithery:block/forge_fuel_port" }
+    "connected_up=false,connected_down=false": { "model": "smithery:block/forge_fuel_port" },
+    "connected_up=false,connected_down=true":  { "model": "smithery:block/forge_fuel_port_top" },
+    "connected_up=true,connected_down=false":  { "model": "smithery:block/forge_fuel_port_bottom" },
+    "connected_up=true,connected_down=true":   { "model": "smithery:block/forge_fuel_port_middle" }
   }
 }

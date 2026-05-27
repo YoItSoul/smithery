@@ -400,6 +400,41 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         }
     }
 
+    /** True iff the forge is currently valid AND has at least one empty interior slot. */
+    public boolean hasEmptyInteriorSlot() {
+        if (!lastValidation.valid) return false;
+        for (ItemStack s : slots) if (s.isEmpty()) return true;
+        return false;
+    }
+
+    /**
+     * Inserts up to {@code amount} of {@code stack} into the nearest empty interior slot(s).
+     * Returns the number actually inserted. Used by the {@link ForgeItemPortBlockEntity} input
+     * port for both right-click and hopper insertion paths.
+     *
+     * <p>Each interior slot holds at most 1 item, so a stack of size N fills up to N empty
+     * slots in nearest-to-controller order before bailing.
+     */
+    public int tryInsertItem(ItemStack stack, int amount) {
+        if (stack.isEmpty() || amount <= 0 || !lastValidation.valid) return 0;
+        int inserted = 0;
+        int limit = Math.min(amount, stack.getCount());
+        Vec3 origin = Vec3.atCenterOf(worldPosition);
+        while (inserted < limit) {
+            int slot = nearestEmptySlot(origin);
+            if (slot < 0) break;
+            slots.set(slot, stack.copyWithCount(1));
+            inserted++;
+        }
+        if (inserted > 0) {
+            setChanged();
+            if (level instanceof ServerLevel sl) {
+                sl.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
+        return inserted;
+    }
+
     private int nearestEmptySlot(Vec3 pos) {
         int best = -1;
         double bestDist = Double.MAX_VALUE;
@@ -575,6 +610,10 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                     && level.getBlockEntity(s) instanceof ForgeDrainBlockEntity drain) {
                 drain.setControllerPos(worldPosition);
             }
+            if (level.getBlockState(s).is(SmitheryBlocks.FORGE_ITEM_PORT.get())
+                    && level.getBlockEntity(s) instanceof ForgeItemPortBlockEntity itemPort) {
+                itemPort.setControllerPos(worldPosition);
+            }
         }
 
         lastValidation = ValidationResult.valid(
@@ -689,7 +728,8 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return state.is(SmitheryBlocks.FURNACE_BRICKS.get())
                 || state.is(SmitheryBlocks.FORGE_CONTROLLER.get())
                 || state.is(SmitheryBlocks.FORGE_FUEL_PORT.get())
-                || state.is(SmitheryBlocks.FORGE_DRAIN.get());
+                || state.is(SmitheryBlocks.FORGE_DRAIN.get())
+                || state.is(SmitheryBlocks.FORGE_ITEM_PORT.get());
     }
 
     // ---- MenuProvider ----

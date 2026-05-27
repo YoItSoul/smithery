@@ -47,8 +47,8 @@ public class SmitheryBookSubProvider extends LeafletSubProvider {
     @Override
     protected BookModel additionalLeafletSetup(BookModel book) {
         // Park the auto-generated book item under our own creative tab so players
-        // can grab it from the Smithery Forge tab instead of having to /give it
+        // can grab it from the Smithery Blocks tab instead of having to /give it
         // (or dig through the Modonomicon tab).
-        return book.withCreativeTab(Identifier.fromNamespaceAndPath(Smithery.MODID, "forge_tab"));
+        return book.withCreativeTab(Identifier.fromNamespaceAndPath(Smithery.MODID, "blocks_tab"));
     }
 }

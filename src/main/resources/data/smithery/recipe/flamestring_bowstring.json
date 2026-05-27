@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "group": "smithery_bowstrings",
+  "ingredients": [
+    "smithery:flamestring"
+  ],
+  "result": {
+    "id": "smithery:flamestring_bowstring",
+    "count": 1
+  }
+}

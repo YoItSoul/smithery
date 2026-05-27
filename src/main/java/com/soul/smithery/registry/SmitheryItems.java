@@ -86,21 +86,19 @@ public final class SmitheryItems {
     public static final DeferredItem<net.minecraft.world.item.Item> KELP_STRING =
             ITEMS.registerItem("kelp_string", net.minecraft.world.item.Item::new);
 
-    // Unfinished kelp string: carries its weave progress as a durability bar. Each
-    // progressive craft (4 kelp + 4 string + this in the center of a 3×3) hurts the stack
-    // by 1, displaying as progress on the bar. When DAMAGE would exceed MAX_DAMAGE the
-    // KelpStringProgressRecipe outputs a finished KELP_STRING instead. Combining two
-    // unfinished stacks sums their progress via the dedicated combine recipe.
+    // Unfinished kelp string progression — three discrete tiers. The 4-step weave is now
+    // expressed as four standard shapeless recipes (4 kelp + 4 string + tier-N → tier-(N+1)
+    // or KELP_STRING when N reaches 4) so JEI displays each step as its own recipe card,
+    // and any pair of tiers can combine via vanilla shapeless recipes that sum levels.
     //
-    // MAX_DAMAGE = 4 represents the 4-step craft. Fresh stack starts at DAMAGE=3 (one
-    // increment of progress already baked in by the very first recipe), so the visible bar
-    // reads "1/4 progress" right after the initial craft.
-    public static final int UNFINISHED_KELP_STRING_STEPS = 4;
-    public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING =
-            ITEMS.registerItem("unfinished_kelp_string",
-                    net.minecraft.world.item.Item::new,
-                    (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>)
-                            (p -> p.stacksTo(1).durability(UNFINISHED_KELP_STRING_STEPS)));
+    // Plain stackable Items (no durability) — the tier IS the item. Players see "Unfinished
+    // Kelp String I/II/III" as three separate icons in the Items tab.
+    public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING_1 =
+            ITEMS.registerItem("unfinished_kelp_string_1", net.minecraft.world.item.Item::new);
+    public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING_2 =
+            ITEMS.registerItem("unfinished_kelp_string_2", net.minecraft.world.item.Item::new);
+    public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING_3 =
+            ITEMS.registerItem("unfinished_kelp_string_3", net.minecraft.world.item.Item::new);
 
     /**
      * Iterate all currently-registered Materials × PartTypes (both in the smithery: namespace)

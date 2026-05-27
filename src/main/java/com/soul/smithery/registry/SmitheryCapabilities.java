@@ -63,6 +63,14 @@ public final class SmitheryCapabilities {
                 Capabilities.Item.BLOCK,
                 SmitheryBlockEntities.PART_PRESS.get(),
                 (be, side) -> be.itemHandlerFor(side));
+
+        // Item input port — hoppers can push items into the forge through this block. The
+        // port's handler refuses inserts when the connected forge has no empty interior
+        // slot, so a full forge naturally backs up upstream hoppers.
+        event.registerBlockEntity(
+                Capabilities.Item.BLOCK,
+                SmitheryBlockEntities.FORGE_ITEM_PORT.get(),
+                (be, side) -> be.itemHandlerFor(side));
     }
 
     private SmitheryCapabilities() {}
