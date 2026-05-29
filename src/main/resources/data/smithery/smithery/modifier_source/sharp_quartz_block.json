@@ -1,0 +1,7 @@
+{
+  "_comment": "1 quartz block = 4 units (matches the 4:1 crafting ratio with nether quartz). Combines naturally with the nether quartz source: 50 quartz + 10 blocks = 90 units = level 1.",
+  "source_item": "minecraft:quartz_block",
+  "modifier": "smithery:sharp",
+  "params": {},
+  "unit_value": 4
+}

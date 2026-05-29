@@ -14,13 +14,22 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.fluids.FluidType;
 
 /**
- * "Casting" — molten fluid + impressed sand cast → vanilla / smithery part item.
- * Catalyst is the Casting Table.
+ * JEI category for casting: molten fluid + impressed sand cast produces a part or vanilla item.
+ *
+ * <p>Catalyst is the casting table; the recipe row shows the cast block, a tank-style fluid
+ * window sized to the cast volume, and the resulting output stack.
  */
 public class CastingJeiCategory extends AbstractRecipeCategory<SmitheryJeiRecipes.JeiCasting> {
+    /** Width of the category background in GUI pixels. */
     public static final int WIDTH = 130;
+    /** Height of the category background in GUI pixels. */
     public static final int HEIGHT = 50;
 
+    /**
+     * Constructs the category, providing JEI with id, title, icon, and layout dimensions.
+     *
+     * @param guiHelper JEI gui helper used to build the icon drawable
+     */
     public CastingJeiCategory(IGuiHelper guiHelper) {
         super(
                 SmitheryJeiTypes.CASTING,
@@ -33,12 +42,10 @@ public class CastingJeiCategory extends AbstractRecipeCategory<SmitheryJeiRecipe
 
     @Override
     public void setRecipe(IRecipeLayoutBuilder builder, SmitheryJeiRecipes.JeiCasting recipe, IFocusGroup focuses) {
-        // Slot 1: the cast (impressed sand block). Catalyst-style — keeps its identity across the recipe.
         builder.addInputSlot(6, 17)
                 .setStandardSlotBackground()
                 .add(recipe.castBlock());
 
-        // Slot 2: molten fluid input. Render an actual tank-style window.
         SmitheryFluids.Entry entry = SmitheryFluids.forMaterial(recipe.material().id());
         if (entry != null) {
             builder.addInputSlot(34, 6)
@@ -46,7 +53,6 @@ public class CastingJeiCategory extends AbstractRecipeCategory<SmitheryJeiRecipe
                     .add(entry.source.get(), recipe.castMb());
         }
 
-        // Output: the part item (or vanilla item for synthetic casts).
         builder.addOutputSlot(104, 17)
                 .setStandardSlotBackground()
                 .add(recipe.output());

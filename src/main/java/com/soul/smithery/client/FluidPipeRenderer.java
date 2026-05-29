@@ -24,17 +24,12 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 /**
- * BER for fluid pipes. Reads the BE's transient flow state and draws a tinted cube in
- * the centre of the pipe whenever the drain has recently pumped through this pipe.
+ * Block entity renderer for fluid pipes.
  *
- * Render type is {@code entityTranslucent} bound to {@code smithery:textures/block/molten_still.png}
- * — that texture is greyscale, so tinting the vertex colours by the material's molten
- * colour gives a proper "molten metal" look. Alpha fades with the BE's intensityTicks,
- * so when the drain stops pumping the cube smoothly fades to invisible over ~1 second.
- *
- * Cube extent: 6.5/16 to 9.5/16 in block coords, sitting just inside the pipe's 6..10
- * centre geometry. The pipe block model needs render_type=cutout (set in the model JSONs)
- * for its alpha-zero centre pixels to actually punch through and reveal the cube.
+ * <p>Draws a tinted molten cube inside the pipe's central hollow whenever the pipe has
+ * recently transported fluid. The cube tints a shared greyscale strip texture by the
+ * material's molten colour, fading via the pipe's intensity ticks; arm cuboids extend
+ * into each connected face so the flow reads as continuous along the network.
  */
 public class FluidPipeRenderer
         implements BlockEntityRenderer<FluidPipeBlockEntity, FluidPipeRenderer.RenderState> {
@@ -42,25 +37,30 @@ public class FluidPipeRenderer
     private static final Identifier MOLTEN_STILL_TEXTURE =
             Identifier.fromNamespaceAndPath(Smithery.MODID, "textures/block/molten_still.png");
 
-    /**
-     * The molten_still.png is a 16-frame animation strip (32×512). We sample one frame at a
-     * time by limiting V to (frame/16)..(frame+1)/16, then advance the frame on a 150 ms
-     * cadence (matches the .mcmeta animation rate). Without this clamp/animation, UV (0..1)
-     * stretches all 16 frames across each face — the "hundreds of layers squished" artifact.
-     */
     private static final int FRAME_COUNT = 16;
     private static final long FRAME_DURATION_MS = 150L;
     private static final float FRAME_V_STEP = 1f / FRAME_COUNT;
 
     private static final int FULL_BRIGHT = 0xF000F0;
 
+    /**
+     * Snapshot of pipe flow state captured per frame.
+     *
+     * <p>Carries the lerped molten tint plus a per-face flag array indicating which arms
+     * have geometry so matching fluid cuboids can be emitted alongside the core.
+     */
     public static final class RenderState extends BlockEntityRenderState {
         public boolean hasFlow;
         public int colorArgb;
-        /** Per-face flag (index = Direction.get3DDataValue()): true if that arm geometry is rendered. */
+        /** Per-face connection flags indexed by {@link Direction#get3DDataValue()}. */
         public final boolean[] armConnected = new boolean[6];
     }
 
+    /**
+     * Constructs the renderer with the provider context.
+     *
+     * @param context renderer provider context (unused)
+     */
     public FluidPipeRenderer(BlockEntityRendererProvider.Context context) {}
 
     @Override
@@ -82,16 +82,12 @@ public class FluidPipeRenderer
         SmitheryFluids.Entry entry = SmitheryFluids.forFluid(fluid);
         if (entry == null) return;
 
-        // Alpha follows the marker's decay timer: full alpha while the drain is refreshing
-        // us, fading out smoothly once the wave has moved past / drain has stopped.
         int rgb = entry.material.stats().moltenColor() & 0xFFFFFF;
         float fade = (float) be.intensityTicks() / (float) FluidPipeBlockEntity.FLOW_PERSIST_TICKS;
         int alpha = Math.max(0, Math.min(255, (int) (fade * 255f)));
         state.colorArgb = (alpha << 24) | rgb;
         state.hasFlow = alpha > 0;
 
-        // Capture per-face connection so we know which arms should also have fluid drawn.
-        // Any non-NONE face has arm geometry; we render fluid inside.
         net.minecraft.world.level.block.state.BlockState blockState = be.getBlockState();
         if (blockState.getBlock() instanceof FluidPipeBlock) {
             for (Direction dir : Direction.values()) {
@@ -107,21 +103,13 @@ public class FluidPipeRenderer
         if (!state.hasFlow) return;
 
         final int color = state.colorArgb;
-        // Centre cuboid: 3×3×3 just inside the pipe's 6..10 core. The pipe model uses
-        // cutout render type so the alpha-zero centre texture pixels reveal this cube.
-        // Each connected arm gets a matching 3×3×6 cuboid extending toward the block edge
-        // so molten flow appears to travel down the pipe arms instead of stopping at the core.
         final float lo = 6.5f / 16f;
         final float hi = 9.5f / 16f;
-        // Arm cuboids extend from 0..6 (or 10..16) for the connected axis, kept at
-        // [lo, hi] cross-section. We push them just past 6 / pull just before 10 so they
-        // overlap the core cube and read as one continuous flow.
         final float armNear = 0f;
         final float armFar  = 6.5f / 16f;
         final float armFar2 = 9.5f / 16f;
         final float armEnd  = 16f / 16f;
 
-        // Active animation frame from the molten_still strip — wraps every 16 × 150 ms = 2.4 s.
         final int frame = (int) ((System.currentTimeMillis() / FRAME_DURATION_MS) % FRAME_COUNT);
         final float vMin = frame * FRAME_V_STEP;
         final float vMax = (frame + 1) * FRAME_V_STEP;
@@ -129,7 +117,7 @@ public class FluidPipeRenderer
         collector.submitCustomGeometry(poseStack,
                 RenderTypes.entityTranslucent(MOLTEN_STILL_TEXTURE),
                 (pose, buffer) -> {
-                    drawCuboid(pose, buffer, lo, lo, lo,  hi, hi, hi, color, vMin, vMax); // core
+                    drawCuboid(pose, buffer, lo, lo, lo,  hi, hi, hi, color, vMin, vMax);
 
                     boolean[] arm = state.armConnected;
                     if (arm[Direction.NORTH.get3DDataValue()])
@@ -147,10 +135,6 @@ public class FluidPipeRenderer
                 });
     }
 
-    // ---- Cuboid emission ----
-
-    /** Draws a 6-face cuboid with corners at (x0,y0,z0) and (x1,y1,z1), tinted, with UV V clamped
-     *  to {@code [vMin, vMax]} — the caller picks which animation frame of the strip to sample. */
     private static void drawCuboid(PoseStack.Pose pose, VertexConsumer buf,
                                     float x0, float y0, float z0,
                                     float x1, float y1, float z1,
@@ -161,13 +145,12 @@ public class FluidPipeRenderer
         int a = (color >>> 24) & 0xFF;
         Matrix4f m = pose.pose();
 
-        // 6 faces, vertices in CCW winding when viewed from outside the cuboid.
-        face(m, pose, buf, x0, y0, z0,  x0, y0, z1,  x0, y1, z1,  x0, y1, z0, r, g, b, a, vMin, vMax, -1f, 0f, 0f); // -X
-        face(m, pose, buf, x1, y0, z1,  x1, y0, z0,  x1, y1, z0,  x1, y1, z1, r, g, b, a, vMin, vMax,  1f, 0f, 0f); // +X
-        face(m, pose, buf, x0, y0, z0,  x1, y0, z0,  x1, y0, z1,  x0, y0, z1, r, g, b, a, vMin, vMax, 0f, -1f, 0f); // -Y
-        face(m, pose, buf, x0, y1, z1,  x1, y1, z1,  x1, y1, z0,  x0, y1, z0, r, g, b, a, vMin, vMax, 0f,  1f, 0f); // +Y
-        face(m, pose, buf, x1, y0, z0,  x0, y0, z0,  x0, y1, z0,  x1, y1, z0, r, g, b, a, vMin, vMax, 0f, 0f, -1f); // -Z
-        face(m, pose, buf, x0, y0, z1,  x1, y0, z1,  x1, y1, z1,  x0, y1, z1, r, g, b, a, vMin, vMax, 0f, 0f,  1f); // +Z
+        face(m, pose, buf, x0, y0, z0,  x0, y0, z1,  x0, y1, z1,  x0, y1, z0, r, g, b, a, vMin, vMax, -1f, 0f, 0f);
+        face(m, pose, buf, x1, y0, z1,  x1, y0, z0,  x1, y1, z0,  x1, y1, z1, r, g, b, a, vMin, vMax,  1f, 0f, 0f);
+        face(m, pose, buf, x0, y0, z0,  x1, y0, z0,  x1, y0, z1,  x0, y0, z1, r, g, b, a, vMin, vMax, 0f, -1f, 0f);
+        face(m, pose, buf, x0, y1, z1,  x1, y1, z1,  x1, y1, z0,  x0, y1, z0, r, g, b, a, vMin, vMax, 0f,  1f, 0f);
+        face(m, pose, buf, x1, y0, z0,  x0, y0, z0,  x0, y1, z0,  x1, y1, z0, r, g, b, a, vMin, vMax, 0f, 0f, -1f);
+        face(m, pose, buf, x0, y0, z1,  x1, y0, z1,  x1, y1, z1,  x0, y1, z1, r, g, b, a, vMin, vMax, 0f, 0f,  1f);
     }
 
     private static void face(Matrix4f m, PoseStack.Pose pose, VertexConsumer buf,

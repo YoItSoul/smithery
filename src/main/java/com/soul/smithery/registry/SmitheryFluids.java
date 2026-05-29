@@ -26,43 +26,43 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Per-material molten fluids.
+ * Per-{@link Material} molten fluid registry.
  *
- * For every registered Material with a non-zero meltingTemp we create:
- *   - a {@link FluidType} (NeoForge concept) carrying physics props
- *   - a source {@link FlowingFluid} (BaseFlowingFluid.Source)
- *   - a flowing {@link FlowingFluid} (BaseFlowingFluid.Flowing)
- *   - a {@link LiquidBlock} so the fluid can exist in the world
- *
- * Bucket items are intentionally NOT registered yet — buckets / drain output
- * comes later in the design. The fluids exist now so the casting basin and
- * the drain can wire to real fluid identities instead of opaque material IDs.
- *
- * All molten fluids share one pair of greyscale textures (smithery:block/molten_still
- * and smithery:block/molten_flow, both copied + greyscaled from vanilla lava).
- * Per-fluid color comes from the Material's {@link MaterialStats#moltenColor()},
- * applied via a {@code BlockTintSource} registered with the fluid model in
- * {@code SmitheryFluidsClient}.
+ * <p>For every registered Material with a non-zero {@link MaterialStats#meltingTemp()} this
+ * class registers a {@link FluidType}, a source + flowing {@link FlowingFluid}, a
+ * {@link LiquidBlock} and a bucket {@code Item}. All molten fluids share one pair of
+ * greyscale textures; per-fluid color comes from {@link MaterialStats#moltenColor()}
+ * applied via a {@code BlockTintSource} on the client.
  */
 public final class SmitheryFluids {
 
+    /** Deferred register for Smithery-namespaced fluid types. */
     public static final DeferredRegister<FluidType> FLUID_TYPES =
             DeferredRegister.create(NeoForgeRegistries.Keys.FLUID_TYPES, Smithery.MODID);
+    /** Deferred register for Smithery-namespaced fluids (source + flowing). */
     public static final DeferredRegister<Fluid> FLUIDS =
             DeferredRegister.create(Registries.FLUID, Smithery.MODID);
+    /** Deferred register for Smithery-namespaced {@link LiquidBlock} instances. */
     public static final DeferredRegister.Blocks FLUID_BLOCKS =
             DeferredRegister.createBlocks(Smithery.MODID);
 
-    /** Holders for one material's molten fluid set. */
+    /**
+     * Holder bundle for one material's molten-fluid set (type, source, flowing, block, bucket).
+     */
     public static final class Entry {
+        /** Identifier of the {@link Material} this fluid set was derived from. */
         public final Identifier materialId;
+        /** Deferred holder for this material's {@link FluidType}. */
         public final DeferredHolder<FluidType, FluidType> type;
+        /** Deferred holder for the source (still) {@link FlowingFluid} variant. */
         public final DeferredHolder<Fluid, FlowingFluid> source;
+        /** Deferred holder for the flowing {@link FlowingFluid} variant. */
         public final DeferredHolder<Fluid, FlowingFluid> flowing;
+        /** The {@link Material} this fluid set was derived from. */
         public final com.soul.smithery.api.material.Material material;
-        // LiquidBlock is registered as a Block; field declared with the generic type
-        // to keep callers honest about what they get back.
+        /** Deferred holder for the in-world {@link LiquidBlock} backing this fluid. */
         public final net.neoforged.neoforge.registries.DeferredBlock<LiquidBlock> block;
+        /** Deferred holder for the bucket item that picks up this fluid. */
         public final net.neoforged.neoforge.registries.DeferredItem<net.minecraft.world.item.BucketItem> bucket;
 
         Entry(Identifier materialId,
@@ -83,25 +83,43 @@ public final class SmitheryFluids {
     }
 
     private static final Map<Identifier, Entry> ENTRIES = new LinkedHashMap<>();
-    /** Reverse index: bucket item id → entry, used by MoltenBucketTintSource. */
     private static final Map<Identifier, Entry> ENTRIES_BY_BUCKET_ID = new java.util.HashMap<>();
 
-    /** All registered molten-fluid entries, in registration order. */
+    /**
+     * All registered molten-fluid entries in registration order.
+     *
+     * @return unmodifiable view of the material-id → {@link Entry} map
+     */
     public static Map<Identifier, Entry> entries() {
         return Collections.unmodifiableMap(ENTRIES);
     }
 
-    /** Lookup an entry by the registry id of its bucket item; null if not a smithery molten bucket. */
+    /**
+     * Reverse lookup by bucket item id.
+     *
+     * @param bucketItemId registry id of a bucket item
+     * @return the matching {@link Entry}, or null if the id is not a Smithery molten bucket
+     */
     public static Entry forBucketItemId(Identifier bucketItemId) {
         return ENTRIES_BY_BUCKET_ID.get(bucketItemId);
     }
 
-    /** Lookup the molten fluid for a given Material id, or null if it has none (e.g. wood). */
+    /**
+     * Looks up the molten fluid entry for a given {@link Material} id.
+     *
+     * @param materialId id of a registered Material
+     * @return the matching {@link Entry}, or null if the material has no molten fluid (e.g. wood)
+     */
     public static Entry forMaterial(Identifier materialId) {
         return ENTRIES.get(materialId);
     }
 
-    /** Reverse lookup: find the entry whose source fluid matches the given Fluid; null if none. */
+    /**
+     * Reverse lookup from a vanilla {@link Fluid} back to its Smithery entry.
+     *
+     * @param fluid any fluid; may be null
+     * @return the matching {@link Entry} whose source equals {@code fluid}, or null if none
+     */
     public static Entry forFluid(net.minecraft.world.level.material.Fluid fluid) {
         if (fluid == null) return null;
         for (Entry e : ENTRIES.values()) {
@@ -111,14 +129,16 @@ public final class SmitheryFluids {
     }
 
     /**
-     * Bootstrap entries from the populated {@link SmitheryAPI#MATERIALS} registry.
-     * Call AFTER SmitheryMaterials.register() and BEFORE the deferred registers fire
-     * (i.e. before bus.register is invoked).
+     * Bootstraps molten-fluid entries from the populated {@link SmitheryAPI#MATERIALS}
+     * registry.
+     *
+     * <p>Must be called AFTER {@code SmitheryMaterials.register()} and BEFORE the deferred
+     * registers fire (i.e. before {@code bus.register} is invoked).
      */
     public static void bootstrap() {
         for (Material mat : SmitheryAPI.MATERIALS.all()) {
             MaterialStats stats = mat.stats();
-            if (stats.meltingTemp() <= 0f) continue; // skip non-meltable (e.g. wood)
+            if (stats.meltingTemp() <= 0f) continue;
             registerOne(mat);
         }
     }
@@ -133,8 +153,8 @@ public final class SmitheryFluids {
                 () -> new FluidType(FluidType.Properties.create()
                         .descriptionId("fluid." + Smithery.MODID + "." + name)
                         .lightLevel(15)
-                        .density(7000)            // heavier than water; we don't have per-material density yet
-                        .viscosity(6000)          // sluggish like lava
+                        .density(7000)
+                        .viscosity(6000)
                         .temperature(Math.max(300, tempCelsius))
                         .canSwim(false)
                         .canDrown(false)
@@ -144,9 +164,6 @@ public final class SmitheryFluids {
                         .canConvertToSource(false)
                         .supportsBoating(false)));
 
-        // Forward references resolved via Lazy-style anon holders below — Source/Flowing/Block/Bucket
-        // each reference each other through Properties; the holders are wired before they're
-        // dereferenced (registry suppliers fire later, by which time .get() resolves cleanly).
         DeferredHolder<Fluid, FlowingFluid>[] sourceRef = new DeferredHolder[1];
         DeferredHolder<Fluid, FlowingFluid>[] flowingRef = new DeferredHolder[1];
         net.neoforged.neoforge.registries.DeferredBlock<LiquidBlock>[] blockRef =
@@ -168,9 +185,6 @@ public final class SmitheryFluids {
         flowingRef[0] = FLUIDS.register(name + "_flowing",
                 () -> new BaseFlowingFluid.Flowing(props));
 
-        // Use registerBlock(name, func, propsSupplier) so the block id (ResourceKey) is
-        // baked into BlockBehaviour.Properties — required in MC 26.1.x; Properties.of()
-        // alone fails at construct time with "Block id not set".
         blockRef[0] = FLUID_BLOCKS.registerBlock(name,
                 blockProps -> new LiquidBlock(sourceRef[0].get(), blockProps),
                 () -> BlockBehaviour.Properties.of()
@@ -184,9 +198,6 @@ public final class SmitheryFluids {
                         .pushReaction(PushReaction.DESTROY)
                         .sound(SoundType.EMPTY));
 
-        // Standard 1-stack bucket that returns an empty bucket on use. The visual is
-        // a shared grayscale sprite (smithery:item/molten_bucket) recolored per-fluid
-        // by MoltenBucketTintSource on the client.
         bucketRef[0] = SmitheryItems.ITEMS.registerItem(name + "_bucket",
                 itemProps -> new net.minecraft.world.item.BucketItem(sourceRef[0].get(), itemProps),
                 p -> p.craftRemainder(net.minecraft.world.item.Items.BUCKET).stacksTo(1));
@@ -196,6 +207,11 @@ public final class SmitheryFluids {
         ENTRIES_BY_BUCKET_ID.put(Identifier.fromNamespaceAndPath(Smithery.MODID, name + "_bucket"), entry);
     }
 
+    /**
+     * Binds all three deferred registers (types, fluids, fluid-blocks) to the mod event bus.
+     *
+     * @param bus the mod-bus the deferred registers attach to
+     */
     public static void register(IEventBus bus) {
         FLUID_TYPES.register(bus);
         FLUIDS.register(bus);

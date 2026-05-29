@@ -21,7 +21,7 @@ Smithery is a modular, modder-friendly tool crafting mod centered on a multibloc
 - **Mixed-material tools.** Every tool is assembled from interchangeable parts — blade, guard, handle, binder, head. Pair an iron blade with a gold handle, a copper binder, and the stats, modifiers, and visuals stack accordingly.
 - **Per-material, per-tool-type modifiers.** Iron sword swings sharper, iron pickaxe magnetizes drops, copper poisons, gold gilds XP. Materials carry different abilities depending on which tool they're used in.
 - **Material synergies.** Specific cross-material combinations unlock bonus modifiers — Galvanic (Iron + Copper), Gilded (Iron + Gold), Verdant Veil (Copper + Gold) — at no slot cost.
-- **Multiblock Forge.** Built from vanilla deepslate variants plus three Smithery blocks. Validates open-top or closed-top structures, tolerates partial builds, and allows Tinkers-style walls without corner blocks.
+- **Multiblock Forge.** Built from vanilla deepslate variants plus three Smithery blocks. Validates open-top or closed-top structures, tolerates partial builds, and allows walls without corner blocks.
 - **Designed for modders.** Register new materials, parts, tool types, modifiers, synergies, and alloys via a builder-style Java API. Models, item definitions, and tinted textures are generated at runtime from the live registry — no boilerplate JSON per material.
 
 ---

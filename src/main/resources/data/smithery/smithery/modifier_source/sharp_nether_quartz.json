@@ -1,0 +1,7 @@
+{
+  "_comment": "1 nether quartz = 1 unit toward smithery:sharp's level cost (90 per level, scaling x1.5). Use 90 quartz to commit level 1, 135 for level 2, etc.",
+  "source_item": "minecraft:quartz",
+  "modifier": "smithery:sharp",
+  "params": {},
+  "unit_value": 1
+}

@@ -30,23 +30,32 @@ import org.jspecify.annotations.Nullable;
 import java.util.Optional;
 
 /**
- * Sand-casting workbench. State machine:
- *
- *   EMPTY ─[casting_sand]→ SAND
- *   SAND ─[part item template, not consumed]→ IMPRESSED  (records PartType + requiredMb)
- *   IMPRESSED ─[fluid pour]→ FILLING                       (rejects mismatched fluid mid-fill)
- *   FILLING@requiredMb → COOLING                            (timer = mB / 5 ticks)
- *   COOLING done → COVERED                                  (sand re-coats the cooled part)
- *   COVERED ─[brush × 4]→ READY
- *   READY ─[right-click empty hand]→ part item drops, state → EMPTY (sand destroyed)
- *
- * Step 2 implements EMPTY→SAND and SAND→IMPRESSED. The remaining transitions are
- * stubbed in the enum so save/load tolerates them when added later.
+ * State and behaviour for a sand-casting workbench. Drives the EMPTY -> SAND ->
+ * IMPRESSED -> FILLING -> COOLING -> READY cycle, persisting per-state data
+ * (impressed part type, required mB, poured fluid, fill amount, cooling progress)
+ * and exposing both a write-only fluid sink and a READY-gated item source via
+ * NeoForge capabilities.
  */
 public class CastingTableBlockEntity extends BlockEntity {
 
+    /**
+     * Cast cycle states for a single table.
+     */
     public enum State {
-        EMPTY, SAND, IMPRESSED, FILLING, COOLING, COVERED, READY;
+        /** Bare table — no sand, no impression. */
+        EMPTY,
+        /** Sand layer poured but not yet shaped. */
+        SAND,
+        /** Sand has a part-type impression; ready to receive fluid. */
+        IMPRESSED,
+        /** Mid-pour; partially filled with one fluid. */
+        FILLING,
+        /** Fully filled and currently cooling down. */
+        COOLING,
+        /** Sand re-coats the cooled part; brush to expose. */
+        COVERED,
+        /** Finished part ready to be picked up. */
+        READY;
 
         static State byName(String name) {
             for (State s : values()) if (s.name().equals(name)) return s;
@@ -54,45 +63,46 @@ public class CastingTableBlockEntity extends BlockEntity {
         }
     }
 
-    /** Number of brush strokes needed to fully sweep the sand off (matches suspicious-sand pacing). */
+    /** Number of brush strokes needed to sweep sand off; matches vanilla suspicious-sand pacing. */
     public static final int MAX_BRUSH = 4;
-    /**
-     * Per-mB cooling time, in server ticks. With this set to 2, a 72 mB guard cools in
-     * ~7.2s and a 144 mB sword blade in ~14.4s — combined with the 1 mB/tick pour rate
-     * the whole guard cycle (fill → cool → ready) is around 10-11 seconds.
-     */
+    /** Per-mB cooling time in server ticks. */
     public static final int COOLING_TICKS_PER_MB = 2;
 
     private State state = State.EMPTY;
-    private @Nullable Identifier impressedPartTypeId; // set when state >= IMPRESSED
-    private int requiredMb = 0;                       // set when state >= IMPRESSED
-    private int brushProgress = 0;                    // 0..MAX_BRUSH, resets on state transition
+    private @Nullable Identifier impressedPartTypeId;
+    private int requiredMb = 0;
+    private int brushProgress = 0;
 
-    // ---- Filling / cooling state ----
-    // pouredFluid stays Fluids.EMPTY until first pour. filledMb counts toward requiredMb;
-    // when it hits requiredMb we flip to COOLING and set coolingTicksRemaining.
     private Fluid pouredFluid = Fluids.EMPTY;
     private int   filledMb = 0;
     private int   coolingTicksRemaining = 0;
 
+    /**
+     * Constructs a casting table BE bound to the given position and blockstate.
+     */
     public CastingTableBlockEntity(BlockPos pos, BlockState state) {
         super(SmitheryBlockEntities.CASTING_TABLE.get(), pos, state);
     }
 
-    // ---- Accessors ----
-
+    /** Returns the current cycle {@link State}. */
     public State state() { return state; }
+    /** Returns the impressed PartType id, or null if no impression. */
     public @Nullable Identifier impressedPartTypeId() { return impressedPartTypeId; }
+    /** Returns the mB required to fully fill the current impression. */
     public int requiredMb() { return requiredMb; }
+    /** Returns the current brush stroke count toward {@link #MAX_BRUSH}. */
     public int brushProgress() { return brushProgress; }
+    /** Returns the fluid currently poured (or being poured); {@code Fluids.EMPTY} when none. */
     public Fluid pouredFluid() { return pouredFluid; }
+    /** Returns the mB poured so far toward {@link #requiredMb()}. */
     public int filledMb() { return filledMb; }
+    /** Returns the remaining cooling-state ticks before the cast becomes READY. */
     public int coolingTicksRemaining() { return coolingTicksRemaining; }
 
     /**
-     * 1.0 when the molten material is freshly poured (start of COOLING), decaying linearly
-     * to 0.0 at COOLING completion. Returns 1.0 for FILLING (the cast is still molten as it
-     * fills) and 0.0 for every other state. Renderer drives the molten-to-part fade off this.
+     * Cooling progress as a 0..1 fraction used by the renderer to fade between the
+     * molten fluid tint and the solid part colour. Returns 1.0 during FILLING and 0.0
+     * outside of FILLING / COOLING.
      */
     public float coolingFraction() {
         if (state == State.FILLING) return 1.0f;
@@ -101,23 +111,18 @@ public class CastingTableBlockEntity extends BlockEntity {
         return Math.max(0.0f, Math.min(1.0f, (float) coolingTicksRemaining / (float) total));
     }
 
-    /** True iff this table can currently accept poured fluid (IMPRESSED, or partially FILLING). */
+    /**
+     * True iff this table can currently accept poured fluid (either IMPRESSED, or
+     * partially FILLING with room remaining).
+     */
     public boolean acceptsPour() {
         return state == State.IMPRESSED || (state == State.FILLING && filledMb < requiredMb);
     }
 
-    // ---- Interactions ----
-
     /**
-     * Sand placement, handling both:
-     *   - EMPTY → SAND: fresh layer.
-     *   - IMPRESSED → SAND: smooth over an existing impression (the impressed PartType +
-     *     required mB are cleared so the player can re-impress with something else).
-     *
-     * The brush remains the dedicated "clear everything" tool (IMPRESSED → EMPTY); this
-     * just saves a step when the player only wants to swap the impression.
-     *
-     * Returns true if state actually advanced — caller consumes 1 sand on true.
+     * Places a fresh sand layer or smooths an existing impression. Advances EMPTY -> SAND
+     * fresh, or IMPRESSED -> SAND while clearing the impression. Returns true when the
+     * state advanced; the caller is then responsible for consuming one sand item.
      */
     public boolean tryFillSand() {
         if (state == State.EMPTY) {
@@ -137,8 +142,9 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     /**
-     * SAND → IMPRESSED. Returns true if the state advanced (template is NOT consumed by
-     * the caller). Records the PartType and the mB this part requires when cast.
+     * Advances SAND -> IMPRESSED using a {@link PartItem} as the template (not consumed).
+     * Records the PartType id and the mB the resulting cast will require. Returns true
+     * when the impression was actually made.
      */
     public boolean tryImpressPart(ItemStack stack) {
         if (state != State.SAND) return false;
@@ -153,9 +159,9 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     /**
-     * SAND → IMPRESSED using a non-PartItem template (e.g. vanilla iron_ingot, modder's
-     * ender pearl). Looks up the cast-target PartType id via {@link com.soul.smithery.api.cast.CastTemplates}
-     * and records it as the impression. Template is not consumed.
+     * Advances SAND -> IMPRESSED using a non-PartItem template resolved through the
+     * {@link com.soul.smithery.api.cast.CastTemplates} registry. The template item itself
+     * is not consumed. Returns true when the impression was actually made.
      */
     public boolean tryImpressTemplateItem(Identifier castTypeId) {
         if (state != State.SAND || castTypeId == null) return false;
@@ -169,15 +175,13 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     /**
-     * Pour fluid into an IMPRESSED or partially-FILLING table. Mismatched fluids are
-     * rejected outright (return 0). Returns the actual mB accepted. Advances:
-     *   IMPRESSED → FILLING (on first pour; records {@link #pouredFluid})
-     *   FILLING@requiredMb → COOLING (kicks off the cooldown timer)
+     * Pours fluid into an IMPRESSED or partially-FILLING table, locking the fluid identity
+     * on the first pour and rejecting mismatched fluids thereafter. Returns the mB actually
+     * accepted; transitions to COOLING when the impression is fully filled.
      */
     public int tryPourFluid(Fluid fluid, int mb) {
         if (fluid == null || fluid == Fluids.EMPTY || mb <= 0) return 0;
         if (!acceptsPour()) return 0;
-        // Lock the fluid identity on first pour. Subsequent pours must match.
         if (state == State.IMPRESSED) {
             pouredFluid = fluid;
             filledMb = 0;
@@ -191,30 +195,24 @@ public class CastingTableBlockEntity extends BlockEntity {
 
         if (state == State.IMPRESSED) {
             state = State.FILLING;
-            // Pour invalidates any partial brushing the player did pre-pour.
             brushProgress = 0;
         }
         if (filledMb >= requiredMb) {
             state = State.COOLING;
-            // Cooling time scales linearly with part size: requiredMb × per-mB rate.
-            // Old code divided by an extra 5 which made small parts cool in under a second.
             coolingTicksRemaining = Math.max(1, requiredMb * COOLING_TICKS_PER_MB);
         }
         markDirtyAndSync();
         return accepted;
     }
 
-    /** Server-tick hook for cooling countdown. Other transitions are interaction-driven. */
+    /**
+     * Server-side cooling countdown. Other state transitions are interaction-driven.
+     */
     public void serverTick(ServerLevel level, BlockPos pos, BlockState blockState) {
         if (state != State.COOLING) return;
         if (coolingTicksRemaining > 0) {
             coolingTicksRemaining--;
             if (coolingTicksRemaining == 0) {
-                // Cooling done → directly to READY. The legacy COVERED → brush 4× → READY
-                // step is skipped: the table holds a reusable sand mould, so the player just
-                // right-clicks at READY to take the part (and the cast stays for another pour).
-                // tryBrush still handles COVERED → READY for any existing world saves stuck
-                // in COVERED.
                 state = State.READY;
                 markDirtyAndSync();
             }
@@ -222,12 +220,8 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     /**
-     * Client-side cooling prediction. The server only re-syncs the BE when state actually
-     * changes (markDirtyAndSync), so without this the client's coolingTicksRemaining stays
-     * at its FILLING→COOLING value the whole cooling window — making the renderer's
-     * coolingFraction sit at 1.0 (full molten tint) until the server's READY snap.
-     * Decrementing locally lets the molten→partColor lerp transition smoothly. The values
-     * naturally re-converge with the server when state moves to READY.
+     * Client-side cooling prediction so the renderer's molten-to-solid lerp transitions
+     * smoothly between the sparse server syncs. Re-converges naturally on the READY snap.
      */
     public void clientTick() {
         if (state == State.COOLING && coolingTicksRemaining > 0) {
@@ -236,26 +230,19 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     /**
-     * READY → IMPRESSED: resolves the cooled cast into the matching (Material × PartType)
-     * PartItem and returns the stack for the caller to give / drop. The sand layer AND the
-     * impression (impressedPartTypeId + requiredMb) are preserved so the table is immediately
-     * ready to receive another pour — same cast, multiple parts. Returns {@code ItemStack.EMPTY}
-     * if not in READY state or the resolution fails.
-     *
-     * To actually clear the impression, the player brushes the table down (IMPRESSED → EMPTY).
+     * READY -> IMPRESSED: resolves the cooled cast into the matching (Material x PartType)
+     * stack, returns it for the caller to deliver, and preserves the sand impression for
+     * subsequent pours. Falls all the way back to EMPTY if resolution fails (corrupt save).
+     * Returns {@link ItemStack#EMPTY} when not READY.
      */
     public ItemStack tryRetrievePart() {
         if (state != State.READY) return ItemStack.EMPTY;
         ItemStack result = resolvePartItem();
-        // Reset only the pour-cycle fields. Keep impressedPartTypeId, requiredMb, and the
-        // implicit sand layer so the next pour can use the same mould.
         state = State.IMPRESSED;
         pouredFluid = Fluids.EMPTY;
         filledMb = 0;
         coolingTicksRemaining = 0;
         brushProgress = 0;
-        // If the resolution failed (corrupt save?), fall all the way back to EMPTY so the
-        // table doesn't get stuck in an unrecoverable IMPRESSED state.
         if (result.isEmpty()) {
             state = State.EMPTY;
             impressedPartTypeId = null;
@@ -265,50 +252,35 @@ public class CastingTableBlockEntity extends BlockEntity {
         return result;
     }
 
-    /**
-     * Resolves the cast outcome, consulting {@link com.soul.smithery.api.cast.CastResults}
-     * first (modder-extensible: e.g. iron+ingot → Items.IRON_INGOT, ender+pearl → Items.ENDER_PEARL),
-     * then falling back to smithery's auto-generated PartItem (Material × PartType) for
-     * normal part-type combos. Returns {@link ItemStack#EMPTY} if no mapping exists at all
-     * (e.g. copper into a nugget cast — vanilla copper_nugget doesn't exist; the cast
-     * gets discarded with a chat warning at retrieve time).
-     */
     private ItemStack resolvePartItem() {
         if (impressedPartTypeId == null || pouredFluid == Fluids.EMPTY) return ItemStack.EMPTY;
         com.soul.smithery.registry.SmitheryFluids.Entry entry =
                 com.soul.smithery.registry.SmitheryFluids.forFluid(pouredFluid);
         if (entry == null) return ItemStack.EMPTY;
 
-        // Explicit registry first — modder-extensible.
         net.minecraft.world.item.Item explicit =
                 com.soul.smithery.api.cast.CastResults.resolve(entry.materialId, impressedPartTypeId);
         if (explicit != null) return new ItemStack(explicit);
 
-        // Default: smithery PartItem for the material × part-type combo.
         var partItem = com.soul.smithery.registry.SmitheryItems.getBuiltInPart(
                 entry.materialId, impressedPartTypeId);
         if (partItem == null) return ItemStack.EMPTY;
         return new ItemStack(partItem.get());
     }
 
-    /** Snapshot of the part item without consuming the cast — used by the renderer. */
+    /**
+     * Returns a copy of the part item that would be produced now, without consuming the
+     * cast. Used by the renderer to preview the READY part.
+     */
     public ItemStack peekPartItem() {
         return resolvePartItem();
     }
 
     /**
-     * Apply one brush stroke. Works in any state where there's sand on top:
-     * SAND, IMPRESSED, or COVERED. Increments {@link #brushProgress}; on hitting
-     * {@link #MAX_BRUSH} the sand layer is considered swept away and the state
-     * advances accordingly:
-     *
-     *   SAND      → EMPTY  (just sand, no impression — back to a bare table)
-     *   IMPRESSED → EMPTY  (impression abandoned; PartType + requiredMb cleared)
-     *   COVERED   → READY  (cooled part is exposed and can be picked up)
-     *
-     * Returns true if the brush was actually applied — false in states where
-     * brushing has no effect (EMPTY, FILLING, COOLING, READY) so the caller can
-     * pass the interaction through to vanilla behavior.
+     * Applies one brush stroke; only effective in SAND, IMPRESSED, or COVERED states.
+     * Reaching {@link #MAX_BRUSH} clears the sand layer: SAND/IMPRESSED -> EMPTY (impression
+     * lost), COVERED -> READY (cooled part exposed). Returns true when the brush actually
+     * advanced something; false for inert states so the caller can pass through to vanilla.
      */
     public boolean tryBrush() {
         boolean accepts = switch (state) {
@@ -325,8 +297,6 @@ public class CastingTableBlockEntity extends BlockEntity {
                     state = State.EMPTY;
                     impressedPartTypeId = null;
                     requiredMb = 0;
-                    // Brush-out of an IMPRESSED template doesn't normally see a pour, but reset
-                    // defensively so a half-poured-then-brushed-back-to-EMPTY table stays clean.
                     pouredFluid = Fluids.EMPTY;
                     filledMb = 0;
                     coolingTicksRemaining = 0;
@@ -338,8 +308,6 @@ public class CastingTableBlockEntity extends BlockEntity {
         markDirtyAndSync();
         return true;
     }
-
-    // ---- NBT ----
 
     @Override
     protected void saveAdditional(ValueOutput output) {
@@ -388,9 +356,6 @@ public class CastingTableBlockEntity extends BlockEntity {
         coolingTicksRemaining = input.getInt("coolingTicks").orElse(0);
     }
 
-    // ---- Sync helpers ----
-
-    /** Marks the BE dirty + nudges chunk sync so the BER picks up state changes. */
     private void markDirtyAndSync() {
         setChanged();
         if (level instanceof ServerLevel sl) {
@@ -398,42 +363,19 @@ public class CastingTableBlockEntity extends BlockEntity {
         }
     }
 
-    /**
-     * sendBlockUpdated() above relies on this packet to actually carry our NBT to
-     * the client. Default getUpdatePacket() returns null.
-     */
     @Override
     public @Nullable Packet<ClientGamePacketListener> getUpdatePacket() {
         return ClientboundBlockEntityDataPacket.create(this);
     }
 
-    /**
-     * Default getUpdateTag() returns an EMPTY CompoundTag — that's the actual data
-     * shipped by ClientboundBlockEntityDataPacket.create(this). Without this
-     * override the client receives a sync packet with no fields, leaving the
-     * client BE stuck on state=EMPTY no matter what the server does. saveCustomOnly
-     * runs our saveAdditional() through the BE's NBT pipeline.
-     */
     @Override
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         return saveCustomOnly(registries);
     }
 
-    // ---- Fluid capability exposure ----
-    //
-    // Casting tables expose a *write-only* fluid endpoint: fluid pipes (and any other
-    // mod's plumbing) can fill them, but they don't release fluid via the capability —
-    // the cast is consumed by the player retrieving the part, not by draining.
-    // Acceptance is gated by the table state, which already enforces "IMPRESSED or
-    // partially FILLING and not full" via acceptsPour(). Implementation commits
-    // immediately without transaction journaling (see FluidPipeBlockEntity for the
-    // same caveat).
-
     /**
-     * Casting tables are top-pour only. Returning null for any side other than {@link Direction#UP}
-     * (and unsided/internal access) means external pipes / buckets / hopper-style queries from
-     * non-top sides see no fluid capability at all — they neither register the table as a sink
-     * nor can they push fluid into it.
+     * Returns a write-only fluid capability accessible only from the table's UP face.
+     * Non-top sides see no handler, matching the visual "top-pour only" model.
      */
     public @Nullable ResourceHandler<FluidResource> fluidHandlerFor(@Nullable Direction side) {
         if (side != null && side != Direction.UP) return null;
@@ -468,19 +410,14 @@ public class CastingTableBlockEntity extends BlockEntity {
 
         @Override
         public int extract(int slot, FluidResource resource, int amount, TransactionContext tx) {
-            // Write-only — tables don't yield fluid back to the network.
             return 0;
         }
     }
 
-    // ---- Item capability exposure (hopper-friendly part extraction) ----
-    //
-    // Exposes a single virtual slot that's empty at all non-READY states and yields the
-    // cooled PartItem exactly once at READY. Extracting drops state back to IMPRESSED so
-    // the same mould can keep producing parts on subsequent pours — same as the right-click
-    // retrieve flow. Insert is hard-rejected: hopper-feeding items would bypass the
-    // sand/impression workflow that the block is built around.
-
+    /**
+     * Returns an item capability that surfaces the cooled part at READY for hopper-style
+     * extraction. Inserts are always rejected to preserve the sand/impression workflow.
+     */
     public ResourceHandler<ItemResource> itemHandlerFor(@Nullable Direction side) {
         return new TableItemHandler();
     }

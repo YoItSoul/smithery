@@ -15,15 +15,22 @@ import net.neoforged.neoforge.event.AddPackFindersEvent;
 import java.util.Optional;
 
 /**
- * Hooks the runtime {@link SmitheryGeneratedPack} into the client resource pack list as a
- * top-priority, always-on, hidden built-in pack. Reopened on every resource reload so the
- * served JSON reflects the live registry state — e.g., a material added via datapack at
- * runtime gets its part/tool models generated on the next reload, no restart needed.
+ * Installs the runtime {@link SmitheryGeneratedPack} as a top-priority always-on hidden
+ * built-in client resource pack.
+ *
+ * <p>The pack is reopened on every resource reload, so its served JSON reflects the live
+ * Smithery registry state — adding a material via datapack at runtime gets its part and
+ * tool models generated on the next reload with no game restart needed.
  */
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class SmitheryPackProvider {
     private SmitheryPackProvider() {}
 
+    /**
+     * Adds the Smithery generated pack to the client resource pack repository.
+     *
+     * @param event the {@link AddPackFindersEvent} delivered on the mod event bus
+     */
     @SubscribeEvent
     public static void onAddPackFinders(AddPackFindersEvent event) {
         if (event.getPackType() != PackType.CLIENT_RESOURCES) return;

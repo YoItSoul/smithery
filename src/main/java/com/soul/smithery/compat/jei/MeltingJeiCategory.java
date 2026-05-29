@@ -14,13 +14,22 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.fluids.FluidType;
 
 /**
- * "Melting" — input item → molten fluid output, with the material's melt temperature drawn
- * underneath. Catalyst is the Forge Controller (the multiblock's brain block).
+ * JEI category for melting: input item produces a molten fluid at the material's melt temperature.
+ *
+ * <p>Catalyst is the forge controller; the recipe row shows the input stack, a bucket-sized
+ * fluid output window, and a textual readout of the temperature and output mB.
  */
 public class MeltingJeiCategory extends AbstractRecipeCategory<SmitheryJeiRecipes.JeiMelting> {
+    /** Width of the category background in GUI pixels. */
     public static final int WIDTH = 130;
+    /** Height of the category background in GUI pixels. */
     public static final int HEIGHT = 50;
 
+    /**
+     * Constructs the category, providing JEI with id, title, icon, and layout dimensions.
+     *
+     * @param guiHelper JEI gui helper used to build the icon drawable
+     */
     public MeltingJeiCategory(IGuiHelper guiHelper) {
         super(
                 SmitheryJeiTypes.MELTING,
@@ -39,8 +48,6 @@ public class MeltingJeiCategory extends AbstractRecipeCategory<SmitheryJeiRecipe
 
         SmitheryFluids.Entry entry = SmitheryFluids.forMaterial(recipe.material().id());
         if (entry != null) {
-            // Output a bucket-sized window so the fluid sprite is visible; the tooltip
-            // surfaces the actual mB amount via the FluidStack we add to the slot.
             builder.addOutputSlot(96, 6)
                     .setFluidRenderer(FluidType.BUCKET_VOLUME, false, 24, 36)
                     .add(entry.source.get(), recipe.outputMb());
@@ -52,7 +59,6 @@ public class MeltingJeiCategory extends AbstractRecipeCategory<SmitheryJeiRecipe
                      mezz.jei.api.gui.ingredient.IRecipeSlotsView recipeSlotsView,
                      GuiGraphicsExtractor guiGraphics,
                      double mouseX, double mouseY) {
-        // Arrow between input and fluid output.
         Component tempLine = Component.translatable(
                 "jei." + Smithery.MODID + ".melting.temperature",
                 String.format("%.0f", recipe.meltingTempCelsius())

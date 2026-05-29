@@ -16,41 +16,17 @@ import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
 import java.util.Map;
 
 /**
- * Loads {@code data/<namespace>/smithery/modifier_source/*.json} files into
- * {@link ModifierSources}'s data-side registry. Re-runs on every {@code /reload}, replacing
- * the prior data-entry set wholesale; code-registered entries are untouched.
+ * Server-side reload listener that loads anvil modifier-source mappings from
+ * {@code data/<namespace>/smithery/modifier_source/*.json} into {@link ModifierSources}'s
+ * data layer.
  *
- * <h3>JSON schema</h3>
- * One file per source mapping. See {@link ModifierSources.JsonEntry} for the field set.
- * Filename is arbitrary — the {@code source_item} field inside the file determines which
- * Item gets mapped, not the filename. Example file:
+ * <p>Each file's {@code source_item} field is authoritative (not the filename), pointing at the
+ * vanilla / modded item that, when placed in the anvil, applies the named modifier to the tool.
+ * Re-runs on every {@code /reload} and wipes the prior data layer; code-registered entries are
+ * untouched, and data entries override code entries on item collision.
  *
- * <pre>{@code
- *   // data/smithery/smithery/modifier_source/ender_affinity.json
- *   {
- *     "source_item": "minecraft:ender_pearl",
- *     "modifier":    "smithery:ender_affinity",
- *     "params":      { "chance": 0.30, "radius": 4.0 }
- *   }
- * }</pre>
- *
- * <h3>How modders extend</h3>
- * Drop a JSON file at the same path under your own mod's namespace
- * ({@code data/<yourmod>/smithery/modifier_source/<anything>.json}) or as a player-installed
- * datapack at {@code <world>/datapacks/<pack>/data/<ns>/smithery/modifier_source/...}.
- * Multiple files coalesce into a single registry. Data entries override code entries on
- * Item collision, so a pack can shadow a built-in mapping by mapping the same source item
- * to a different modifier.
- *
- * <h3>Failure modes (skipped silently)</h3>
- * <ul>
- *   <li>Malformed JSON → logged, file skipped, others continue.</li>
- *   <li>{@code source_item} doesn't resolve to a registered Item → file skipped (typo, or
- *       referring to an item from a mod that isn't installed).</li>
- *   <li>{@code modifier} id doesn't match any registered Modifier → entry still registered;
- *       the anvil hook does the modifier-existence check at apply time so a typo is
- *       discoverable in-game when the player tries to use the source.</li>
- * </ul>
+ * <p>Files with unresolvable source items are skipped with a warning; unknown modifier ids are
+ * accepted at load time and surface at apply time as the anvil hook rejects them.
  */
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class ModifierSourceReloadListener
@@ -83,6 +59,12 @@ public final class ModifierSourceReloadListener
         Smithery.LOGGER.info("Loaded {} modifier-source mappings from data packs", registered);
     }
 
+    /**
+     * Registers this listener with the server reload pipeline under the
+     * {@code smithery:modifier_sources} id.
+     *
+     * @param event the NeoForge add-reload-listeners event
+     */
     @SubscribeEvent
     public static void onAddReloadListeners(AddServerReloadListenersEvent event) {
         event.addListener(

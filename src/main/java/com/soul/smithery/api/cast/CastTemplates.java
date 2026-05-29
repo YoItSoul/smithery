@@ -10,21 +10,13 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Modder-facing registry mapping a template Item (e.g. minecraft:iron_ingot, modder's
- * ender_pearl) to the cast-target PartType id (e.g. smithery:ingot, smithery:pearl) it
- * carves into the sand. The casting table consults this when the player right-clicks a SAND
- * table with an item that isn't a smithery PartItem.
+ * Modder-facing registry mapping a template Item to the cast-target {@code PartType} id it
+ * impresses into casting-table sand.
  *
- * Built-in templates:
- *   - iron_ingot, gold_ingot, copper_ingot → smithery:ingot
- *   - iron_nugget, gold_nugget             → smithery:nugget
- *
- * Modder example — register the ender pearl as a "pearl" template:
- * <pre>{@code
- *   CastTemplates.register(Items.ENDER_PEARL, pearlPartTypeId);
- * }</pre>
- * After that, right-clicking a sand-prepared casting table with an ender pearl impresses
- * a pearl-shaped silhouette in the sand.
+ * <p>Consulted by the casting table when the player right-clicks a sand-prepared table with an
+ * item that isn't a Smithery PartItem. Smithery PartItems are handled directly by the casting
+ * table and don't need to be registered here. Built-in templates cover the vanilla
+ * iron/gold/copper ingot and iron/gold nugget shapes.
  */
 public final class CastTemplates {
     private static final Map<Item, Identifier> ENTRIES = new HashMap<>();
@@ -39,9 +31,8 @@ public final class CastTemplates {
     }
 
     /**
-     * Returns the cast-target PartType id for the held stack, or {@code null} if the stack's
-     * item isn't a registered template. Smithery PartItems are handled separately by the
-     * casting table (no need to register them here).
+     * Returns the cast-target PartType id for the held stack, or {@code null} if the stack's item
+     * isn't a registered template.
      */
     public static @Nullable Identifier resolve(ItemStack stack) {
         return stack.isEmpty() ? null : ENTRIES.get(stack.getItem());

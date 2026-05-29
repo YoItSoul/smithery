@@ -12,13 +12,23 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * "Part Press" — raw non-meltable input (logs, flint, slime, resin, coral) → tool part item.
- * Catalyst is the Part Press block.
+ * JEI category for the part press: a raw non-meltable input (logs, flint, slime, resin, coral)
+ * yields a tool part item.
+ *
+ * <p>Catalyst is the part press block; the row shows the input stack, the output part stack,
+ * and a centered part-name label.
  */
 public class PartPressJeiCategory extends AbstractRecipeCategory<SmitheryJeiRecipes.JeiPartPress> {
+    /** Width of the category background in GUI pixels. */
     public static final int WIDTH = 130;
+    /** Height of the category background in GUI pixels. */
     public static final int HEIGHT = 36;
 
+    /**
+     * Constructs the category, providing JEI with id, title, icon, and layout dimensions.
+     *
+     * @param guiHelper JEI gui helper used to build the icon drawable
+     */
     public PartPressJeiCategory(IGuiHelper guiHelper) {
         super(
                 SmitheryJeiTypes.PART_PRESS,

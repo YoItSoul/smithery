@@ -1,10 +1,22 @@
 {
-  "parent": "minecraft:block/cube_bottom_top",
+  "credit": "Smithery — bottom-of-stack variant (port above). Outer up face is omitted so the join with the port above reads as one continuous tank instead of stacked individual blocks.",
   "render_type": "minecraft:cutout",
   "textures": {
-    "top":      "smithery:block/furnace_bricks",
     "bottom":   "smithery:block/furnace_bricks",
     "side":     "smithery:block/forge_fuel_port_bottom",
     "particle": "smithery:block/forge_fuel_port_bottom"
-  }
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to":   [16, 16, 16],
+      "faces": {
+        "north": {"uv": [0, 0, 16, 16], "texture": "#side"},
+        "east":  {"uv": [0, 0, 16, 16], "texture": "#side"},
+        "south": {"uv": [0, 0, 16, 16], "texture": "#side"},
+        "west":  {"uv": [0, 0, 16, 16], "texture": "#side"},
+        "down":  {"uv": [0, 0, 16, 16], "texture": "#bottom"}
+      }
+    }
+  ]
 }

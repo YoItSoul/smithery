@@ -30,31 +30,26 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Smithery arrow item. Each ItemStack carries a {@link ToolComposition} (arrow_head, shaft,
- * fletching materials). Stacks vanilla-style (up to 64) with same-composition stacking — two
- * arrows of identical material composition merge into the same slot.
- *
- * <h3>Why extend ArrowItem (and not SmitheryToolItem)</h3>
- * Vanilla {@link ArrowItem#createArrow} is the entry point both vanilla and smithery bows go
- * through to spawn the projectile. Extending ArrowItem keeps that wiring intact while letting
- * us return our {@link SmitheryArrow} (which carries composition + fires on-hit modifiers).
- * SmitheryToolItem couldn't be used as the base because Java doesn't allow extending both.
- *
- * <h3>Composition wiring</h3>
- * The crafted arrow's TOOL_COMPOSITION data component is written by the shared
- * {@link SmitheryToolItem#applyComposition} path — same as every other smithery tool. This
- * keeps the tooltip / stats / modifier resolution identical to swords, pickaxes, etc.
+ * Smithery arrow item. Each stack carries a {@link ToolComposition} (arrow_head, shaft,
+ * fletching materials) on its TOOL_COMPOSITION data component and stacks identically
+ * with same-composition arrows. Extends vanilla {@link ArrowItem} so both vanilla and
+ * smithery bows route through the same {@code createArrow} entry point.
  */
 public class SmitheryArrowItem extends ArrowItem {
 
     private final Identifier toolTypeId;
 
+    /**
+     * Constructs the arrow item bound to the given smithery ToolType id.
+     */
     public SmitheryArrowItem(Properties properties, Identifier toolTypeId) {
         super(properties);
         this.toolTypeId = toolTypeId;
     }
 
+    /** Returns the bound ToolType id (e.g. {@code smithery:arrow}). */
     public Identifier toolTypeId() { return toolTypeId; }
+    /** Resolves the live {@link ToolType} for this arrow item, or null if unregistered. */
     public ToolType toolType() { return SmitheryAPI.TOOL_TYPES.get(toolTypeId); }
 
     @Override
@@ -100,43 +95,46 @@ public class SmitheryArrowItem extends ArrowItem {
                 stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(),
                         java.util.List.<com.soul.smithery.api.modifier.ModifierEffect>of());
         ToolStats stats = ToolStats.compute(comp, applied);
+        com.soul.smithery.item.SmitheryTooltips.Tier tier = com.soul.smithery.item.SmitheryTooltips.currentTier();
 
-        // Parts breakdown
-        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")
-                .withStyle(ChatFormatting.GRAY));
+        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".section.summary")
+                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+
+        if (tier == com.soul.smithery.item.SmitheryTooltips.Tier.BASIC) {
+            com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
+            super.appendHoverText(stack, context, display, tooltip, flag);
+            return;
+        }
+
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+                Component.translatable("tooltip." + Smithery.MODID + ".tool.stats")));
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.attack_damage",
+                String.format("%.1f", stats.attackDamage))));
+
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+                Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")));
         List<ToolType.Slot> slots = tt.slots();
         for (int i = 0; i < slots.size(); i++) {
             ToolType.Slot slot = slots.get(i);
             Material m = SmitheryAPI.MATERIALS.get(comp.slotMaterials().get(i));
             if (m == null) continue;
             PartType pt = slot.partType();
-            tooltip.accept(Component.literal(" • ")
+            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.bullet(Component.empty()
                     .append(Component.translatable(PartItem.materialTranslationKey(m.id())))
                     .append(Component.literal(" "))
-                    .append(Component.translatable(PartItem.partTranslationKey(pt.id())))
-                    .withStyle(ChatFormatting.DARK_GRAY));
+                    .append(Component.translatable(PartItem.partTranslationKey(pt.id())))));
         }
 
-        // Stats — arrows show damage (per arrow, before charge multiplier) + the stack count
-        // as remaining shots. No mining-speed line: arrows don't mine.
-        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.stats")
-                .withStyle(ChatFormatting.GRAY));
-        tooltip.accept(SmitheryToolItem.statLine(Component.translatable(
-                "tooltip." + Smithery.MODID + ".tool.attack_damage",
-                String.format("%.1f", stats.attackDamage))));
+        com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
         super.appendHoverText(stack, context, display, tooltip, flag);
     }
 
     /**
-     * Apply the shared smithery composition logic to a freshly-crafted arrow stack: writes
-     * TOOL_COMPOSITION, MAX_DAMAGE (used as a wear indicator on picked-up arrows), and the
-     * attribute modifiers. Same path as every other smithery tool — see
-     * {@link SmitheryToolItem#applyComposition}.
-     *
-     * Note: arrows are crafted via the shaped {@link ToolAssemblyRecipe} which already calls
-     * {@code SmitheryToolItem.applyComposition} on the result. This static helper exists for
-     * any future code path that constructs arrows without going through the recipe (commands,
-     * loot tables, etc.).
+     * Routes through {@link SmitheryToolItem#applyComposition} so freshly-crafted arrow
+     * stacks pick up TOOL_COMPOSITION, MAX_DAMAGE, and attribute modifiers via the same
+     * path every other smithery tool uses. Exists for code paths that build arrows
+     * outside the assembly recipe (commands, loot tables, etc.).
      */
     public static ItemStack craftArrowStack(ItemStack stack, ToolComposition comp) {
         return SmitheryToolItem.applyComposition(stack, comp);
@@ -151,15 +149,8 @@ public class SmitheryArrowItem extends ArrowItem {
         return null;
     }
 
-    // Mark arrows as a single-stack damage-bearing item like vanilla via Properties at registration —
-    // see SmitheryItems.ARROW. Stack size remains the vanilla 64 default; same-composition arrows
-    // merge into a single stack courtesy of vanilla ItemStack.matches honoring TOOL_COMPOSITION.
-
-    /** Mainly cosmetic — display the arrow's wear bar based on DAMAGE / MAX_DAMAGE. */
     @Override
     public boolean isBarVisible(ItemStack stack) {
-        // Show the wear bar only when the arrow has actually taken damage (e.g. a picked-up arrow
-        // that broke partially). Fresh stacks have damage==0 and don't show a bar.
         Integer dmg = stack.get(DataComponents.DAMAGE);
         return dmg != null && dmg > 0;
     }

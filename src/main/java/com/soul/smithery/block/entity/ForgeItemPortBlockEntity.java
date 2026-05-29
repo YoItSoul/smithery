@@ -17,23 +17,25 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Pass-through item input port for the Forge multiblock. Holds a back-reference to its
- * controller (set by {@link ForgeControllerBlockEntity#validateStructure} on each pass)
- * and forwards inserts straight into the controller's nearest empty interior slot via
- * {@link ForgeControllerBlockEntity#tryInsertItem(ItemStack, int)}.
- *
- * <p>Extract is not supported — this is an input-only port, in the same spirit as the
- * fuel port's lava-bucket flow but for items.
+ * Pass-through item input port BE for the Forge multiblock. Holds a controller
+ * back-reference and forwards inserts into the controller's nearest empty interior slot
+ * via {@link ForgeControllerBlockEntity#tryInsertItem(ItemStack, int)}. Extracts are
+ * never supported.
  */
 public class ForgeItemPortBlockEntity extends BlockEntity {
 
     private @Nullable BlockPos controllerPos;
 
+    /**
+     * Constructs an item port BE bound to the given position and blockstate.
+     */
     public ForgeItemPortBlockEntity(BlockPos pos, BlockState state) {
         super(SmitheryBlockEntities.FORGE_ITEM_PORT.get(), pos, state);
     }
 
-    /** Updates the controller back-reference. Idempotent; only marks dirty on actual change. */
+    /**
+     * Updates the controller back-reference; idempotent, only marks dirty on actual change.
+     */
     public void setControllerPos(@Nullable BlockPos pos) {
         if (!Objects.equals(controllerPos, pos)) {
             controllerPos = pos;
@@ -41,9 +43,9 @@ public class ForgeItemPortBlockEntity extends BlockEntity {
         }
     }
 
+    /** Returns the linked controller position, or null if unlinked. */
     public @Nullable BlockPos controllerPos() { return controllerPos; }
 
-    /** Resolves the currently-linked controller BE, or null if the link is stale. */
     private @Nullable ForgeControllerBlockEntity controller() {
         if (controllerPos == null || level == null) return null;
         return level.getBlockEntity(controllerPos) instanceof ForgeControllerBlockEntity c ? c : null;
@@ -51,16 +53,14 @@ public class ForgeItemPortBlockEntity extends BlockEntity {
 
     /**
      * Inserts up to {@code amount} of {@code stack} into the linked forge's nearest empty
-     * interior slot. Returns the number actually inserted (0 if no controller, no empty slot,
-     * or the forge is invalid).
+     * interior slot. Returns the number of items actually inserted; 0 if there's no
+     * controller, no empty slot, or the forge is invalid.
      */
     public int tryInsert(ItemStack stack, int amount) {
         ForgeControllerBlockEntity ctl = controller();
         if (ctl == null) return 0;
         return ctl.tryInsertItem(stack, amount);
     }
-
-    // ---- NBT ----
 
     @Override
     protected void loadAdditional(ValueInput input) {
@@ -85,11 +85,10 @@ public class ForgeItemPortBlockEntity extends BlockEntity {
         }
     }
 
-    // ---- Item capability exposure ----
-    //
-    // One virtual slot — purely a conduit; the inserted item lands directly in the forge's
-    // interior slot list. Hoppers feeding the port effectively feed the forge.
-
+    /**
+     * Returns an item capability backed by this port. Inserts forward into the forge;
+     * extracts are unsupported.
+     */
     public ResourceHandler<ItemResource> itemHandlerFor(@Nullable Direction side) {
         return new ItemPortHandler();
     }
@@ -114,15 +113,13 @@ public class ForgeItemPortBlockEntity extends BlockEntity {
         @Override
         public int insert(int slot, ItemResource resource, int amount, TransactionContext tx) {
             if (slot != 0 || resource.isEmpty() || amount <= 0) return 0;
-            // Item-handler transactions can't easily roll back forge slot writes, so we
-            // refuse during open transactions and let the caller commit and retry.
             if (tx != null) return 0;
             return tryInsert(resource.toStack(1), amount);
         }
 
         @Override
         public int extract(int slot, ItemResource resource, int amount, TransactionContext tx) {
-            return 0; // input-only port
+            return 0;
         }
     }
 }

@@ -9,17 +9,16 @@ import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Item tint source that returns the part's material color (Material.stats().partColor()).
+ * Item tint source that multiplies a part item's greyscale template by its material part colour.
  *
- * Stateless — the color comes from the item stack at render time, not from the tint source
- * itself. This means every PartItem can use a single shared tint declaration in its item
- * definition JSON: {"type": "smithery:part_material"}.
- *
- * The model JSON for each part item references the PartType's grayscale template texture,
- * and this tint source multiplies the grayscale pixels by the material color.
+ * <p>Stateless. One declaration in the item definition JSON covers every PartItem because the
+ * colour is read from the item stack at render time. Non-{@link PartItem} stacks pass through
+ * as opaque white.
  */
 public record PartMaterialTintSource() implements ItemTintSource {
+    /** Shared instance — the tint has no per-stack configuration. */
     public static final PartMaterialTintSource INSTANCE = new PartMaterialTintSource();
+    /** Codec that always resolves to {@link #INSTANCE}. */
     public static final MapCodec<PartMaterialTintSource> MAP_CODEC = MapCodec.unit(INSTANCE);
 
     @Override

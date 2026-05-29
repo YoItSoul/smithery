@@ -6,9 +6,11 @@ import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.content.SmitheryToolTypes;
 import com.soul.smithery.item.PartItem;
+import com.soul.smithery.item.tool.SmitheryArmorItem;
 import com.soul.smithery.item.tool.SmitheryArrowItem;
 import com.soul.smithery.item.tool.SmitheryBowItem;
 import com.soul.smithery.item.tool.SmitheryToolItem;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -20,124 +22,128 @@ import java.util.Map;
 /**
  * Item registration root for Smithery-namespaced items.
  *
- * Auto-generates a PartItem for every (Material × PartType) pair where both IDs are in
- * the smithery: namespace. Modder mods that add materials in their own namespace should
- * use their own DeferredRegister.Items and call {@link #registerPartsFor} from their
- * mod constructor.
+ * <p>Auto-generates one {@link PartItem} per (Material × PartType) pair in the
+ * {@code smithery:} namespace. Modder mods that contribute their own materials should call
+ * {@link #registerPartsFor(Identifier, DeferredRegister.Items)} from their constructor with
+ * their own item register.
  */
 public final class SmitheryItems {
+    /** Deferred register for Smithery-namespaced items. */
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(Smithery.MODID);
 
-    /** Lookup: "<material_path>_<part_path>" → DeferredItem. Only populated for built-in parts. */
     private static final Map<String, DeferredItem<PartItem>> BUILT_IN_PART_ITEMS = new LinkedHashMap<>();
 
-    // Tools. Single Item instance per ToolType; per-stack data lives in ToolComposition.
+    /** Smithery sword tool item; per-stack composition lives in the {@code tool_composition} component. */
     public static final DeferredItem<SmitheryToolItem> SWORD = ITEMS.registerItem("sword",
             props -> new SmitheryToolItem(props, SmitheryToolTypes.SWORD.id()),
             (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
 
+    /** Smithery pickaxe tool item; per-stack composition lives in the {@code tool_composition} component. */
     public static final DeferredItem<SmitheryToolItem> PICKAXE = ITEMS.registerItem("pickaxe",
             props -> new SmitheryToolItem(props, SmitheryToolTypes.PICKAXE.id()),
             (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
 
+    /** Smithery axe tool item; per-stack composition lives in the {@code tool_composition} component. */
     public static final DeferredItem<SmitheryToolItem> AXE = ITEMS.registerItem("axe",
             props -> new SmitheryToolItem(props, SmitheryToolTypes.AXE.id()),
             (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
 
+    /** Smithery shovel tool item; per-stack composition lives in the {@code tool_composition} component. */
     public static final DeferredItem<SmitheryToolItem> SHOVEL = ITEMS.registerItem("shovel",
             props -> new SmitheryToolItem(props, SmitheryToolTypes.SHOVEL.id()),
             (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
 
+    /** Smithery hoe tool item; per-stack composition lives in the {@code tool_composition} component. */
     public static final DeferredItem<SmitheryToolItem> HOE = ITEMS.registerItem("hoe",
             props -> new SmitheryToolItem(props, SmitheryToolTypes.HOE.id()),
             (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
 
+    /** Smithery spear tool item; per-stack composition lives in the {@code tool_composition} component. */
     public static final DeferredItem<SmitheryToolItem> SPEAR = ITEMS.registerItem("spear",
             props -> new SmitheryToolItem(props, SmitheryToolTypes.SPEAR.id()),
             (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
 
+    /** Smithery bow tool item; uses a {@link SmitheryBowItem} for draw-frame model swaps. */
     public static final DeferredItem<SmitheryBowItem> BOW = ITEMS.registerItem("bow",
             props -> new SmitheryBowItem(props, SmitheryToolTypes.BOW.id()),
             (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
 
-    // Arrow stays stackable (default vanilla 64). Damage/durability components are intentionally
-    // not written by applyComposition for arrows — see the early-return in SmitheryToolItem —
-    // because vanilla forbids stackable items from carrying DAMAGE.
+    /** Smithery arrow tool item; stays stackable (default 64) since vanilla forbids stackables from carrying DAMAGE. */
     public static final DeferredItem<SmitheryArrowItem> ARROW = ITEMS.registerItem("arrow",
             props -> new SmitheryArrowItem(props, SmitheryToolTypes.ARROW.id()));
 
-    // ─── Bowstring-class crafting items ───
-    //
-    // Each of these is a player-facing crafted item that the part press converts to its
-    // material id (FLAMESTRING / BREEZESTRING / RED_SLIME / KELP_STRING). They're simple
-    // ItemStack carriers — no per-stack data — and stack like any other resource. Recipes
-    // live under data/smithery/recipe/.
-    //
-    // Uses {@code registerItem(...)} (not {@code register(...)}) — the latter doesn't propagate
-    // the item-id into Properties, which trips {@code NullPointerException: Item id not set}
-    // during the RegisterEvent in 26.1.x. The (props -> new Item(props)) form lets the helper
-    // stamp the ID before the Item ctor runs.
+    /** Smithery helmet; HEAD-slot armor item, composition writes per-stack defense/toughness. */
+    public static final DeferredItem<SmitheryArmorItem> HELMET = ITEMS.registerItem("helmet",
+            props -> new SmitheryArmorItem(props, SmitheryToolTypes.HELMET.id()),
+            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1).equippable(EquipmentSlot.HEAD)));
+
+    /** Smithery chestplate; CHEST-slot armor item. */
+    public static final DeferredItem<SmitheryArmorItem> CHESTPLATE = ITEMS.registerItem("chestplate",
+            props -> new SmitheryArmorItem(props, SmitheryToolTypes.CHESTPLATE.id()),
+            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1).equippable(EquipmentSlot.CHEST)));
+
+    /** Smithery leggings; LEGS-slot armor item. */
+    public static final DeferredItem<SmitheryArmorItem> LEGGINGS = ITEMS.registerItem("leggings",
+            props -> new SmitheryArmorItem(props, SmitheryToolTypes.LEGGINGS.id()),
+            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1).equippable(EquipmentSlot.LEGS)));
+
+    /** Smithery boots; FEET-slot armor item. */
+    public static final DeferredItem<SmitheryArmorItem> BOOTS = ITEMS.registerItem("boots",
+            props -> new SmitheryArmorItem(props, SmitheryToolTypes.BOOTS.id()),
+            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1).equippable(EquipmentSlot.FEET)));
+
+    /** Flame-string crafting item; part-press input that produces flamestring material parts. */
     public static final DeferredItem<net.minecraft.world.item.Item> FLAMESTRING =
             ITEMS.registerItem("flamestring", net.minecraft.world.item.Item::new);
+    /** Breeze-string crafting item; part-press input that produces breezestring material parts. */
     public static final DeferredItem<net.minecraft.world.item.Item> BREEZESTRING =
             ITEMS.registerItem("breezestring", net.minecraft.world.item.Item::new);
+    /** Red slime crafting item; part-press input that produces red_slime material parts. */
     public static final DeferredItem<net.minecraft.world.item.Item> RED_SLIME =
             ITEMS.registerItem("red_slime", net.minecraft.world.item.Item::new);
+    /** Kelp string crafting item; part-press input that produces kelp_string material parts. */
     public static final DeferredItem<net.minecraft.world.item.Item> KELP_STRING =
             ITEMS.registerItem("kelp_string", net.minecraft.world.item.Item::new);
 
-    // Unfinished kelp string progression — three discrete tiers. The 4-step weave is now
-    // expressed as four standard shapeless recipes (4 kelp + 4 string + tier-N → tier-(N+1)
-    // or KELP_STRING when N reaches 4) so JEI displays each step as its own recipe card,
-    // and any pair of tiers can combine via vanilla shapeless recipes that sum levels.
-    //
-    // Plain stackable Items (no durability) — the tier IS the item. Players see "Unfinished
-    // Kelp String I/II/III" as three separate icons in the Items tab.
+    /** Unfinished kelp string tier I; first stage of the kelp-string weave progression. */
     public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING_1 =
             ITEMS.registerItem("unfinished_kelp_string_1", net.minecraft.world.item.Item::new);
+    /** Unfinished kelp string tier II; second stage of the kelp-string weave progression. */
     public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING_2 =
             ITEMS.registerItem("unfinished_kelp_string_2", net.minecraft.world.item.Item::new);
+    /** Unfinished kelp string tier III; third stage of the kelp-string weave progression. */
     public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING_3 =
             ITEMS.registerItem("unfinished_kelp_string_3", net.minecraft.world.item.Item::new);
 
     /**
-     * Iterate all currently-registered Materials × PartTypes (both in the smithery: namespace)
-     * and queue one PartItem registration per pair. Must run AFTER materials and part types
-     * have been registered into SmitheryAPI but BEFORE the mod event bus receives our ITEMS
-     * register call (which happens in Smithery's constructor).
+     * Iterates over all currently-registered Materials × PartTypes (both in the
+     * {@code smithery:} namespace) and queues one {@link PartItem} registration per pair.
+     *
+     * <p>Must run AFTER materials and part types have been registered into
+     * {@link SmitheryAPI} but BEFORE the mod event bus receives the {@link #ITEMS} register
+     * call in Smithery's constructor.
      */
     public static void registerBuiltInParts() {
         for (Material mat : SmitheryAPI.MATERIALS.all()) {
             if (!Smithery.MODID.equals(mat.id().getNamespace())) continue;
-            // Cast-only materials (e.g. ender) exist in fluid form only — they don't
-            // produce smithery PartItems. Their cast outputs are wired via CastResults.
             if (mat.stats().castOnly()) continue;
             registerPartsFor(mat.id(), ITEMS);
         }
     }
 
     /**
-     * Modder-facing helper. Registers one PartItem per registered PartType for the given
-     * material, using the supplied DeferredRegister.Items.
+     * Modder-facing helper. Registers one {@link PartItem} per registered {@link PartType}
+     * for the given material id, using the supplied item register.
      *
-     * Item path format: "<material_path>_<part_path>". Items are placed in whichever namespace
-     * the supplied DeferredRegister.Items uses.
+     * <p>Item path format: {@code "<material_path>_<part_path>"}. Items land in whichever
+     * namespace the supplied {@link DeferredRegister.Items} uses.
+     *
+     * @param materialId the {@link Material} the parts should reference
+     * @param targetItems the deferred items register that should own the new entries
      */
     public static void registerPartsFor(Identifier materialId, DeferredRegister.Items targetItems) {
         for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
-            // Synthetic cast targets (ingot/nugget/pearl/etc) don't produce smithery
-            // PartItems — their cast outcome resolves through CastResults to whatever
-            // item the modder registered (typically vanilla or another mod's item).
-            // The impression sand block variant still gets created.
             if (pt.syntheticCast()) continue;
-            // Part-eligibility allow-list (PartEligibility) gates which materials produce a
-            // PartItem for restricted parts (e.g. bowstring). Unrestricted parts pass through;
-            // restricted parts only emit items for whitelisted materials. The check uses the
-            // CODE_REGISTRY only here because data-pack entries (DATA_REGISTRY) don't exist
-            // yet at deferred-register time — they're loaded on /reload, well after item
-            // registration. This means data packs cannot dynamically introduce new (material
-            // × restricted part) PartItems; they can only constrain further or rely on the
-            // built-in code allow-list.
             if (!com.soul.smithery.api.part.PartEligibility.isAllowed(pt.id(), materialId)) continue;
             Identifier ptId = pt.id();
             String itemPath = materialId.getPath() + "_" + ptId.getPath();
@@ -151,15 +157,31 @@ public final class SmitheryItems {
         }
     }
 
-    /** Lookup a built-in PartItem by material + part type. Returns null for non-built-in materials. */
+    /**
+     * Looks up a built-in {@link PartItem} by material id and part-type id.
+     *
+     * @param materialId id of a Material registered in the {@code smithery:} namespace
+     * @param partTypeId id of a {@link PartType}
+     * @return the matching DeferredItem, or null when the pair is not a built-in part
+     */
     public static DeferredItem<PartItem> getBuiltInPart(Identifier materialId, Identifier partTypeId) {
         return BUILT_IN_PART_ITEMS.get(materialId.getPath() + "_" + partTypeId.getPath());
     }
 
+    /**
+     * All built-in {@link PartItem} registrations keyed by their {@code "<material>_<part>"} path.
+     *
+     * @return unmodifiable view of the built-in parts map
+     */
     public static Map<String, DeferredItem<PartItem>> builtInParts() {
         return java.util.Collections.unmodifiableMap(BUILT_IN_PART_ITEMS);
     }
 
+    /**
+     * Binds the deferred items register to the mod event bus.
+     *
+     * @param modEventBus the mod-bus the deferred register attaches to
+     */
     public static void register(IEventBus modEventBus) {
         ITEMS.register(modEventBus);
     }

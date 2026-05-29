@@ -14,19 +14,20 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * Datagen entry point for the Smithery field guide.
+ * Datagen entry point that wires up the Smithery field guide's book provider.
  *
- * Registered on the mod bus so it fires during ./gradlew runData. The book
- * sub-provider collects translation keys + English defaults into an in-memory
- * map as it builds; we don't (yet) plumb those into a vanilla language
- * provider, so for now the strings need to be mirrored into
- * assets/smithery/lang/en_us.json by hand. That gap is acceptable for a
- * test entry — once we're happy with the book working in-game we'll wire
- * an actual LanguageProvider in to round-trip the strings.
+ * <p>Runs during {@code runData}. The book sub-provider collects translation keys + English
+ * defaults into an in-memory map as it builds; those strings are currently mirrored into
+ * {@code en_us.json} by hand pending a real language provider.
  */
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class SmitheryDatagen {
 
+    /**
+     * Adds the modonomicon book provider to the data generator.
+     *
+     * @param event NeoForge's client-side gather-data event
+     */
     @SubscribeEvent
     public static void onGatherData(GatherDataEvent.Client event) {
         Map<String, String> bookLang = new HashMap<>();

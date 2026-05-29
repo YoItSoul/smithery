@@ -11,16 +11,21 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * Single-category, single-entry "leaflet" book for Smithery.
- * Will grow into a multi-category field guide as more systems land.
+ * Datagen sub-provider for the single-category leaflet book.
+ *
+ * <p>Wires up the book's id, default-language strings, and its single welcome entry, and parks
+ * the auto-generated book item under the Smithery blocks creative tab. Expands to a multi-category
+ * field guide as more systems land.
  */
 public class SmitheryBookSubProvider extends LeafletSubProvider {
 
+    /**
+     * Constructs the sub-provider with the modonomicon book id, mod namespace, and
+     * a sink to receive default-language translation entries.
+     *
+     * @param defaultLang sink receiving (key, value) translation pairs for the default language
+     */
     public SmitheryBookSubProvider(BiConsumer<String, String> defaultLang) {
-        // SingleBookSubProvider(bookId, modId, defaultLang, otherLangs).
-        // bookId is the per-book folder name (data/<modId>/modonomicon/books/<bookId>/).
-        // modId is the data namespace; both also feed translation keys
-        // (book.<modId>.<bookId>.name, etc).
         super(SmitheryBook.BOOK_ID, Smithery.MODID, defaultLang, Map.of());
     }
 
@@ -36,7 +41,6 @@ public class SmitheryBookSubProvider extends LeafletSubProvider {
 
     @Override
     protected void registerDefaultMacros() {
-        // No macros for now.
     }
 
     @Override
@@ -46,9 +50,6 @@ public class SmitheryBookSubProvider extends LeafletSubProvider {
 
     @Override
     protected BookModel additionalLeafletSetup(BookModel book) {
-        // Park the auto-generated book item under our own creative tab so players
-        // can grab it from the Smithery Blocks tab instead of having to /give it
-        // (or dig through the Modonomicon tab).
         return book.withCreativeTab(Identifier.fromNamespaceAndPath(Smithery.MODID, "blocks_tab"));
     }
 }

@@ -19,20 +19,10 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Visualization-only BE for fluid pipes. Pipes do NOT buffer fluid — fluid is pushed directly
- * from the drain into the casting table via the drain's wavefront-gated dispatch (see
- * {@link ForgeDrainBlockEntity}). This BE only stores a transient flow marker the renderer
- * uses to draw the molten cube as the visual wave propagates through the network.
- *
- * Removing the buffer model fixes the "1 button press != 1 cast" regression: with no fluid
- * sitting in pipes between casts, the drain pumps exactly the cast's requiredMb per press,
- * with no leftover backing up to confuse subsequent presses.
- *
- * State:
- *   - {@link #transientFluidId}: registry id of the fluid the drain last marked through us.
- *   - {@link #intensityTicks}: counts down each server tick. The drain refreshes it on
- *     every pump tick the wave is touching us; when the drain stops refreshing it decays to
- *     zero and the renderer fades out.
+ * Visualization-only BE for fluid pipes. Pipes carry no buffered fluid; the
+ * {@link ForgeDrainBlockEntity} pushes fluid directly into sinks and only marks the
+ * pipes the wave is currently passing through. This BE stores that transient marker
+ * (fluid id + decay timer) which the renderer reads to draw the moving molten cube.
  */
 public class FluidPipeBlockEntity extends BlockEntity {
 
@@ -42,16 +32,21 @@ public class FluidPipeBlockEntity extends BlockEntity {
     private @Nullable Identifier transientFluidId;
     private int intensityTicks;
 
+    /**
+     * Constructs a fluid pipe BE bound to the given position and blockstate.
+     */
     public FluidPipeBlockEntity(BlockPos pos, BlockState state) {
         super(SmitheryBlockEntities.FLUID_PIPE.get(), pos, state);
     }
 
+    /** Registry id of the fluid the drain last marked passing through this pipe, or null. */
     public @Nullable Identifier transientFluidId() { return transientFluidId; }
+    /** Remaining persistence ticks until the visual marker fades. */
     public int intensityTicks() { return intensityTicks; }
 
     /**
-     * Drain refresh: latches the fluid id and resets the persistence timer to full. Called
-     * each tick by the drain for every pipe currently inside its expanding wavefront.
+     * Drain-side refresh: latches {@code fluidId} and resets the persistence timer.
+     * Called each tick for every pipe currently inside the drain's wavefront.
      */
     public void markFlow(Identifier fluidId) {
         boolean changed = !Objects.equals(this.transientFluidId, fluidId)
@@ -66,7 +61,10 @@ public class FluidPipeBlockEntity extends BlockEntity {
         }
     }
 
-    /** Server-tick decay. Clears the fluid id when intensity hits 0 so the renderer goes inert. */
+    /**
+     * Per-tick decay of the flow marker. Clears the fluid id when intensity reaches zero
+     * so the renderer goes inert.
+     */
     public void serverTick(ServerLevel level, BlockPos pos, BlockState state) {
         if (intensityTicks <= 0) return;
         intensityTicks--;
@@ -78,10 +76,9 @@ public class FluidPipeBlockEntity extends BlockEntity {
     }
 
     /**
-     * Immediate cancel — used by the drain when this pipe stops being on the active path
-     * (the cast it was feeding finished, or the drain switched to a different cast). Without
-     * this the pipe would visually glow for the full {@link #FLOW_PERSIST_TICKS} decay window
-     * after stopping, which reads as "fluid still flowing toward a completed cast".
+     * Immediate cancel of the flow marker. Used by the drain when a pipe stops being on
+     * an active path, so the visual glow snaps off instead of decaying toward a cast that
+     * is no longer being fed.
      */
     public void clearFlow() {
         if (intensityTicks <= 0 && transientFluidId == null) return;
@@ -92,8 +89,6 @@ public class FluidPipeBlockEntity extends BlockEntity {
             sl.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
-
-    // ---- NBT ----
 
     @Override
     protected void saveAdditional(ValueOutput output) {
@@ -111,8 +106,6 @@ public class FluidPipeBlockEntity extends BlockEntity {
         transientFluidId = flowStr.map(Identifier::tryParse).orElse(null);
         intensityTicks = input.getInt("flowTicks").orElse(0);
     }
-
-    // ---- Sync ----
 
     @Override
     public @Nullable Packet<ClientGamePacketListener> getUpdatePacket() {

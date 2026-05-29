@@ -25,25 +25,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * "Tool Assembly" — N PartItems → assembled tool, via the vanilla crafting table.
+ * JEI category for tool assembly: a set of part items crafts into an assembled tool on the
+ * vanilla crafting table.
  *
- * <p>Each input slot's display is overridden every cycle to a different material's part (per-slot
- * offset, advanced from wall clock seconds), so the parts visibly look like a random mix. The
- * output slot's display is the tool composed from the parts currently shown — never one of the
- * all-same-material tools. The all-same-material tools are intentionally NOT added to the output
- * slot's ingredient list, so JEI's natural cycler has nothing to fall back to and the display is
- * driven entirely by the overrides we apply in {@link #onDisplayedIngredientsUpdate}.
- *
- * <p>Trade-off: JEI's "find recipe that produces Iron Pickaxe" lookup won't match this category
- * (no per-material tool listed in the output). The vanilla crafting category still covers it via
- * the JSON {@code ToolAssemblyRecipe}.
- *
- * <p>Shift-to-pause is handled natively by JEI: {@code CycleTicker.tick()} early-exits when
- * {@code Minecraft.hasShiftDown()} is true, so the displayed overrides freeze in place until
- * Shift is released.
+ * <p>Each input slot's displayed ingredient is overridden every cycle to a different material's
+ * part, and the output slot's displayed ingredient is the tool composed from whatever parts
+ * are currently shown — never a single all-same-material tool. Pre-composed tools are
+ * intentionally absent from the output ingredient list so JEI's natural cycler does not fight
+ * the override; the vanilla crafting category continues to surface per-material tool lookups
+ * via the JSON {@code ToolAssemblyRecipe}. Shift-to-pause is honoured by JEI's own ticker.
  */
 public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiRecipes.JeiToolAssembly> {
+    /** Width of the category background in GUI pixels. */
     public static final int WIDTH = 150;
+    /** Height of the category background in GUI pixels. */
     public static final int HEIGHT = 46;
 
     private static final int PART_X = 6;
@@ -51,6 +46,11 @@ public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiR
     private static final int OUTPUT_X = 126;
     private static final int OUTPUT_Y = 22;
 
+    /**
+     * Constructs the category, providing JEI with id, title, icon, and layout dimensions.
+     *
+     * @param guiHelper JEI gui helper used to build the icon drawable
+     */
     public ToolAssemblyJeiCategory(IGuiHelper guiHelper) {
         super(
                 SmitheryJeiTypes.TOOL_ASSEMBLY,
@@ -63,8 +63,6 @@ public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiR
 
     @Override
     public void setRecipe(IRecipeLayoutBuilder builder, SmitheryJeiRecipes.JeiToolAssembly recipe, IFocusGroup focuses) {
-        // Inputs: keep every material's part in the slot so JEI material-based search still
-        // works ("show me recipes using Iron Pick Head"). Display is driven by overrides below.
         int x = PART_X;
         for (List<ItemStack> stacksForSlot : recipe.partsBySlot()) {
             IRecipeSlotBuilder slot = builder.addInputSlot(x, PART_Y).setStandardSlotBackground();
@@ -72,9 +70,6 @@ public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiR
             x += 18;
         }
 
-        // Output: a single bare-tool placeholder. We deliberately do NOT add the pre-composed
-        // all-same-material tools — the displayed tool is always whatever onDisplayedIngredientsUpdate
-        // computes from the currently-shown parts.
         IRecipeSlotBuilder output = builder.addOutputSlot(OUTPUT_X, OUTPUT_Y).setStandardSlotBackground();
         Item toolItem = BuiltInRegistries.ITEM.get(recipe.toolType().id())
                 .<Item>map(r -> r.value())
@@ -84,7 +79,6 @@ public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiR
 
     @Override
     public void createRecipeExtras(IRecipeExtrasBuilder builder, SmitheryJeiRecipes.JeiToolAssembly recipe, IFocusGroup focuses) {
-        // Initial overrides so the very first frame already shows mixed materials.
         applyRandomMixOverrides(recipe, builder.getRecipeSlots().getSlots());
     }
 
@@ -95,12 +89,6 @@ public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiR
         applyRandomMixOverrides(recipe, recipeSlots);
     }
 
-    /**
-     * Force each input slot to show a different material's part (deterministic from wall clock +
-     * per-slot offset), then compute the corresponding tool and force it onto the output slot.
-     * Re-applied every cycle tick because {@code RecipeLayout.tick()} clears all overrides before
-     * calling {@link #onDisplayedIngredientsUpdate}.
-     */
     private static void applyRandomMixOverrides(SmitheryJeiRecipes.JeiToolAssembly recipe,
                                                 List<IRecipeSlotDrawable> slots) {
         List<IRecipeSlotDrawable> inputs = new ArrayList<>();
@@ -112,8 +100,6 @@ public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiR
         if (output == null || inputs.isEmpty()) return;
         if (inputs.size() != recipe.partsBySlot().size()) return;
 
-        // Wall clock seconds advance ~1Hz, matching JEI's cycle cadence. Per-slot offset (37 is
-        // a small prime coprime with typical material counts) guarantees different indices.
         long tick = System.currentTimeMillis() / 1000L;
 
         List<Identifier> matIds = new ArrayList<>(inputs.size());

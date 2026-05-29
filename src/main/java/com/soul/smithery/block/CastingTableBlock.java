@@ -29,14 +29,10 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Sand-casting workbench. Steps 1–2: block + BE skeleton + state-machine interactions.
- *
- * Interactions handled here (more land in Steps 4+):
- *   - casting_sand item on EMPTY table → consumes 1, advances to SAND
- *   - PartItem on SAND table → advances to IMPRESSED (template NOT consumed)
- *
- * The 4-legs-and-slab voxel shape matches the Blockbench model so the outline/hitbox
- * reads as a table and arrows fly between the legs.
+ * Sand-casting workbench block. Hosts a {@link CastingTableBlockEntity} that drives the
+ * full EMPTY -> SAND -> IMPRESSED -> FILLING -> COOLING -> READY state machine; this
+ * class wires player interactions (sand placement, template impression, retrieval) into
+ * those state transitions and supplies the four-legs-and-slab voxel shape.
  */
 public class CastingTableBlock extends Block implements EntityBlock {
 
@@ -48,6 +44,9 @@ public class CastingTableBlock extends Block implements EntityBlock {
             Block.box( 0, 11, 0, 16, 16, 16)
     );
 
+    /**
+     * Constructs the casting table with the given block properties.
+     */
     public CastingTableBlock(Properties properties) {
         super(properties);
     }
@@ -63,15 +62,9 @@ public class CastingTableBlock extends Block implements EntityBlock {
     }
 
     /**
-     * Drops the casting table's contents at break time. Contents include:
-     * <ul>
-     *   <li>The finished part item if the table is in {@code READY} state (sitting in the cast
-     *       waiting for the player to pick it up).</li>
-     *   <li>A {@code casting_sand} item if the table has any sand layer (any state above EMPTY).
-     *       Note that mid-pour molten fluid is lost — it spills off the broken table.</li>
-     * </ul>
-     * The table block item itself is handled by the loot table at
-     * {@code data/smithery/loot_table/blocks/casting_table.json}.
+     * Drops the casting table's contents at break time. A finished part in the READY
+     * state is popped, and any non-EMPTY table also pops a {@code casting_sand} item;
+     * any mid-pour molten fluid is lost.
      */
     @Override
     public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
@@ -94,13 +87,8 @@ public class CastingTableBlock extends Block implements EntityBlock {
     public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
         if (type != SmitheryBlockEntities.CASTING_TABLE.get()) return null;
         if (level.isClientSide()) {
-            // Client-side prediction of the cooling countdown so the renderer's
-            // coolingFraction transitions smoothly (server doesn't re-sync intermediate
-            // values; without this the molten tint would snap directly to partColor at READY).
             return (lvl, pos, st, be) -> ((CastingTableBlockEntity) be).clientTick();
         }
-        // Drives the COOLING → READY countdown server-side. All other state transitions
-        // are interaction-driven.
         return (lvl, pos, st, be) -> ((CastingTableBlockEntity) be).serverTick((ServerLevel) lvl, pos, st);
     }
 
@@ -111,10 +99,6 @@ public class CastingTableBlock extends Block implements EntityBlock {
             return InteractionResult.PASS;
         }
 
-        // --- READY → retrieve part. Lives in useItemOn (rather than useWithoutItem)
-        //     so it fires even when the player is still holding the brush they just
-        //     finished using to advance COVERED → READY. Brush is inert at READY anyway,
-        //     so consuming the right-click as a retrieve is the right behavior. ---
         if (be.state() == CastingTableBlockEntity.State.READY) {
             if (level.isClientSide()) return InteractionResult.SUCCESS;
             ItemStack result = be.tryRetrievePart();
@@ -128,7 +112,6 @@ public class CastingTableBlock extends Block implements EntityBlock {
             return InteractionResult.SUCCESS;
         }
 
-        // --- Casting sand: EMPTY → SAND, consume 1 ---
         if (stack.is(SmitheryBlocks.CASTING_SAND_ITEM.get())) {
             if (level.isClientSide()) return InteractionResult.SUCCESS;
             if (be.tryFillSand()) {
@@ -138,7 +121,6 @@ public class CastingTableBlock extends Block implements EntityBlock {
             return InteractionResult.PASS;
         }
 
-        // --- Part item template: SAND → IMPRESSED, template NOT consumed ---
         if (stack.getItem() instanceof PartItem) {
             if (level.isClientSide()) return InteractionResult.SUCCESS;
             if (be.tryImpressPart(stack)) {
@@ -147,8 +129,6 @@ public class CastingTableBlock extends Block implements EntityBlock {
             return InteractionResult.PASS;
         }
 
-        // --- Registered template item (vanilla ingot/nugget, modder-added ender pearl, etc) ---
-        // CastTemplates is the modder-facing registry: ItemStack → cast-target PartType id.
         net.minecraft.resources.Identifier castTypeId =
                 com.soul.smithery.api.cast.CastTemplates.resolve(stack);
         if (castTypeId != null) {
@@ -157,10 +137,6 @@ public class CastingTableBlock extends Block implements EntityBlock {
             return InteractionResult.PASS;
         }
 
-        // Brush: intentionally NOT handled here — we return PASS so vanilla
-        // BrushItem.useOn fires, puts the player into the long brush-use animation,
-        // and our SmitheryEventHandlers.onBrushTick subscription drives the actual
-        // brushProgress increments on a 10-tick cadence (matching vanilla).
         return InteractionResult.PASS;
     }
 

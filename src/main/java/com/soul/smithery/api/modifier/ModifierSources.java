@@ -14,81 +14,51 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Modder-facing registry mapping source Items to the {@link ModifierEffect} an anvil applies
- * when the source is placed in the right-hand slot opposite a Smithery tool. Two complementary
- * paths populate this registry:
+ * Modder-facing registry mapping source Items to the {@link ModifierEffect} an anvil applies when
+ * the source is placed opposite a Smithery tool.
  *
- * <h3>1. Code path — call {@link #register} from your mod's init</h3>
- * <pre>{@code
- *   ModifierSources.register(Items.NETHER_STAR,
- *           ModifierEffect.of(SmitheryModifiers.NETHER_SHARPENED, Map.of("damage", 6.0f)));
- * }</pre>
- * Stable across resource reloads. Use for built-in / always-on mappings.
+ * <p>Two layers coexist: a code layer ({@link #register}) populated by mod init for stable
+ * built-in mappings, and a data layer repopulated on every {@code /reload} from JSON files at
+ * {@code data/<namespace>/smithery/modifier_source/<anything>.json}. Data entries take precedence
+ * on collision so modpacks can override defaults.
  *
- * <h3>2. Data path — drop a JSON file in your data pack</h3>
- * Path: {@code data/<namespace>/smithery/modifier_source/<anything>.json}
- * <pre>{@code
- *   {
- *     "source_item": "minecraft:ender_pearl",
- *     "modifier":    "smithery:ender_affinity",
- *     "params":      { "chance": 0.30, "radius": 4.0 }
- *   }
- * }</pre>
- * Reloaded on every {@code /reload}. Use for modpack / pack-overridable mappings.
- *
- * <h3>Resolution order at anvil time</h3>
- * <ol>
- *   <li>Data entries (from {@code /reload}) — highest priority. Modpack authors override
- *       defaults by shipping their own JSON.</li>
- *   <li>Code entries (from {@code register}) — fallback. Built-in mappings live here.</li>
- *   <li>No entry — anvil refuses the application (event is left untouched).</li>
- * </ol>
- *
- * <h3>One source ↔ one modifier</h3>
- * Each item maps to exactly one ModifierEffect. Re-registering an item replaces the previous
+ * <p>Each item maps to exactly one {@link Entry}. Re-registering an item replaces the previous
  * mapping in the same registry. To apply the same modifier with different parameters from
- * different items, register each item separately with its own effect (e.g. "minor sharpening
- * stone" and "major sharpening stone" both mapping to {@code SHARP} with different damage
- * params).
+ * different items, register each item separately with its own effect.
  */
 public final class ModifierSources {
     private ModifierSources() {}
 
     /**
-     * Runtime entry — pairs the effect to apply with how many "units" one item of this source
-     * contributes toward the modifier's level cost. The MODIFIER declares {@code level_cost}
-     * (the total units needed for a level), each SOURCE declares {@code unitValue} (units per
-     * item), and progress = items × unitValue. Mixed sources add naturally because their
-     * contributions land in the same unit total.
+     * Runtime entry pairing the effect to apply with how many "units" one item of this source
+     * contributes toward the modifier's level cost.
+     *
+     * <p>The {@link Modifier} declares a total level cost; each source declares its
+     * {@link #unitValue} (units per item) and progress = {@code items * unitValue}. Mixed sources
+     * add naturally because their contributions land in the same unit total.
+     *
+     * @param effect    the modifier effect produced by anvil application
+     * @param unitValue units contributed per item consumed (default 1)
      */
     public record Entry(ModifierEffect effect, int unitValue) {
+        /** Single-item-per-unit convenience constructor. */
         public Entry(ModifierEffect effect) { this(effect, 1); }
     }
 
-    /** Stable, code-registered entries. Never cleared automatically. */
     private static final Map<Item, Entry> CODE_REGISTRY = new LinkedHashMap<>();
-    /** Data-pack-loaded entries. Cleared and repopulated on every {@code /reload}. */
     private static final Map<Item, Entry> DATA_REGISTRY = new LinkedHashMap<>();
-
-    // ---------------------------------------------------------------------
-    //  Code path
-    // ---------------------------------------------------------------------
 
     /** Registers a built-in (code-side) source mapping. Survives reloads. */
     public static void register(Item sourceItem, ModifierEffect effect) {
         register(sourceItem, new Entry(effect));
     }
 
-    /** Code-side source mapping with explicit cost / scaling (e.g. costly post-craft sources). */
+    /** Code-side source mapping with explicit cost (e.g. costly post-craft sources). */
     public static void register(Item sourceItem, Entry entry) {
         Objects.requireNonNull(sourceItem, "sourceItem");
         Objects.requireNonNull(entry, "entry");
         CODE_REGISTRY.put(sourceItem, entry);
     }
-
-    // ---------------------------------------------------------------------
-    //  Data path — internal entry points called by the reload listener
-    // ---------------------------------------------------------------------
 
     /** Clears all data-loaded entries. Called at the start of each reload pass. */
     public static void clearDataEntries() {
@@ -102,13 +72,9 @@ public final class ModifierSources {
         DATA_REGISTRY.put(sourceItem, entry);
     }
 
-    // ---------------------------------------------------------------------
-    //  Lookups
-    // ---------------------------------------------------------------------
-
     /**
-     * Returns the source entry for this stack's item, or {@code null} if it's not a
-     * registered source. Data entries take precedence over code entries.
+     * Returns the source entry for this stack's item, or {@code null} if it isn't a registered
+     * source. Data entries take precedence over code entries.
      */
     public static @Nullable Entry resolve(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return null;
@@ -118,34 +84,27 @@ public final class ModifierSources {
         return CODE_REGISTRY.get(item);
     }
 
+    /** True iff this stack maps to a registered modifier source. */
     public static boolean isSource(ItemStack stack) {
         return resolve(stack) != null;
     }
 
-    /** All resolved entries (data overrides code). Insertion-order preserved. Read-only. */
+    /** All resolved entries (data overrides code), preserving insertion order. Read-only. */
     public static Map<Item, Entry> all() {
         Map<Item, Entry> merged = new LinkedHashMap<>(CODE_REGISTRY);
         merged.putAll(DATA_REGISTRY);
         return Collections.unmodifiableMap(merged);
     }
 
-    // ---------------------------------------------------------------------
-    //  JSON schema for data-pack-loaded entries
-    // ---------------------------------------------------------------------
-
     /**
-     * One JSON file under {@code data/<ns>/smithery/modifier_source/} parses to one instance
-     * of this record. {@link com.soul.smithery.event.ModifierSourceReloadListener} handles
-     * the file walk and registry repopulation; modder mods don't construct these directly.
+     * Schema record for one JSON file under {@code data/<ns>/smithery/modifier_source/}.
      *
-     * <h4>JSON shape</h4>
-     * <pre>{@code
-     *   {
-     *     "source_item": "minecraft:ender_pearl",
-     *     "modifier":    "smithery:ender_affinity",
-     *     "params":      { "chance": 0.30 }      // optional, defaults to empty
-     *   }
-     * }</pre>
+     * <p>Parsed by {@code ModifierSourceReloadListener}; modders don't construct these directly.
+     *
+     * @param sourceItem id of the source item that triggers the modifier
+     * @param modifier   id of the {@link Modifier} to apply
+     * @param params     optional parameter map (defaults to empty)
+     * @param unitValue  units this item contributes per application (defaults to 1)
      */
     public record JsonEntry(
             Identifier sourceItem,
@@ -153,6 +112,7 @@ public final class ModifierSources {
             Map<String, Float> params,
             int unitValue
     ) {
+        /** Codec for {@link JsonEntry}. */
         public static final Codec<JsonEntry> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Identifier.CODEC.fieldOf("source_item").forGetter(JsonEntry::sourceItem),
                 Identifier.CODEC.fieldOf("modifier").forGetter(JsonEntry::modifier),
@@ -163,7 +123,7 @@ public final class ModifierSources {
                         .forGetter(JsonEntry::unitValue)
         ).apply(i, JsonEntry::new));
 
-        /** Convert parsed JSON entry into the runtime {@link ModifierEffect} shape. */
+        /** Convert this parsed JSON entry into the runtime {@link ModifierEffect} shape. */
         public ModifierEffect toEffect() {
             Map<String, Object> boxed = new HashMap<>(params.size());
             params.forEach(boxed::put);

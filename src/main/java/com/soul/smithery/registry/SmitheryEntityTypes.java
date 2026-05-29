@@ -14,18 +14,17 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 import java.util.function.Supplier;
 
 /**
- * Entity-type registrations. Currently just the smithery arrow; expand as new projectile / mob
- * types land.
+ * Entity-type registrations owned by Smithery.
  *
- * <h3>Vanilla parity for the arrow dimensions / tracking</h3>
- * Matches {@code EntityType.ARROW}: 0.5×0.5 size, 20-block client tracking range,
- * 20-tick update interval. Keeping these identical avoids subtle rendering / collision
- * differences vs vanilla arrows.
+ * <p>Currently just the Smithery arrow; dimensions and client tracking values mirror
+ * vanilla {@code EntityType.ARROW} so collision and rendering match vanilla arrows.
  */
 public final class SmitheryEntityTypes {
+    /** Deferred register for Smithery-namespaced entity types. */
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES =
             DeferredRegister.create(Registries.ENTITY_TYPE, Smithery.MODID);
 
+    /** Smithery's modular arrow entity type; parallels vanilla arrow dimensions and tracking. */
     public static final Supplier<EntityType<SmitheryArrow>> ARROW =
             registerEntity("arrow", () -> EntityType.Builder
                     .<SmitheryArrow>of(SmitheryArrow::new, MobCategory.MISC)
@@ -46,6 +45,11 @@ public final class SmitheryEntityTypes {
         return ENTITY_TYPES.register(name, factory);
     }
 
+    /**
+     * Binds the deferred register to the mod event bus.
+     *
+     * @param modEventBus the mod-bus the deferred register attaches to
+     */
     public static void register(IEventBus modEventBus) {
         ENTITY_TYPES.register(modEventBus);
     }

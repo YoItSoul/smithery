@@ -21,60 +21,36 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Loads modifier definitions from {@code data/<namespace>/smithery/modifier/<modifier_id>.json}.
- * Each file defines one modifier composed of passive + on_attack + on_break action lists.
+ * Server-side reload listener that loads modifier definitions from
+ * {@code data/<namespace>/smithery/modifier/<id>.json}.
  *
- * <h2>JSON shape</h2>
- * <pre>{@code
- *   // data/yourmod/smithery/modifier/your_modifier.json — registers smithery:your_modifier? NO —
- *   // the file's resource id (namespace from the data pack root + path under modifier/) is what
- *   // the modifier is registered as. So data/yourmod/smithery/modifier/sparky.json registers
- *   // the modifier "yourmod:sparky".
- *   {
- *     "durability_multiplier": 1.0,
- *     "passives": [
- *       { "type": "smithery:bonus_damage", "amount": 2.0 }
- *     ],
- *     "on_attack": [
- *       { "type": "smithery:apply_mob_effect",
- *         "effect": "minecraft:poison",
- *         "chance": 0.25,
- *         "duration_ticks": 60,
- *         "amplifier": 0 }
- *     ],
- *     "on_break": [
- *       { "type": "smithery:pull_drops", "radius": 5.0 }
- *     ]
- *   }
- * }</pre>
+ * <p>Each file declares passive + on-attack + on-break + on-block-drops + on-kill + on-mob-drops
+ * + on-compose action lists composed by id; runtime callbacks iterate the lists in declaration
+ * order. The file's resource id becomes the modifier id, so naming controls the registered id.
  *
- * <h2>Lifecycle</h2>
- * The listener runs at server start (initial datapack load) and on every {@code /reload}.
- * Each pass clears the set of previously JSON-loaded modifier ids from
- * {@link SmitheryAPI#MODIFIERS} and re-registers from JSON. Code-defined modifiers (registered
- * via {@code SmitheryAPI.registerModifier} in mod init) are <em>not</em> touched unless a
- * JSON file uses the same id — in which case the JSON definition shadows the code one until
- * the JSON file is removed from all packs and a {@code /reload} runs (after which the code
- * version is gone too, until the server restarts and the code init re-registers it).
- *
- * <p>Recommendation: modders use namespaced ids that don't collide with smithery built-ins
- * (e.g. {@code yourmod:custom_modifier}, not {@code smithery:sharp}). Datapack authors
- * deliberately overriding a built-in can do so, but should expect to ship a full server-restart
- * to revert.
- *
- * <h2>Action type errors</h2>
- * If a JSON file references an action type id that isn't registered (typo, missing mod), the
- * file fails to parse and is skipped with a logged warning. The modifier is not registered.
- * Other modifier files continue to load.
+ * <p>Re-runs on every {@code /reload}: previously JSON-loaded modifier ids are removed from
+ * {@link SmitheryAPI#MODIFIERS} before re-registration so removed files do not linger. Code-defined
+ * modifiers are untouched unless a JSON file shadows them by id. Files that reference unknown
+ * action types fail to parse with a logged warning and are skipped.
  */
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class ModifierReloadListener
         extends SimpleJsonResourceReloadListener<ModifierReloadListener.ModifierJson> {
 
     /**
-     * One JSON file → one record. The category-list codecs use each action registry's
-     * dispatch codec, so the {@code "type"} field inside each action dispatches to the
-     * registered action's params.
+     * Parsed representation of one modifier JSON file.
+     *
+     * @param durabilityMultiplier multiplier applied to the tool's durability when the modifier is present
+     * @param maxLevel             maximum stackable level (1 = one-shot)
+     * @param levelCost            base unit cost to reach level 1
+     * @param levelCostScaling     multiplier applied per additional level
+     * @param passives             passive actions applied at compose time
+     * @param onAttack             actions invoked when the tool damages an entity
+     * @param onBreak              actions invoked when the tool breaks a block
+     * @param onBlockDrops         actions invoked on the post-break drops list
+     * @param onKill               actions invoked when the tool kills an entity
+     * @param onMobDrops           actions invoked on the post-kill drops list
+     * @param onCompose            actions invoked at compose time after passives
      */
     public record ModifierJson(
             float durabilityMultiplier,
@@ -89,6 +65,7 @@ public final class ModifierReloadListener
             List<ModifierAction.OnMobDrops>  onMobDrops,
             List<ModifierAction.OnCompose>   onCompose
     ) {
+        /** Codec that pulls each action list through the matching action registry's dispatch codec. */
         public static final Codec<ModifierJson> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.FLOAT.optionalFieldOf("durability_multiplier", 1.0f)
                         .forGetter(ModifierJson::durabilityMultiplier),
@@ -115,9 +92,12 @@ public final class ModifierReloadListener
         ).apply(i, ModifierJson::new));
 
         /**
-         * Converts the parsed JSON into a runtime {@link Modifier} by wiring each action list
-         * into the appropriate {@link Modifier.Builder} callback. Each callback iterates its
-         * action list and invokes them in declaration order — actions compose left-to-right.
+         * Builds a runtime {@link Modifier} from this parsed JSON, wiring each non-empty action
+         * list as a {@link Modifier.Builder} callback. Action errors are caught per-action and
+         * logged so one bad action does not block its siblings.
+         *
+         * @param id the identifier to register the resulting modifier under
+         * @return the assembled modifier
          */
         public Modifier toModifier(Identifier id) {
             Modifier.Builder b = Modifier.builder(id)
@@ -196,7 +176,6 @@ public final class ModifierReloadListener
                     }
                 });
             }
-            // Set category based on which lists are non-empty (cosmetic / introspection only).
             boolean anyActive = !onAttack.isEmpty() || !onBreak.isEmpty()
                     || !onBlockDrops.isEmpty() || !onKill.isEmpty() || !onMobDrops.isEmpty();
             boolean anyPassive = !passives.isEmpty();
@@ -207,7 +186,6 @@ public final class ModifierReloadListener
         }
     }
 
-    /** Ids of modifiers loaded from JSON last reload. Cleared and repopulated each pass. */
     private static final Set<Identifier> DATA_LOADED_IDS = new HashSet<>();
 
     private ModifierReloadListener() {
@@ -217,7 +195,6 @@ public final class ModifierReloadListener
     @Override
     protected void apply(Map<Identifier, ModifierJson> entries,
                           ResourceManager manager, ProfilerFiller profiler) {
-        // Drop previously-JSON-loaded modifiers so removed JSON files don't linger.
         for (Identifier id : DATA_LOADED_IDS) SmitheryAPI.MODIFIERS.remove(id);
         DATA_LOADED_IDS.clear();
 
@@ -233,6 +210,12 @@ public final class ModifierReloadListener
         Smithery.LOGGER.info("Loaded {} modifiers from data packs", registered);
     }
 
+    /**
+     * Registers this listener with the server reload pipeline under the {@code smithery:modifiers}
+     * id.
+     *
+     * @param event the NeoForge add-reload-listeners event
+     */
     @SubscribeEvent
     public static void onAddReloadListeners(AddServerReloadListenersEvent event) {
         event.addListener(

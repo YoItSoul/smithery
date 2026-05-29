@@ -225,11 +225,14 @@ MaterialStats {
 
 | Material | Harvest Level | Mining Speed | Attack Damage | Durability/Ingot | Melting Temp |
 |---|---|---|---|---|---|
-| Copper | 2 | 6.0 | 1.5 | 80 | 1,085°C |
-| Gold | 2 | 12.0 | 1.0 | 32 | 1,064°C |
-| Iron | 2 | 6.5 | 2.0 | 150 | 1,538°C |
+| Copper | 2 | 6.0 | 5.0 | 80 | 1,085°C |
+| Gold | 2 | 12.0 | 4.0 | 32 | 1,064°C |
+| Iron | 2 | 6.5 | 4.0 (+2 SHARP → 6) | 150 | 1,538°C |
 
-*Values are initial estimates — balance pass required.*
+Attack Damage is the blade material's contribution; sword tools add any sword-modifier
+bonuses on top (e.g., iron's SHARP adds +2 → 6 total, matching vanilla iron sword).
+Pickaxes use the head material's value directly (no SHARP for pickaxe), so iron
+pickaxe = 4 damage, matching vanilla.
 
 ### 5.4 Auto-Generated Content Per Registered Material
 
@@ -307,6 +310,17 @@ head1 = 150, head2 = 150, handle1 = 60, handle2 = 60, binder_mult = 0.8
 base = (150 + 150 + 60 + 60) × 0.8 = 336
 with modifier ×1.5 → 336 × 1.5 = 504
 ```
+
+**Balance anchor — iron sword with wood handle:**
+Composition `iron blade × iron guard × wood handle × iron binder` is the reference point —
+it matches vanilla iron sword's 250 durability exactly:
+```
+150 (iron 150 × blade 1.0) + 60 (iron 150 × guard 0.4) + 40 (wood 100 × handle 0.4)
+  × 1.0 (iron binder) = 250
+```
+Wood's `durabilityPerIngot` is set to 100 specifically to make this math work cleanly; a
+pure-iron sword overshoots vanilla at 270 (a small "luxury" bonus), and a pure-wood sword
+lands around 126 (~2× vanilla wood sword).
 
 ### 7.3 Sword (SwordType)
 
@@ -765,9 +779,13 @@ SmitheryAPI.registerModifierItem(
 
 | ID | Harvest | Speed | Damage | Dur/Ingot | Melt Temp | Sword Modifier | Pick Modifier |
 |---|---|---|---|---|---|---|---|
-| `smithery:copper` | 2 | 6.0 | 1.5 | 80 | 1,085°C | Verdant (+poison chance) | Corrosive (−armor on hit) |
-| `smithery:gold` | 2 | 12.0 | 1.0 | 32 | 1,064°C | Lucky Strike (+XP from kills) | Gilded (bonus XP from ore) |
-| `smithery:iron` | 2 | 6.5 | 2.0 | 150 | 1,538°C | Sharp (+2 dmg) | Magnetized (pulls drops) |
+| `smithery:copper` | 2 | 6.0 | 5.0 | 80 | 1,085°C | Verdant (+poison chance) | Corrosive (−armor on hit) |
+| `smithery:gold`   | 2 | 12.0 | 4.0 | 32 | 1,064°C | Lucky Strike (+XP from kills) | Gilded (bonus XP from ore) |
+| `smithery:iron`   | 2 | 6.5 | 4.0 | 150 | 1,538°C | Sharp (+2 dmg → 6 sword) | Magnetized (pulls drops) |
+
+Sword damage = blade material's `attackDamage` + any sword modifier bonuses
+(SHARP is iron/diamond/netherite's flavor — +2/+3/+4 respectively, closing the
+gap to vanilla parity: iron 4+2=6, diamond 4+3=7, netherite 4+4=8).
 
 ### 13.2 Tool Types
 

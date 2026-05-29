@@ -1,12 +1,13 @@
 package com.soul.smithery.api.tool;
 
 /**
- * Whether a part contributes additively to the total durability sum,
- * or applies a multiplicative scalar to the sum.
+ * How a part slot contributes to total tool durability.
  *
- * Formula: durability = (Σ ADDITIVE parts) × Π MULTIPLIER parts × Π modifier multipliers
+ * <p>Formula: {@code durability = (sum ADDITIVE parts) * (product MULTIPLIER parts) * (product modifier multipliers)}.
  */
 public enum DurabilityRole {
+    /** Adds the part's durability to the running sum. */
     ADDITIVE,
+    /** Multiplies the running sum by the part's scalar. */
     MULTIPLIER
 }

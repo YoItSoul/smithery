@@ -9,45 +9,64 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Items;
 
 /**
- * Built-in part types. New tool types that need new part shapes register their parts here
- * (or via SmitheryAPI from outside).
+ * Built-in part-type registrations and synthetic cast mappings.
  *
- * durabilityScalar is the multiplier applied to material.durabilityPerIngot when this part
- * type contributes to the additive durability sum. Heads carry the bulk; handles less; binders
- * don't contribute additively (their role is multiplicative — see Material.binderMultiplier).
+ * <p>Each part type's {@code durabilityScalar} multiplies the source material's
+ * {@code durabilityPerIngot} when contributing to the additive durability sum. Heads carry
+ * the bulk, handles less, binders zero (binder durability flows through the multiplicative
+ * {@code Material.binderMultiplier} instead).
  */
 public final class SmitheryPartTypes {
+    /** Part type for sword blades (additive durability, full color tint). */
     public static PartType SWORD_BLADE;
+    /** Part type for sword guards. */
     public static PartType GUARD;
+    /** Part type for tool handles. */
     public static PartType HANDLE;
+    /** Part type for tool binders (multiplicative role; drives modifier slot count). */
     public static PartType BINDER;
+    /** Part type for pickaxe heads. */
     public static PartType PICK_HEAD;
+    /** Part type for axe heads. */
     public static PartType AXE_HEAD;
+    /** Part type for shovel heads. */
     public static PartType SHOVEL_HEAD;
+    /** Part type for hoe heads. */
     public static PartType HOE_HEAD;
+    /** Part type for spear heads. */
     public static PartType SPEAR_HEAD;
+    /** Part type for arrow heads (consumable-style; low durability scalar). */
     public static PartType ARROW_HEAD;
-    /** Ranged-weapon parts. Bow uses two limbs + a string; arrow uses head + shaft + fletching.
-     *  Bowstring and fletching opt out of partColorTint where appropriate (string is typically
-     *  off-white regardless of material; fletching's color is feather-like, set via material). */
+    /** Part type for bow limbs; structural, two per bow. */
     public static PartType BOW_LIMB;
+    /** Part type for bowstrings; multiplicative role on bows, light durability contribution. */
     public static PartType BOWSTRING;
+    /** Part type for arrow shafts; drives arrow durability (shots remaining). */
     public static PartType ARROW_SHAFT;
+    /** Part type for arrow fletching; multiplicative role on arrows. */
     public static PartType FLETCHING;
-    /**
-     * "Synthetic" cast targets. INGOT/NUGGET re-use the PartType infrastructure for impression
-     * block generation (the casting_sand_impressed_<id> voxelized model) but don't produce a
-     * smithery PartItem — the cast yields a vanilla iron/gold/copper ingot or nugget matching
-     * the poured material. Players impress with a vanilla ingot/nugget as the template.
-     */
+    /** Helmet core part type — primary additive slot for the helmet, casts at 576 mB (4 ingots). */
+    public static PartType HELMET_CORE;
+    /** Chestplate core part type — primary additive slot for the chestplate, casts at 864 mB (6 ingots). */
+    public static PartType CHESTPLATE_CORE;
+    /** Leggings core part type — primary additive slot for the leggings, casts at 720 mB (5 ingots). */
+    public static PartType LEGGINGS_CORE;
+    /** Boots core part type — primary additive slot for the boots, casts at 576 mB (4 ingots). */
+    public static PartType BOOTS_CORE;
+    /** Armor plates part type — multiplicative durability + toughness layer shared across all armor pieces, casts at 432 mB (3 ingots). */
+    public static PartType ARMOR_PLATES;
+    /** Armor trim part type — flat durability bonus shared across all armor pieces, casts at 144 mB (1 ingot). */
+    public static PartType ARMOR_TRIM;
+    /** Synthetic cast target whose pour yields a vanilla ingot resolved via {@link CastResults}. */
     public static PartType INGOT;
+    /** Synthetic cast target whose pour yields a vanilla nugget resolved via {@link CastResults}. */
     public static PartType NUGGET;
 
+    /**
+     * Registers every built-in part type and the synthetic cast mappings tying iron / gold /
+     * copper ingots and nuggets to their cast results.
+     */
     public static void register() {
-        // castMb is a flat 1 ingot (144 mB) per part across the board. Keeps the material
-        // economy 1:1 with vanilla ingot recipes: one ingot melted → one part cast, regardless
-        // of which part. Tool balance comes from durabilityScalar and material stats, not
-        // from accessories being "cheaper".
         SWORD_BLADE = SmitheryAPI.registerPartType(PartType.builder(id("sword_blade"))
                 .durabilityScalar(1.0f)
                 .partColorTint(true)
@@ -67,7 +86,7 @@ public final class SmitheryPartTypes {
                 .build());
 
         BINDER = SmitheryAPI.registerPartType(PartType.builder(id("binder"))
-                .durabilityScalar(0.0f) // binder is purely multiplicative — no additive durability
+                .durabilityScalar(0.0f)
                 .partColorTint(true)
                 .castMb(144)
                 .build());
@@ -78,10 +97,6 @@ public final class SmitheryPartTypes {
                 .castMb(144)
                 .build());
 
-        // Heads for tool types not yet wired (axe / shovel / hoe / spear / bow). Each casts
-        // PartItems for every material and impressed-sand variants automatically. castMb is
-        // a flat 1 ingot per part — keeps the material economy 1:1 with vanilla ingot recipes
-        // so a single ingot melted yields exactly one head, regardless of which head it is.
         AXE_HEAD = SmitheryAPI.registerPartType(PartType.builder(id("axe_head"))
                 .durabilityScalar(1.0f)
                 .partColorTint(true)
@@ -107,55 +122,75 @@ public final class SmitheryPartTypes {
                 .build());
 
         ARROW_HEAD = SmitheryAPI.registerPartType(PartType.builder(id("arrow_head"))
-                .durabilityScalar(0.5f)   // small/consumable — contributes less to tool durability
+                .durabilityScalar(0.5f)
                 .partColorTint(true)
                 .castMb(144)
                 .build());
 
-        // Bow limbs: structural, drive draw weight and base durability. Two per bow.
-        // Texture is synthesized at runtime by SmitheryGeneratedPack — pick_head rotated 90°
-        // clockwise then cropped to its upper half, producing a curved limb silhouette.
         BOW_LIMB = SmitheryAPI.registerPartType(PartType.builder(id("bow_limb"))
                 .durabilityScalar(0.8f)
                 .partColorTint(true)
                 .castMb(144)
                 .build());
 
-        // Bowstring: light, drives accuracy / draw speed. Renders off-tinted (most strings
-        // look near-white regardless of material) but still tinted so unusual materials read.
-        // Texture is synthesized at runtime from vanilla minecraft:item/string.
         BOWSTRING = SmitheryAPI.registerPartType(PartType.builder(id("bowstring"))
                 .durabilityScalar(0.2f)
                 .partColorTint(true)
-                .castMb(72)               // half-ingot — strings are slight
+                .castMb(72)
                 .build());
 
-        // Arrow shaft: wood-like default but any material. Drives arrow durability (shot count).
-        // Texture is synthesized at runtime by SmitheryGeneratedPack — handle cropped to its
-        // upper half, producing a half-length stick silhouette.
         ARROW_SHAFT = SmitheryAPI.registerPartType(PartType.builder(id("arrow_shaft"))
                 .durabilityScalar(0.4f)
                 .partColorTint(true)
                 .castMb(72)
                 .build());
 
-        // Fletching: feathers / membrane / similar. Drives arrow accuracy / range modifiers.
-        // Texture is synthesized at runtime from vanilla minecraft:item/feather with the
-        // lower half cleared, producing a half-feather silhouette.
         FLETCHING = SmitheryAPI.registerPartType(PartType.builder(id("fletching"))
                 .durabilityScalar(0.2f)
                 .partColorTint(true)
                 .castMb(72)
                 .build());
 
-        // Synthetic cast targets. The textureTemplate points at vanilla item textures so the
-        // impression voxelizer generates the right silhouette in sand. No PartItem is registered
-        // for these (see SmitheryItems.registerPartsFor); the cast yields vanilla items resolved
-        // from the poured material at retrieve time.
+        HELMET_CORE = SmitheryAPI.registerPartType(PartType.builder(id("helmet_core"))
+                .durabilityScalar(1.0f)
+                .partColorTint(true)
+                .castMb(576)
+                .build());
+
+        CHESTPLATE_CORE = SmitheryAPI.registerPartType(PartType.builder(id("chestplate_core"))
+                .durabilityScalar(1.0f)
+                .partColorTint(true)
+                .castMb(864)
+                .build());
+
+        LEGGINGS_CORE = SmitheryAPI.registerPartType(PartType.builder(id("leggings_core"))
+                .durabilityScalar(1.0f)
+                .partColorTint(true)
+                .castMb(720)
+                .build());
+
+        BOOTS_CORE = SmitheryAPI.registerPartType(PartType.builder(id("boots_core"))
+                .durabilityScalar(1.0f)
+                .partColorTint(true)
+                .castMb(576)
+                .build());
+
+        ARMOR_PLATES = SmitheryAPI.registerPartType(PartType.builder(id("armor_plates"))
+                .durabilityScalar(1.0f)
+                .partColorTint(true)
+                .castMb(432)
+                .build());
+
+        ARMOR_TRIM = SmitheryAPI.registerPartType(PartType.builder(id("armor_trim"))
+                .durabilityScalar(1.0f)
+                .partColorTint(true)
+                .castMb(144)
+                .build());
+
         INGOT = SmitheryAPI.registerPartType(PartType.builder(id("ingot"))
                 .durabilityScalar(0.0f)
                 .partColorTint(false)
-                .castMb(144)              // 1 ingot
+                .castMb(144)
                 .textureTemplate(Identifier.fromNamespaceAndPath("minecraft", "item/iron_ingot"))
                 .syntheticCast(true)
                 .build());
@@ -163,7 +198,7 @@ public final class SmitheryPartTypes {
         NUGGET = SmitheryAPI.registerPartType(PartType.builder(id("nugget"))
                 .durabilityScalar(0.0f)
                 .partColorTint(false)
-                .castMb(16)               // 1 nugget (1/9 ingot)
+                .castMb(16)
                 .textureTemplate(Identifier.fromNamespaceAndPath("minecraft", "item/iron_nugget"))
                 .syntheticCast(true)
                 .build());
@@ -171,30 +206,17 @@ public final class SmitheryPartTypes {
         registerBuiltInCastMappings();
     }
 
-    /**
-     * Built-in entries for {@link CastResults} and {@link CastTemplates}. Modders can add
-     * their own without touching smithery — see those classes for the API.
-     *
-     * Note: SmitheryMaterials.register runs AFTER SmitheryPartTypes.register, so we can't
-     * use SmitheryMaterials.IRON / .GOLD / .COPPER here (they'd be null). We construct the
-     * ids inline — same value either way.
-     */
     private static void registerBuiltInCastMappings() {
         Identifier iron   = id("iron");
         Identifier gold   = id("gold");
         Identifier copper = id("copper");
 
-        // (material × cast target) → vanilla item
         CastResults.register(iron,   INGOT.id(),  () -> Items.IRON_INGOT);
         CastResults.register(gold,   INGOT.id(),  () -> Items.GOLD_INGOT);
         CastResults.register(copper, INGOT.id(),  () -> Items.COPPER_INGOT);
         CastResults.register(iron,   NUGGET.id(), () -> Items.IRON_NUGGET);
         CastResults.register(gold,   NUGGET.id(), () -> Items.GOLD_NUGGET);
-        // No vanilla copper_nugget; intentionally unregistered. Casting copper into a nugget
-        // mould yields nothing (resolvePartItem returns ItemStack.EMPTY, retrieve falls back
-        // to the discarded-cast warning).
 
-        // Template item → cast target
         CastTemplates.register(Items.IRON_INGOT,   INGOT.id());
         CastTemplates.register(Items.GOLD_INGOT,   INGOT.id());
         CastTemplates.register(Items.COPPER_INGOT, INGOT.id());

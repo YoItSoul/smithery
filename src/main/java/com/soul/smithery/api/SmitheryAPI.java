@@ -17,49 +17,70 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Modder-facing entry point.
+ * Modder-facing entry point for the Smithery registry system.
  *
- * Register materials, part types, tool types, modifiers, alloys, and synergies here. All Smithery
- * built-in content is registered through this same API so modders see no asymmetry.
+ * <p>Holds the five {@link SimpleRegistry} instances ({@link PartType}, {@link ToolType},
+ * {@link Material}, {@link Modifier}, {@link AlloyDefinition}, {@link SynergyDefinition}) plus the
+ * melting-recipe map. Built-in Smithery content registers through this API so modders see no
+ * asymmetry between first-party and third-party registrations.
  *
- * Registration is performed during the mod's construction phase, before any item/block/fluid
- * registry events fire. The mod will iterate registered Materials × PartTypes to auto-generate
- * part items and molten fluids during those events.
+ * <p>All registration runs during mod construction, before any item/block/fluid registry events
+ * fire. Smithery then iterates Materials x PartTypes during those events to auto-generate part
+ * items and molten fluids.
  */
 public final class SmitheryAPI {
     private SmitheryAPI() {}
 
+    /** Registry of every {@link PartType} (slot shapes used by tools and casts). */
     public static final SimpleRegistry<PartType> PART_TYPES =
             new SimpleRegistry<>("PartType", PartType::id);
 
+    /** Registry of every {@link ToolType} (tool templates listing required part slots). */
     public static final SimpleRegistry<ToolType> TOOL_TYPES =
             new SimpleRegistry<>("ToolType", ToolType::id);
 
+    /** Registry of every {@link Material}. */
     public static final SimpleRegistry<Material> MATERIALS =
             new SimpleRegistry<>("Material", Material::id);
 
+    /** Registry of every {@link Modifier} (definitions; per-tool instances are {@code ModifierEffect}). */
     public static final SimpleRegistry<Modifier> MODIFIERS =
             new SimpleRegistry<>("Modifier", Modifier::id);
 
+    /**
+     * Registry of legacy {@link AlloyDefinition} entries.
+     *
+     * <p>Keyed by result-material id. Insertion order is load-bearing for the forge's alloy
+     * conflict tiebreaker when two definitions have equal component counts.
+     */
     public static final SimpleRegistry<AlloyDefinition> ALLOYS =
             new SimpleRegistry<>("Alloy", AlloyDefinition::resultMaterialId);
 
+    /** Registry of every {@link SynergyDefinition} (two-material bonus effects). */
     public static final SimpleRegistry<SynergyDefinition> SYNERGIES =
             new SimpleRegistry<>("Synergy", SynergyDefinition::id);
 
     /**
-     * Melting recipes keyed by input item id. Each input item produces exactly one recipe;
-     * later registrations of the same input replace earlier ones (so datapack overrides win
-     * over built-in defaults). Lookup is O(1) by item id.
+     * Melting recipes keyed by input item id.
+     *
+     * <p>One recipe per input item; later registrations replace earlier ones, letting datapack
+     * overrides win over built-in defaults. O(1) lookup by item id.
      */
     public static final Map<Identifier, MeltingRecipe> MELTING_RECIPES = new HashMap<>();
 
-    // ---- Convenience registration ----
-
+    /** Registers a {@link PartType}. */
     public static PartType registerPartType(PartType pt) { return PART_TYPES.register(pt); }
+
+    /** Registers a {@link ToolType}. */
     public static ToolType registerToolType(ToolType tt) { return TOOL_TYPES.register(tt); }
+
+    /** Registers a {@link Modifier}. */
     public static Modifier registerModifier(Modifier m) { return MODIFIERS.register(m); }
+
+    /** Registers an {@link AlloyDefinition}. */
     public static AlloyDefinition registerAlloy(AlloyDefinition a) { return ALLOYS.register(a); }
+
+    /** Registers a {@link SynergyDefinition}. */
     public static SynergyDefinition registerSynergy(SynergyDefinition s) { return SYNERGIES.register(s); }
 
     /** Register or replace the melting recipe for {@code recipe.inputItemId()}. */
@@ -68,22 +89,28 @@ public final class SmitheryAPI {
         return recipe;
     }
 
+    /** Convenience overload that constructs a {@link MeltingRecipe} from string ids and mB. */
     public static MeltingRecipe registerMeltingRecipe(String inputItem, String material, int mb) {
         return registerMeltingRecipe(new MeltingRecipe(
                 Identifier.parse(inputItem), Identifier.parse(material), mb));
     }
 
+    /** Creates and registers a {@link Material} with the given id and stats. */
     public static Material registerMaterial(Identifier id, MaterialStats stats) {
         return MATERIALS.register(new Material(id, stats));
     }
 
+    /** String-id overload of {@link #registerMaterial(Identifier, MaterialStats)}. */
     public static Material registerMaterial(String id, MaterialStats stats) {
         return registerMaterial(Identifier.parse(id), stats);
     }
 
-    // ---- Overrides / removal (also used by datapack JSON loaders) ----
-
-    /** Replace the stats of an existing material. The Material instance is preserved. */
+    /**
+     * Replace the stats of an existing material in-place. The {@link Material} instance and any
+     * references to it remain valid.
+     *
+     * @return {@code true} if the material existed and was updated
+     */
     public static boolean overrideMaterial(Identifier id, MaterialStats newStats) {
         Material m = MATERIALS.get(id);
         if (m == null) return false;
@@ -96,8 +123,6 @@ public final class SmitheryAPI {
         return MATERIALS.remove(id);
     }
 
-    // ---- Synergy lookup ----
-
     /** Returns all synergies that match the given (a, b) pair, order-independent. */
     public static List<SynergyDefinition> synergiesFor(Identifier a, Identifier b) {
         List<SynergyDefinition> out = new ArrayList<>();
@@ -107,9 +132,7 @@ public final class SmitheryAPI {
         return out;
     }
 
-    // ---- Cross-registry lookups ----
-
-    /** Returns every ToolType whose part list includes the given PartType. */
+    /** Returns every {@link ToolType} whose part list includes the given {@link PartType}. */
     public static List<ToolType> toolTypesUsingPart(PartType partType) {
         List<ToolType> out = new ArrayList<>();
         for (ToolType tt : TOOL_TYPES.all()) {

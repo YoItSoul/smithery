@@ -6,6 +6,8 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.block.ForgeFuelPortBlock;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
 import com.soul.smithery.registry.SmitheryFluids;
+import net.minecraft.client.Minecraft;
+import net.minecraft.resources.Identifier;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
@@ -14,70 +16,73 @@ import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.resources.Identifier;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.model.sprite.SpriteId;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.jspecify.annotations.Nullable;
 
 /**
- * BER for the Forge Fuel Port (fuel storage block). Draws a tinted fluid column inside the
- * block whose height tracks the current {@code fuelMb / CAPACITY_MB} fraction, lerped per
- * frame so adding/removing fuel reads as a smooth rise/fall rather than a hard step.
+ * Block entity renderer for the forge fuel port.
  *
- * <p>Smoothing pipeline:
- * <ol>
- *   <li>Each frame, {@link #extractRenderState} captures the BE's target fraction.</li>
- *   <li>An eased lerp (~12% per frame, framerate-independent enough for player perception)
- *       walks the displayed fraction toward the target. Lasts roughly 0.5s to settle.</li>
- *   <li>Lerped fraction → cuboid height; cuboid is drawn with the fluid's still atlas
- *       texture + per-frame V clamp matching the {@link FluidPipeRenderer} approach.</li>
- * </ol>
- *
- * <p>The renderer keeps a tiny per-BE displayed-fraction cache so each block animates
- * independently — necessary because RenderState is recreated each frame and can't itself
- * carry persistent state between frames.
+ * <p>Draws a fluid column inside the port whose height tracks the fuel fill level, lerped
+ * frame-to-frame so adds and drains read as smooth rise/fall. The column samples the fluid's
+ * own atlas sprite so vanilla lava and the per-material molten fluids each pick up their
+ * correct still texture and animation cycle. Vertical extension toward connected neighbours
+ * is lerped on a matching schedule so adjacent ports merge their fluid surfaces visually.
  */
 public class ForgeFuelPortRenderer
         implements BlockEntityRenderer<ForgeFuelPortBlockEntity, ForgeFuelPortRenderer.RenderState> {
 
-    private static final Identifier MOLTEN_STILL_TEXTURE =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "textures/block/molten_still.png");
-
     private static final int FULL_BRIGHT = 0xF000F0;
 
-    /** Fluid column horizontal inset (one pixel from each side of the block). */
     private static final float INSET = 1f / 16f;
 
-    /** matches FluidPipeRenderer's frame cadence so flows look consistent across blocks. */
-    private static final int  FRAME_COUNT       = 16;
-    private static final long FRAME_DURATION_MS = 150L;
-    private static final float FRAME_V_STEP     = 1f / FRAME_COUNT;
+    private static final float LERP_FACTOR = 0.20f;
+    private static final float LERP_FACTOR_FAST = 0.55f;
+    private static final float LERP_FAST_THRESHOLD = 0.05f;
+    private static final float LERP_SNAP_THRESHOLD = 0.30f;
 
-    /** Eased lerp factor per frame for fill-level smoothing. ~0.5s to settle. */
-    private static final float LERP_FACTOR = 0.12f;
+    private static float lerpStep(float prev, float target) {
+        float diff = target - prev;
+        float absD = Math.abs(diff);
+        if (absD > LERP_SNAP_THRESHOLD) return target;
+        float factor = absD > LERP_FAST_THRESHOLD ? LERP_FACTOR_FAST : LERP_FACTOR;
+        return prev + diff * factor;
+    }
 
-    /** Per-BE displayed fraction cache, keyed by hashed BlockPos. Tiny working set in practice. */
     private final java.util.Map<Long, Float> displayedByPos = new java.util.HashMap<>();
+    private final java.util.Map<Long, Fluid> lastFluidByPos = new java.util.HashMap<>();
+    private final java.util.Map<Long, Float> displayedTopExtendByPos = new java.util.HashMap<>();
+    private final java.util.Map<Long, Float> displayedBottomExtendByPos = new java.util.HashMap<>();
 
+    /**
+     * Constructs the renderer with the provider context.
+     *
+     * @param context renderer provider context (unused)
+     */
     public ForgeFuelPortRenderer(BlockEntityRendererProvider.Context context) {}
 
+    /**
+     * Per-frame snapshot of the port's fluid column state.
+     *
+     * <p>Holds the lerped fill fraction, vertical extension toward each neighbour, and the
+     * resolved fluid sprite to texture the column with.
+     */
     public static final class RenderState extends BlockEntityRenderState {
         public boolean hasFuel;
         public int colorArgb;
-        public float fillFraction;   // 0..1, lerped
-        // Open-cap flags drive whether the top/bottom face of the fluid column is drawn.
-        // When a fuel port sits above/below, those faces are hidden so the fluid reads as
-        // a continuous column across the stack.
-        public boolean openTop;
-        public boolean openBottom;
+        public float fillFraction;
+        public float topExtend;
+        public float bottomExtend;
+        public boolean aboveHasFuel;
+        public boolean belowHasFuel;
+        /** Resolved still sprite for the current fluid; UVs already track its animation frame. */
+        public @Nullable TextureAtlasSprite fluidSprite;
     }
-
-    /** Dark gray for the empty portion of the tank's interior. Tinted over the molten_still
-     *  texture; the subtle grayscale animation reads as residual heat shimmering inside a
-     *  metal tank, while keeping the interior opaque so the cutout side textures don't reveal
-     *  the world behind the block. */
-    private static final int EMPTY_INTERIOR_ARGB = 0xFF221A14;
 
     @Override
     public RenderState createRenderState() {
@@ -88,113 +93,151 @@ public class ForgeFuelPortRenderer
     public void extractRenderState(ForgeFuelPortBlockEntity be, RenderState state, float partialTick,
                                    Vec3 camPos, ModelFeatureRenderer.CrumblingOverlay crumbling) {
         BlockEntityRenderState.extractBase(be, state, crumbling);
-        captureCapFlags(be, state);
+        lerpFluidConnections(be, state);
 
-        // The renderer always draws the dark tank interior so the cutout side textures
-        // don't let the player see straight through the block. hasFuel here governs only
-        // whether the fluid column overlay is also drawn this frame.
         state.hasFuel = false;
+        state.fluidSprite = null;
         Fluid fluid = be.fuelFluid();
         long key = be.getBlockPos().asLong();
 
         if (fluid == null || be.fuelMb() <= 0) {
             float prev = displayedByPos.getOrDefault(key, 0f);
-            float lerped = prev + (0f - prev) * LERP_FACTOR;
+            float lerped = lerpStep(prev, 0f);
             if (lerped < 0.001f) {
-                displayedByPos.remove(key);
+                displayedByPos.put(key, 0f);
+                lastFluidByPos.remove(key);
                 state.fillFraction = 0f;
                 return;
             }
             displayedByPos.put(key, lerped);
             state.fillFraction = lerped;
-            state.colorArgb = 0xFFFF6622; // lava-ish fallback while decay animates down
+            Fluid lastFluid = lastFluidByPos.get(key);
+            if (lastFluid != null) {
+                state.colorArgb = tintForFluid(lastFluid);
+                state.fluidSprite = spriteForFluid(lastFluid);
+            } else {
+                state.colorArgb = 0xFFFF6622;
+            }
             state.hasFuel = true;
             return;
         }
 
         float target = Math.max(0f, Math.min(1f,
                 (float) be.fuelMb() / (float) ForgeFuelPortBlockEntity.CAPACITY_MB));
-        float prev = displayedByPos.getOrDefault(key, target);
-        float lerped = prev + (target - prev) * LERP_FACTOR;
+        float prev = displayedByPos.getOrDefault(key, 0f);
+        float lerped = lerpStep(prev, target);
         displayedByPos.put(key, lerped);
+        lastFluidByPos.put(key, fluid);
 
         state.fillFraction = lerped;
-        state.colorArgb = colorForFluid(fluid);
+        state.colorArgb = tintForFluid(fluid);
+        state.fluidSprite = spriteForFluid(fluid);
         state.hasFuel = true;
     }
 
-    private static void captureCapFlags(ForgeFuelPortBlockEntity be, RenderState state) {
+    private void lerpFluidConnections(ForgeFuelPortBlockEntity be, RenderState state) {
+        boolean targetAbove = false;
+        boolean targetBelow = false;
+        boolean aboveHasFuel = false;
+        boolean belowHasFuel = false;
+        var level = be.getLevel();
         net.minecraft.world.level.block.state.BlockState bs = be.getBlockState();
-        if (bs.getBlock() instanceof ForgeFuelPortBlock) {
-            state.openTop    = bs.getValue(ForgeFuelPortBlock.CONNECTED_UP);
-            state.openBottom = bs.getValue(ForgeFuelPortBlock.CONNECTED_DOWN);
+        if (level != null && bs.getBlock() instanceof ForgeFuelPortBlock) {
+            if (bs.getValue(ForgeFuelPortBlock.CONNECTED_UP)) {
+                targetAbove = true;
+                if (level.getBlockEntity(be.getBlockPos().above()) instanceof ForgeFuelPortBlockEntity above) {
+                    aboveHasFuel = above.fuelMb() > 0;
+                }
+            }
+            if (bs.getValue(ForgeFuelPortBlock.CONNECTED_DOWN)) {
+                targetBelow = true;
+                if (level.getBlockEntity(be.getBlockPos().below()) instanceof ForgeFuelPortBlockEntity below) {
+                    belowHasFuel = below.fuelMb() > 0;
+                }
+            }
         }
+        long key = be.getBlockPos().asLong();
+        state.topExtend    = lerpExtend(displayedTopExtendByPos,    key, targetAbove ? 1f : 0f);
+        state.bottomExtend = lerpExtend(displayedBottomExtendByPos, key, targetBelow ? 1f : 0f);
+        state.aboveHasFuel = aboveHasFuel;
+        state.belowHasFuel = belowHasFuel;
     }
 
-    /** Picks an ARGB tint for the given fuel fluid. Lava + smithery molten metals supported;
-     *  any other fluid falls back to a generic orange so unknown fuels still read as "hot".
-     *  Full alpha — the fluid overlay needs to fully cover the dark interior backdrop. */
-    private static int colorForFluid(Fluid fluid) {
-        if (fluid == Fluids.LAVA) return 0xFFFF6622;
+    private static float lerpExtend(java.util.Map<Long, Float> cache, long key, float target) {
+        float prev = cache.getOrDefault(key, 0f);
+        float lerped = lerpStep(prev, target);
+        cache.put(key, lerped);
+        return lerped;
+    }
+
+    private static final Identifier VANILLA_LAVA_STILL =
+            Identifier.fromNamespaceAndPath("minecraft", "block/lava_still");
+    private static final Identifier SMITHERY_MOLTEN_STILL =
+            Identifier.fromNamespaceAndPath(Smithery.MODID, "block/molten_still");
+
+    private static @Nullable TextureAtlasSprite spriteForFluid(Fluid fluid) {
+        Identifier path;
+        if (fluid == Fluids.LAVA) {
+            path = VANILLA_LAVA_STILL;
+        } else if (SmitheryFluids.forFluid(fluid) != null) {
+            path = SMITHERY_MOLTEN_STILL;
+        } else {
+            return null;
+        }
+        return lookupSprite(path);
+    }
+
+    private static TextureAtlasSprite lookupSprite(Identifier path) {
+        return Minecraft.getInstance()
+                .getAtlasManager()
+                .get(new SpriteId(TextureAtlas.LOCATION_BLOCKS, path));
+    }
+
+    private static int tintForFluid(Fluid fluid) {
+        if (fluid == Fluids.LAVA) return 0xFFFFFFFF;
         SmitheryFluids.Entry entry = SmitheryFluids.forFluid(fluid);
         if (entry != null) {
             int rgb = entry.material.stats().moltenColor() & 0xFFFFFF;
             return 0xFF000000 | rgb;
         }
-        return 0xFFFF8844;
+        return 0xFFFFFFFF;
     }
 
     @Override
     public void submit(RenderState state, PoseStack poseStack,
                        SubmitNodeCollector collector, CameraRenderState camera) {
+        TextureAtlasSprite sprite = state.fluidSprite;
+        if (sprite == null) return;
+
         final float x0 = INSET;
         final float x1 = 1f - INSET;
         final float z0 = INSET;
         final float z1 = 1f - INSET;
-        final float yBottom = INSET;
-        final float yTop    = 1f - INSET;
+        final float yBottom = INSET * (1f - state.bottomExtend);
+        final float yTop    = 1f - INSET * (1f - state.topExtend);
         final float yFluid  = state.hasFuel
                 ? yBottom + (yTop - yBottom) * Math.max(0f, Math.min(1f, state.fillFraction))
                 : yBottom;
+        if (yFluid <= yBottom) return;
 
-        final int frame = (int) ((System.currentTimeMillis() / FRAME_DURATION_MS) % FRAME_COUNT);
-        final float vMin = frame * FRAME_V_STEP;
-        final float vMax = (frame + 1) * FRAME_V_STEP;
-        final int fluidColor = state.colorArgb;
-        final boolean openTop    = state.openTop;
-        final boolean openBottom = state.openBottom;
+        final boolean hideTopCap    = state.aboveHasFuel && state.topExtend > 0.95f
+                && state.fillFraction > 0.95f;
+        final boolean hideBottomCap = state.belowHasFuel && state.bottomExtend > 0.95f;
 
-        // One submit, two stacked cuboids. Single render type (entitySolid) means the GPU
-        // batches both into one draw call. The dark backdrop fills above the fluid level
-        // (or the whole interior when empty), so the cutout side textures always see an
-        // opaque "tank interior" instead of revealing the world through the block.
         collector.submitCustomGeometry(poseStack,
-                RenderTypes.entitySolid(MOLTEN_STILL_TEXTURE),
-                (pose, buffer) -> {
-                    // Empty/upper portion — dark tank interior.
-                    if (yFluid < yTop) {
-                        drawColumn(pose, buffer,
-                                x0, yFluid, z0, x1, yTop, z1,
-                                EMPTY_INTERIOR_ARGB, vMin, vMax, openTop, false);
-                    }
-                    // Fluid portion — drawn below the empty portion. Bottom face of fluid
-                    // is omitted when stacked downward (continuous flow into block below).
-                    if (yFluid > yBottom) {
-                        drawColumn(pose, buffer,
-                                x0, yBottom, z0, x1, yFluid, z1,
-                                fluidColor, vMin, vMax,
-                                /* openTop  = */ false,  // top face of fluid is the surface
-                                /* openBottom = */ openBottom);
-                    }
-                });
+                RenderTypes.entityTranslucent(sprite.atlasLocation()),
+                (pose, buffer) -> drawColumn(pose, buffer, sprite,
+                        x0, yBottom, z0, x1, yFluid, z1,
+                        state.colorArgb,
+                        hideTopCap,
+                        hideBottomCap));
     }
 
-    /** 4-sided fluid column. Top/bottom faces are emitted only when the corresponding cap is
-     *  closed (no neighboring fuel port); otherwise the column reads as continuous. */
     private static void drawColumn(PoseStack.Pose pose, VertexConsumer buf,
+                                   TextureAtlasSprite sprite,
                                    float x0, float y0, float z0,
                                    float x1, float y1, float z1,
-                                   int color, float vMin, float vMax,
+                                   int color,
                                    boolean openTop, boolean openBottom) {
         int r = (color >>> 16) & 0xFF;
         int g = (color >>> 8)  & 0xFF;
@@ -202,21 +245,38 @@ public class ForgeFuelPortRenderer
         int a = (color >>> 24) & 0xFF;
         Matrix4f m = pose.pose();
 
-        // 4 side faces — always rendered.
-        face(m, pose, buf, x0, y0, z0,  x0, y0, z1,  x0, y1, z1,  x0, y1, z0, r, g, b, a, vMin, vMax, -1f, 0f, 0f); // -X
-        face(m, pose, buf, x1, y0, z1,  x1, y0, z0,  x1, y1, z0,  x1, y1, z1, r, g, b, a, vMin, vMax,  1f, 0f, 0f); // +X
-        face(m, pose, buf, x1, y0, z0,  x0, y0, z0,  x0, y1, z0,  x1, y1, z0, r, g, b, a, vMin, vMax, 0f, 0f, -1f); // -Z
-        face(m, pose, buf, x0, y0, z1,  x1, y0, z1,  x1, y1, z1,  x0, y1, z1, r, g, b, a, vMin, vMax, 0f, 0f,  1f); // +Z
+        final float spriteU0 = sprite.getU0();
+        final float spriteU1 = sprite.getU1();
+        final float spriteV0 = sprite.getV0();
+        final float spriteV1 = sprite.getV1();
+        final float dU = spriteU1 - spriteU0;
+        final float dV = spriteV1 - spriteV0;
 
-        // Bottom face only when sealed (no fuel port below).
+        final float dx = x1 - x0;
+        final float dy = y1 - y0;
+        final float dz = z1 - z0;
+
+        final float uXmax = spriteU0 + dU * dx;
+        final float uZmax = spriteU0 + dU * dz;
+        final float vYmax = spriteV0 + dV * dy;
+
+        face(m, pose, buf, x0, y0, z0,  x0, y0, z1,  x0, y1, z1,  x0, y1, z0,
+                r, g, b, a, spriteU0, uZmax, spriteV0, vYmax, -1f, 0f, 0f);
+        face(m, pose, buf, x1, y0, z1,  x1, y0, z0,  x1, y1, z0,  x1, y1, z1,
+                r, g, b, a, spriteU0, uZmax, spriteV0, vYmax,  1f, 0f, 0f);
+        face(m, pose, buf, x1, y0, z0,  x0, y0, z0,  x0, y1, z0,  x1, y1, z0,
+                r, g, b, a, spriteU0, uXmax, spriteV0, vYmax, 0f, 0f, -1f);
+        face(m, pose, buf, x0, y0, z1,  x1, y0, z1,  x1, y1, z1,  x0, y1, z1,
+                r, g, b, a, spriteU0, uXmax, spriteV0, vYmax, 0f, 0f,  1f);
+
+        final float vZmax = spriteV0 + dV * dz;
         if (!openBottom) {
             face(m, pose, buf, x0, y0, z0,  x1, y0, z0,  x1, y0, z1,  x0, y0, z1,
-                    r, g, b, a, vMin, vMax, 0f, -1f, 0f);
+                    r, g, b, a, spriteU0, uXmax, spriteV0, vZmax, 0f, -1f, 0f);
         }
-        // Top face only when sealed (no fuel port above) — so vertical stacks merge visually.
         if (!openTop) {
             face(m, pose, buf, x0, y1, z1,  x1, y1, z1,  x1, y1, z0,  x0, y1, z0,
-                    r, g, b, a, vMin, vMax, 0f,  1f, 0f);
+                    r, g, b, a, spriteU0, uXmax, spriteV0, vZmax, 0f,  1f, 0f);
         }
     }
 
@@ -226,12 +286,12 @@ public class ForgeFuelPortRenderer
                              float x2, float y2, float z2,
                              float x3, float y3, float z3,
                              int r, int g, int b, int a,
-                             float vMin, float vMax,
+                             float uMin, float uMax, float vMin, float vMax,
                              float nx, float ny, float nz) {
-        addVertex(m, pose, buf, x0, y0, z0, r, g, b, a, 0f, vMin, nx, ny, nz);
-        addVertex(m, pose, buf, x1, y1, z1, r, g, b, a, 1f, vMin, nx, ny, nz);
-        addVertex(m, pose, buf, x2, y2, z2, r, g, b, a, 1f, vMax, nx, ny, nz);
-        addVertex(m, pose, buf, x3, y3, z3, r, g, b, a, 0f, vMax, nx, ny, nz);
+        addVertex(m, pose, buf, x0, y0, z0, r, g, b, a, uMin, vMin, nx, ny, nz);
+        addVertex(m, pose, buf, x1, y1, z1, r, g, b, a, uMax, vMin, nx, ny, nz);
+        addVertex(m, pose, buf, x2, y2, z2, r, g, b, a, uMax, vMax, nx, ny, nz);
+        addVertex(m, pose, buf, x3, y3, z3, r, g, b, a, uMin, vMax, nx, ny, nz);
     }
 
     private static void addVertex(Matrix4f m, PoseStack.Pose pose, VertexConsumer buf,

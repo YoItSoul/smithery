@@ -5,12 +5,18 @@ import com.klikli_dev.modonomicon.api.datagen.LeafletEntryProvider;
 import com.klikli_dev.modonomicon.api.datagen.book.page.BookTextPageModel;
 
 /**
- * The single welcome entry in the leaflet book. Just a placeholder text page
- * — enough to verify the datagen + load pipeline works end-to-end. Real
- * content lands once we know the book displays correctly in-game.
+ * Datagen provider for the single welcome entry of the leaflet book.
+ *
+ * <p>Acts as a placeholder text page that verifies the datagen and load pipeline end-to-end;
+ * real material/forge/casting content lands once the rest of the build sequence is stable.
  */
 public class SmitheryWelcomeEntryProvider extends LeafletEntryProvider {
 
+    /**
+     * Constructs the entry under the given parent category provider.
+     *
+     * @param parent parent category provider supplying datagen context
+     */
     public SmitheryWelcomeEntryProvider(CategoryProviderBase parent) {
         super(parent);
     }

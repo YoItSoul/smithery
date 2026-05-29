@@ -37,71 +37,73 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Renders each occupied forge slot. BlockItems render as actual blocks (so cobblestone in
- * the forge looks like a cobblestone block bobbing in place), while non-block items keep the
- * TiC-style billboarded sprite of their inventory icon.
+ * Block entity renderer for the forge controller.
  *
- * Rendering pipeline (per occupied slot, per frame):
- *   - BlockItem: resolve via ItemStackRenderState in {@link ItemDisplayContext#GROUND} and
- *     submit the baked model at the slot centre + bob offset. No camera billboard — the
- *     player sees the block from whichever angle they're standing.
- *   - Other items: resolve the first-layer atlas sprite and emit a single camera-facing
- *     textured quad — original Tinkers' smeltery look for ingots/nuggets/ores.
- *
- * Cost stays roughly equivalent to AE2 terminal sprites for non-blocks; blocks cost one
- * baked-model submit per slot per frame, batched into the block atlas by NeoForge.
+ * <p>Renders each occupied interior slot — block items as baked models, other items as
+ * camera-billboarded sprite quads — and additionally draws a stacked fluid pool that fills
+ * interior cells from the bottom up, with per-fluid mB amounts lerped frame-to-frame so
+ * additions and drains animate smoothly.
  */
 public class ForgeControllerRenderer implements
         BlockEntityRenderer<ForgeControllerBlockEntity, ForgeControllerRenderer.RenderState> {
 
     private static final int FULL_BRIGHT = 0xF000F0;
 
-    /** Display size of the billboarded sprite (non-block items) in world-blocks. */
     private static final float SPRITE_SIZE = 0.6f;
-    /** Block-item display size — slightly smaller than a full cube so it visibly floats. */
     private static final float BLOCK_SIZE  = 0.55f;
 
-    /** Molten-fluid still texture, shared with the fuel-port renderer. */
     private static final Identifier MOLTEN_STILL_TEXTURE =
             Identifier.fromNamespaceAndPath(Smithery.MODID, "textures/block/molten_still.png");
 
-    /** matches molten_still.png.mcmeta animation rate. */
     private static final int  FRAME_COUNT       = 16;
     private static final long FRAME_DURATION_MS = 150L;
     private static final float FRAME_V_STEP     = 1f / FRAME_COUNT;
 
-    /** Eased lerp factor per frame for fluid-pool level smoothing. */
     private static final float POOL_LERP_FACTOR = 0.10f;
 
-    /** Per-(controller-pos × fluid-id) displayed mB cache, so additions/drains animate smoothly. */
     private final Map<Long, Map<Identifier, Float>> displayedFluidByCtrl = new HashMap<>();
 
     private final ItemModelResolver itemModelResolver;
-    /** Per-extract scratch. Throwaway. */
     private final ItemStackRenderState scratchRenderState = new ItemStackRenderState();
     private final RandomSource scratchRandom = RandomSource.create();
 
+    /**
+     * Constructs the renderer with the provider context.
+     *
+     * @param context renderer provider context supplying the shared item model resolver
+     */
     public ForgeControllerRenderer(BlockEntityRendererProvider.Context context) {
         this.itemModelResolver = context.itemModelResolver();
     }
 
-    // ---- Render state ----
-
+    /**
+     * Per-frame snapshot of forge contents, holding slot entries and the lerped fluid pool.
+     */
     public static final class RenderState extends BlockEntityRenderState {
         public final List<SlotEntry> entries = new ArrayList<>();
-        /** One {@link FluidCubeEntry} per interior position fully or partially submerged. */
+        /** One {@link FluidCubeEntry} per fully or partially submerged interior cell. */
         public final List<FluidCubeEntry> fluidCubes = new ArrayList<>();
         public long timeMs;
 
-        /** Discriminated entry: either a baked-model block render or a billboard sprite. */
+        /**
+         * One occupied interior slot, rendered either as a baked block model or a sprite quad.
+         */
         public static final class SlotEntry {
             public final Vec3 pos;
             public final float bobPhase;
-            /** non-null when this entry should be rendered as a baked block model. */
+            /** Non-null when this entry should be rendered as a baked block model. */
             public final ItemStackRenderState blockState;
-            /** non-null when this entry should be rendered as a camera-facing sprite quad. */
+            /** Non-null when this entry should be rendered as a camera-facing sprite quad. */
             public final TextureAtlasSprite sprite;
 
+            /**
+             * Constructs a slot entry.
+             *
+             * @param pos centre of the slot in controller-local block coordinates
+             * @param bobPhase phase offset for the bob animation
+             * @param blockState non-null for the baked-block render path
+             * @param sprite non-null for the billboard-sprite render path
+             */
             public SlotEntry(Vec3 pos, float bobPhase,
                              ItemStackRenderState blockState, TextureAtlasSprite sprite) {
                 this.pos = pos;
@@ -112,14 +114,20 @@ public class ForgeControllerRenderer implements
         }
 
         /**
-         * One submerged interior cell. {@code fillFraction} is 1.0 for fully-submerged cells
-         * and less for the topmost partially-filled cell of a given fluid layer; the cube is
-         * drawn from y=0 up to y=fillFraction in local block coords.
+         * A submerged interior cell of the fluid pool.
          */
         public static final class FluidCubeEntry {
             public final Vec3 pos;
             public final int colorArgb;
             public final float fillFraction;
+
+            /**
+             * Constructs a fluid cell.
+             *
+             * @param pos local position of the cell
+             * @param colorArgb ARGB tint
+             * @param fillFraction vertical fill in [0,1]
+             */
             public FluidCubeEntry(Vec3 pos, int colorArgb, float fillFraction) {
                 this.pos = pos;
                 this.colorArgb = colorArgb;
@@ -137,7 +145,6 @@ public class ForgeControllerRenderer implements
     public void extractRenderState(ForgeControllerBlockEntity be, RenderState state, float partialTick,
                                    Vec3 camPos, ModelFeatureRenderer.CrumblingOverlay crumbling) {
         BlockEntityRenderState.extractBase(be, state, crumbling);
-        // Forge interior is enclosed; force full-bright so items glow.
         state.lightCoords = FULL_BRIGHT;
         state.entries.clear();
         state.fluidCubes.clear();
@@ -147,8 +154,6 @@ public class ForgeControllerRenderer implements
         BlockPos origin = be.getBlockPos();
         state.timeMs = System.currentTimeMillis();
 
-        // Molten-pool extract runs first so it's still emitted even when no items are present
-        // (the forge can hold pooled fluid while empty of solids).
         extractFluidPool(be, state, slotPositions, origin);
 
         if (slotPositions.isEmpty()) return;
@@ -165,8 +170,6 @@ public class ForgeControllerRenderer implements
             Vec3 pos = new Vec3(dx, dy, dz);
 
             if (stack.getItem() instanceof BlockItem) {
-                // Block path: resolve a fresh ItemStackRenderState (must clone since entries
-                // outlive this method) and tag the slot for baked-model rendering.
                 ItemStackRenderState perSlotState = new ItemStackRenderState();
                 itemModelResolver.updateForTopItem(perSlotState, stack,
                         ItemDisplayContext.GROUND, be.getLevel(), null, i);
@@ -174,7 +177,6 @@ public class ForgeControllerRenderer implements
                 continue;
             }
 
-            // Non-block path: resolve first-layer sprite for the camera-billboard quad.
             scratchRenderState.clear();
             itemModelResolver.updateForTopItem(scratchRenderState, stack,
                     ItemDisplayContext.GUI, be.getLevel(), null, i);
@@ -185,21 +187,13 @@ public class ForgeControllerRenderer implements
         }
     }
 
-    /**
-     * Distributes stored fluid mB across the interior block list (sorted Y-ascending) and
-     * records one render entry per fully or partially submerged interior cell. Per-fluid
-     * mB are lerped against the previous frame's displayed amount so adds/drains animate.
-     */
     private void extractFluidPool(ForgeControllerBlockEntity be, RenderState state,
                                   List<BlockPos> slotPositions, BlockPos origin) {
         if (slotPositions.isEmpty()) return;
         Map<Identifier, Integer> stored = be.fluidStorageView();
         if (stored.isEmpty()) {
-            // Decay any cached entries for this controller toward 0 so emptied forges
-            // ease to invisible rather than snapping.
             Map<Identifier, Float> cached = displayedFluidByCtrl.get(origin.asLong());
             if (cached == null || cached.isEmpty()) return;
-            // Walk the cache, lerping each entry toward 0 and dropping the cache when empty.
             Map<Identifier, Integer> phantom = new java.util.LinkedHashMap<>();
             for (Map.Entry<Identifier, Float> e : cached.entrySet()) {
                 int dec = (int) (e.getValue() * (1f - POOL_LERP_FACTOR));
@@ -212,10 +206,8 @@ public class ForgeControllerRenderer implements
             }
         }
 
-        // Lerp displayed mB per fluid.
         Map<Identifier, Float> displayed = displayedFluidByCtrl
                 .computeIfAbsent(origin.asLong(), k -> new HashMap<>());
-        // Drop entries no longer present so the cache doesn't grow.
         displayed.keySet().retainAll(stored.keySet());
         Map<Identifier, Integer> displayedMb = new java.util.LinkedHashMap<>();
         for (Map.Entry<Identifier, Integer> e : stored.entrySet()) {
@@ -226,7 +218,6 @@ public class ForgeControllerRenderer implements
             displayedMb.put(e.getKey(), Math.max(0, Math.round(lerped)));
         }
 
-        // Sort interior positions Y-ascending — fluids settle at the bottom first.
         List<BlockPos> orderedInterior = new ArrayList<>(slotPositions);
         orderedInterior.sort((a, b) -> {
             int c = Integer.compare(a.getY(), b.getY());
@@ -243,7 +234,6 @@ public class ForgeControllerRenderer implements
             int color = colorForFluidId(e.getKey());
             int fullBlocks = mb / 1000;
             int remainder = mb % 1000;
-            // Full-fill cells.
             for (int n = 0; n < fullBlocks && cursor < orderedInterior.size(); n++, cursor++) {
                 BlockPos ip = orderedInterior.get(cursor);
                 state.fluidCubes.add(new RenderState.FluidCubeEntry(
@@ -252,7 +242,6 @@ public class ForgeControllerRenderer implements
                                  ip.getZ() - origin.getZ()),
                         color, 1.0f));
             }
-            // Partial top cell.
             if (remainder > 0 && cursor < orderedInterior.size()) {
                 BlockPos ip = orderedInterior.get(cursor++);
                 state.fluidCubes.add(new RenderState.FluidCubeEntry(
@@ -276,7 +265,6 @@ public class ForgeControllerRenderer implements
     @Override
     public void submit(RenderState state, PoseStack poseStack,
                        SubmitNodeCollector collector, CameraRenderState camera) {
-        // Fluid pool first (drawn under floating items so they appear on top).
         if (!state.fluidCubes.isEmpty()) {
             final int frame = (int) ((System.currentTimeMillis() / FRAME_DURATION_MS) % FRAME_COUNT);
             final float vMin = frame * FRAME_V_STEP;
@@ -299,14 +287,10 @@ public class ForgeControllerRenderer implements
             poseStack.translate(entry.pos.x, entry.pos.y + bobY, entry.pos.z);
 
             if (entry.blockState != null) {
-                // Baked-block path. Center-origin scaling, no billboard rotation — the player
-                // sees the block face-on from wherever they stand. ItemStackRenderState's
-                // submit() centers the block model around the pose origin.
                 poseStack.scale(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
                 entry.blockState.submit(poseStack, collector,
                         FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0);
             } else if (entry.sprite != null) {
-                // Sprite path — same as before.
                 poseStack.mulPose(camera.orientation);
                 poseStack.scale(SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE);
 
@@ -320,10 +304,6 @@ public class ForgeControllerRenderer implements
         }
     }
 
-    /**
-     * Emits a unit XY-plane quad textured with the given atlas sprite. Origin-centred so
-     * the parent pose's translate lands the sprite's centre at the slot.
-     */
     private static void drawSpriteQuad(PoseStack.Pose pose, VertexConsumer buf,
                                         TextureAtlasSprite sprite) {
         Matrix4f m = pose.pose();
@@ -346,8 +326,6 @@ public class ForgeControllerRenderer implements
                 .setNormal(n.x, n.y, n.z);
     }
 
-    /** Draws the 6-faced fluid cube for one submerged interior cell, with the top quad
-     *  shifted down by (1 - fillFraction) so partially-filled cells reveal a surface. */
     private static void drawFluidCell(PoseStack.Pose pose, VertexConsumer buf,
                                       RenderState.FluidCubeEntry cube, float vMin, float vMax) {
         int color = cube.colorArgb;
@@ -356,8 +334,6 @@ public class ForgeControllerRenderer implements
         int b = (color)        & 0xFF;
         int a = (color >>> 24) & 0xFF;
 
-        // Cell local coords — pose is at controller origin; cube.pos is the interior cell's
-        // delta. So the cell occupies (px..px+1, py..py+fill, pz..pz+1).
         final float px = (float) cube.pos.x;
         final float py = (float) cube.pos.y;
         final float pz = (float) cube.pos.z;
@@ -369,12 +345,10 @@ public class ForgeControllerRenderer implements
         final float y1 = py + cube.fillFraction;
 
         Matrix4f m = pose.pose();
-        // 4 side faces
         face(m, pose, buf, x0, y0, z0,  x0, y0, z1,  x0, y1, z1,  x0, y1, z0, r, g, b, a, vMin, vMax, -1f, 0f, 0f);
         face(m, pose, buf, x1, y0, z1,  x1, y0, z0,  x1, y1, z0,  x1, y1, z1, r, g, b, a, vMin, vMax,  1f, 0f, 0f);
         face(m, pose, buf, x1, y0, z0,  x0, y0, z0,  x0, y1, z0,  x1, y1, z0, r, g, b, a, vMin, vMax, 0f, 0f, -1f);
         face(m, pose, buf, x0, y0, z1,  x1, y0, z1,  x1, y1, z1,  x0, y1, z1, r, g, b, a, vMin, vMax, 0f, 0f,  1f);
-        // Top quad — the surface
         face(m, pose, buf, x0, y1, z1,  x1, y1, z1,  x1, y1, z0,  x0, y1, z0, r, g, b, a, vMin, vMax, 0f, 1f, 0f);
     }
 

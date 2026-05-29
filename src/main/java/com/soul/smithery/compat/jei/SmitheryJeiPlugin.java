@@ -1,23 +1,32 @@
 package com.soul.smithery.compat.jei;
 
 import com.soul.smithery.Smithery;
+import com.soul.smithery.api.SmitheryAPI;
+import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.registry.SmitheryBlocks;
+import com.soul.smithery.registry.SmitheryItems;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
+import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * JEI integration root. Loaded automatically by JEI via {@link JeiPlugin}; loadable iff the
- * JEI runtime classes are present, so the rest of the mod has no hard dependency on JEI.
+ * JEI integration root for Smithery.
  *
- * Registers three recipe categories:
- *   - smithery:melting     — input item → molten fluid + temperature (Forge Controller catalyst)
- *   - smithery:casting     — molten fluid + impressed sand cast → part / vanilla item (Casting Table catalyst)
- *   - smithery:part_press  — raw non-meltable input → part item (Part Press catalyst)
+ * <p>Loaded by JEI through {@link JeiPlugin}; the rest of the mod has no hard dependency on
+ * JEI so it stays optional. Registers categories for melting, casting, part press, and tool
+ * assembly, plus their recipes and catalyst blocks, and prunes hidden materials' part items
+ * from the ingredient sidebar once the runtime is available.
  */
 @JeiPlugin
 public class SmitheryJeiPlugin implements IModPlugin {
@@ -35,7 +44,8 @@ public class SmitheryJeiPlugin implements IModPlugin {
                 new MeltingJeiCategory(guiHelper),
                 new CastingJeiCategory(guiHelper),
                 new PartPressJeiCategory(guiHelper),
-                new ToolAssemblyJeiCategory(guiHelper)
+                new ToolAssemblyJeiCategory(guiHelper),
+                new ModifierJeiCategory(guiHelper)
         );
     }
 
@@ -45,6 +55,7 @@ public class SmitheryJeiPlugin implements IModPlugin {
         registration.addRecipes(SmitheryJeiTypes.CASTING,       SmitheryJeiRecipes.buildCastingRecipes());
         registration.addRecipes(SmitheryJeiTypes.PART_PRESS,    SmitheryJeiRecipes.buildPartPressRecipes());
         registration.addRecipes(SmitheryJeiTypes.TOOL_ASSEMBLY, SmitheryJeiRecipes.buildToolAssemblyRecipes());
+        registration.addRecipes(SmitheryJeiTypes.MODIFIER,      SmitheryJeiRecipes.buildModifierRecipes());
     }
 
     @Override
@@ -53,5 +64,23 @@ public class SmitheryJeiPlugin implements IModPlugin {
         registration.addCraftingStation(SmitheryJeiTypes.CASTING,       SmitheryBlocks.CASTING_TABLE_ITEM.get());
         registration.addCraftingStation(SmitheryJeiTypes.PART_PRESS,    SmitheryBlocks.PART_PRESS_ITEM.get());
         registration.addCraftingStation(SmitheryJeiTypes.TOOL_ASSEMBLY, Items.CRAFTING_TABLE);
+        registration.addCraftingStation(SmitheryJeiTypes.MODIFIER,      Items.ANVIL);
+    }
+
+    @Override
+    public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
+        List<ItemStack> hidden = new ArrayList<>();
+        for (Material material : SmitheryAPI.MATERIALS.all()) {
+            if (!SmitheryJeiRecipes.isHiddenFromJei(material.id())) continue;
+            for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
+                var di = SmitheryItems.getBuiltInPart(material.id(), pt.id());
+                if (di == null) continue;
+                hidden.add(new ItemStack(di.get()));
+            }
+        }
+        if (!hidden.isEmpty()) {
+            jeiRuntime.getIngredientManager()
+                    .removeIngredientsAtRuntime(VanillaTypes.ITEM_STACK, hidden);
+        }
     }
 }

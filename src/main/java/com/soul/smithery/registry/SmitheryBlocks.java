@@ -28,17 +28,17 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Block registrations for the Smithery Forge multiblock. The structural shell uses vanilla
- * deepslate variants (deepslate_bricks, cracked_deepslate_bricks, polished_deepslate); only
- * the "active" parts of the forge live here.
+ * Block registrations for the Smithery Forge multiblock and adjacent machinery.
  *
- * Filler textures point at vanilla block textures (iron/copper/gold/lapis) via blockstate JSON
- * — to be replaced with bespoke art later.
+ * <p>The structural shell of the Forge multiblock uses vanilla deepslate variants; only the
+ * "active" forge parts (controller, fuel port, drain, item port) live here alongside the
+ * Casting Table, Casting Sand, Fluid Pipe, Part Press and the Red Slime block easter egg.
  */
 public final class SmitheryBlocks {
+    /** Deferred register for every Smithery-namespaced block. */
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(Smithery.MODID);
 
-    /** Plain structural shell block for the Forge multiblock. The only non-port wall material. */
+    /** Plain structural shell block for the Forge multiblock; the only non-port wall material. */
     public static final DeferredBlock<Block> FURNACE_BRICKS =
             BLOCKS.registerSimpleBlock("furnace_bricks", p -> p
                     .mapColor(MapColor.STONE)
@@ -47,6 +47,7 @@ public final class SmitheryBlocks {
                     .requiresCorrectToolForDrops()
                     .pushReaction(PushReaction.BLOCK));
 
+    /** Forge controller block; the multiblock's master block and only GUI entry point. */
     public static final DeferredBlock<ForgeControllerBlock> FORGE_CONTROLLER =
             BLOCKS.registerBlock("forge_controller",
                     ForgeControllerBlock::new,
@@ -56,6 +57,7 @@ public final class SmitheryBlocks {
                             .sound(SoundType.METAL)
                             .requiresCorrectToolForDrops());
 
+    /** Fuel port block; vertical stacks of these form per-fluid logical groups around the Forge. */
     public static final DeferredBlock<ForgeFuelPortBlock> FORGE_FUEL_PORT =
             BLOCKS.registerBlock("forge_fuel_port",
                     ForgeFuelPortBlock::new,
@@ -64,11 +66,9 @@ public final class SmitheryBlocks {
                             .strength(5.0f, 1200.0f)
                             .sound(SoundType.COPPER)
                             .requiresCorrectToolForDrops()
-                            // Cutout texture has transparent center pixels — without noOcclusion,
-                            // adjacent block faces get hidden and we lose the "looking through
-                            // the window into the tank" effect entirely.
                             .noOcclusion());
 
+    /** Fluid-output port block; drains molten contents of the connected Forge. */
     public static final DeferredBlock<ForgeDrainBlock> FORGE_DRAIN =
             BLOCKS.registerBlock("forge_drain",
                     ForgeDrainBlock::new,
@@ -79,9 +79,9 @@ public final class SmitheryBlocks {
                             .requiresCorrectToolForDrops());
 
     /**
-     * Item input port — accepts items via right-click or hopper insertion and forwards them
-     * into the connected forge's nearest empty interior slot. Rejects when the forge is full.
-     * Counts as part of the shell for structure validation.
+     * Item input port for the Forge multiblock. Accepts items via right-click or hopper
+     * insertion and forwards them into the connected forge's nearest empty interior slot;
+     * rejects when the forge is full. Counts as part of the shell for structure validation.
      */
     public static final DeferredBlock<ForgeItemPortBlock> FORGE_ITEM_PORT =
             BLOCKS.registerBlock("forge_item_port",
@@ -93,14 +93,7 @@ public final class SmitheryBlocks {
                             .requiresCorrectToolForDrops());
 
     /**
-     * Casting Sand — gravity-falling block, identical behavior to vanilla sand.
-     * Used to prep a Casting Table for sand-casting. ColorRGBA controls the
-     * falling-dust particle color; matches the darkened sand texture so the
-     * particles don't visually clash when the block falls.
-     */
-    /**
-     * Casting Table — sand-casting workbench. BlockEntity holds the cast state machine.
-     * Light strength (axe-mineable wood-stat); not requiring a specific tool for drops.
+     * Casting Table block; sand-casting workbench whose state machine lives on its block entity.
      */
     public static final DeferredBlock<CastingTableBlock> CASTING_TABLE =
             BLOCKS.registerBlock("casting_table",
@@ -111,9 +104,9 @@ public final class SmitheryBlocks {
                             .sound(SoundType.WOOD));
 
     /**
-     * Fluid pipe — one-way transport block. Per-face mode + single-fluid storage live on the BE;
-     * the BlockState carries six EnumProperty&lt;FluidPipeFaceVisual&gt; values (4 visuals × 6 faces =
-     * 4096 combinations) so a multipart blockstate can render each face independently.
+     * Fluid pipe block; carries one fluid at a time with per-face IN/OUT/DISCONNECTED mode
+     * encoded into six face-visual EnumProperties so a multipart blockstate can render each
+     * face independently.
      */
     public static final DeferredBlock<FluidPipeBlock> FLUID_PIPE =
             BLOCKS.registerBlock("fluid_pipe",
@@ -125,8 +118,8 @@ public final class SmitheryBlocks {
                             .noOcclusion());
 
     /**
-     * Part Press — in-world part cutting block. Redstone-driven open/closed pose; uses
-     * Geckolib for the head animation. Internal state on {@link com.soul.smithery.block.entity.PartPressBlockEntity}.
+     * Part Press block; in-world part cutting machine with a redstone-driven open/closed
+     * pose. Internal state lives on {@link com.soul.smithery.block.entity.PartPressBlockEntity}.
      */
     public static final DeferredBlock<PartPressBlock> PART_PRESS =
             BLOCKS.registerBlock("part_press",
@@ -138,10 +131,9 @@ public final class SmitheryBlocks {
                             .noOcclusion()
                             .requiresCorrectToolForDrops());
 
+    /** Casting Sand block; vanilla-sand-equivalent falling block used to prep a Casting Table. */
     public static final DeferredBlock<ColoredFallingBlock> CASTING_SAND =
             BLOCKS.registerBlock("casting_sand",
-                    // Particle color tuned to the darkened texture's average (~dark charcoal gray)
-                    // so the falling-dust effect doesn't puff out as pale yellow sand.
                     props -> new ColoredFallingBlock(new ColorRGBA(0xFF3A3A3A), props),
                     () -> BlockBehaviour.Properties.of()
                             .mapColor(MapColor.COLOR_BLACK)
@@ -150,16 +142,9 @@ public final class SmitheryBlocks {
                             .pushReaction(PushReaction.NORMAL));
 
     /**
-     * Red slime block — vanilla SlimeBlock properties (sticky/bouncy + low friction +
-     * translucent rendering via noOcclusion) plus a constant redstone signal source, tinted
-     * red. Behaves exactly like a slime block in every interaction; just powers everything
-     * adjacent like a redstone block.
-     *
-     * <p>Properties mirror vanilla's {@code SLIME_BLOCK} registration in
-     * {@code Blocks.java}, swapping the MapColor for COLOR_RED so the block reads red on a
-     * filled map. Texture + model + blockstate are runtime-synthesized in
-     * {@link com.soul.smithery.registry.SmitheryGeneratedPack} so no static asset files
-     * ship for this block.
+     * Red slime block; sticky/bouncy slime block tinted red that also emits a constant
+     * redstone signal. Texture, model and blockstate are runtime-synthesized in
+     * {@link SmitheryGeneratedPack}.
      */
     public static final DeferredBlock<com.soul.smithery.block.RedSlimeBlock> RED_SLIME_BLOCK =
             BLOCKS.registerBlock("red_slime_block",
@@ -170,47 +155,49 @@ public final class SmitheryBlocks {
                             .sound(SoundType.SLIME_BLOCK)
                             .noOcclusion());
 
-    // Corresponding BlockItems live in the Smithery item register so they appear with parts/tools.
+    /** BlockItem for {@link #FURNACE_BRICKS}. */
     public static final DeferredItem<BlockItem> FURNACE_BRICKS_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("furnace_bricks", FURNACE_BRICKS);
+    /** BlockItem for {@link #FORGE_CONTROLLER}. */
     public static final DeferredItem<BlockItem> FORGE_CONTROLLER_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("forge_controller", FORGE_CONTROLLER);
+    /** BlockItem for {@link #FORGE_FUEL_PORT}. */
     public static final DeferredItem<BlockItem> FORGE_FUEL_PORT_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("forge_fuel_port", FORGE_FUEL_PORT);
+    /** BlockItem for {@link #FORGE_DRAIN}. */
     public static final DeferredItem<BlockItem> FORGE_DRAIN_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("forge_drain", FORGE_DRAIN);
+    /** BlockItem for {@link #FORGE_ITEM_PORT}. */
     public static final DeferredItem<BlockItem> FORGE_ITEM_PORT_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("forge_item_port", FORGE_ITEM_PORT);
+    /** BlockItem for {@link #CASTING_TABLE}. */
     public static final DeferredItem<BlockItem> CASTING_TABLE_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("casting_table", CASTING_TABLE);
+    /** BlockItem for {@link #CASTING_SAND}. */
     public static final DeferredItem<BlockItem> CASTING_SAND_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("casting_sand", CASTING_SAND);
+    /** BlockItem for {@link #FLUID_PIPE}. */
     public static final DeferredItem<BlockItem> FLUID_PIPE_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("fluid_pipe", FLUID_PIPE);
+    /** BlockItem for {@link #PART_PRESS}. */
     public static final DeferredItem<BlockItem> PART_PRESS_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("part_press", PART_PRESS);
+    /** BlockItem for {@link #RED_SLIME_BLOCK}. */
     public static final DeferredItem<BlockItem> RED_SLIME_BLOCK_ITEM =
             SmitheryItems.ITEMS.registerSimpleBlockItem("red_slime_block", RED_SLIME_BLOCK);
 
-    /**
-     * Internal "sand with cutout for PartType" block variants. One per registered PartType,
-     * used purely by the CastingTableRenderer to render the impressed sand visual via the
-     * standard item-stack-render-state pipeline.
-     *
-     * These blocks ARE registered in the registry (so /give can produce them and the BlockItem
-     * has a valid path for the dynamic models to resolve against), but they're never put in a
-     * creative tab and have no loot table so they behave inertly even if placed.
-     */
     private static final Map<Identifier, DeferredItem<BlockItem>> IMPRESSED_SAND_ITEMS = new LinkedHashMap<>();
 
     /**
-     * Register one internal "casting_sand_impressed_<part>" block per registered PartType.
-     * Must be called AFTER SmitheryPartTypes.register() (so SmitheryAPI.PART_TYPES.all() is
-     * populated) and BEFORE register(modEventBus) so the DeferredRegister queue is complete
-     * by the time the bus event fires.
+     * Registers one internal "casting_sand_impressed_&lt;part&gt;" block per registered
+     * {@link PartType}.
+     *
+     * <p>Must be called AFTER {@code SmitheryPartTypes.register()} (so
+     * {@link SmitheryAPI#PART_TYPES} is populated) and BEFORE {@link #register(IEventBus)}
+     * so the DeferredRegister queue is complete by the time the bus event fires.
      */
     public static void registerImpressedSandVariants() {
-        if (!IMPRESSED_SAND_ITEMS.isEmpty()) return; // idempotent guard
+        if (!IMPRESSED_SAND_ITEMS.isEmpty()) return;
         for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
             String name = "casting_sand_impressed_" + pt.id().getPath();
             DeferredBlock<Block> block = BLOCKS.registerSimpleBlock(name, p -> p
@@ -224,11 +211,22 @@ public final class SmitheryBlocks {
         }
     }
 
-    /** BlockItem of the "sand with PartType-shaped hole" block; null for unregistered part ids. */
+    /**
+     * Looks up the impressed-sand BlockItem (the "sand with a PartType-shaped hole" variant)
+     * for a given part type.
+     *
+     * @param partTypeId id of a registered {@link PartType}
+     * @return the matching DeferredItem, or null if the part type was never registered
+     */
     public static DeferredItem<BlockItem> getImpressedSandItem(Identifier partTypeId) {
         return IMPRESSED_SAND_ITEMS.get(partTypeId);
     }
 
+    /**
+     * Binds the block deferred register to the mod event bus.
+     *
+     * @param modEventBus the mod-bus the deferred register attaches to
+     */
     public static void register(IEventBus modEventBus) {
         BLOCKS.register(modEventBus);
     }

@@ -8,17 +8,24 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
 /**
- * Client → server payload. Player clicked a fluid layer in the Forge Controller GUI; tell
- * the server which fluid id should be the active output for that controller. An empty
- * {@code fluidId} ({@link Identifier} parsing to namespace="" / path="") clears the selection.
+ * Client-to-server payload announcing which stored fluid the player wants the named forge
+ * controller to drain as its active output.
+ *
+ * <p>An empty {@code fluidId} (one whose namespace and path are both empty) clears the
+ * selection. The server-side handler additionally validates proximity to the controller.
+ *
+ * @param controllerPos block position of the forge controller being configured
+ * @param fluidId       identifier of the fluid to select, or an empty identifier to clear
  */
 public record ForgeSelectOutputFluidPayload(BlockPos controllerPos, Identifier fluidId)
         implements CustomPacketPayload {
 
+    /** Payload type identifier under {@code smithery:forge_select_output_fluid}. */
     public static final CustomPacketPayload.Type<ForgeSelectOutputFluidPayload> TYPE =
             new CustomPacketPayload.Type<>(
                     Identifier.fromNamespaceAndPath(Smithery.MODID, "forge_select_output_fluid"));
 
+    /** Stream codec for serialising payload instances over the network. */
     public static final StreamCodec<RegistryFriendlyByteBuf, ForgeSelectOutputFluidPayload> STREAM_CODEC =
             StreamCodec.composite(
                     BlockPos.STREAM_CODEC, ForgeSelectOutputFluidPayload::controllerPos,

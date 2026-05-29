@@ -1,10 +1,10 @@
 package com.soul.smithery.book;
 
 /**
- * Constants for the Smithery field guide (a Modonomicon-backed in-game book).
+ * Constants identifying the Smithery field guide, a Modonomicon-backed in-game book.
  *
- * Players obtain it via {@code /give @s modonomicon:modonomicon_book{book_id:"smithery:smithery_book"}}
- * for now; a dedicated craftable book item can come later.
+ * <p>Currently obtainable only through {@code /give} for the modonomicon book item with
+ * a matching {@code book_id}; a craftable book item may follow.
  */
 public final class SmitheryBook {
     /** Resource path of the book inside the smithery namespace. */

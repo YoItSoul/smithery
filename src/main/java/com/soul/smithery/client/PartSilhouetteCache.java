@@ -15,17 +15,15 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Builds and caches per-PartType <em>alpha grids</em> for the Part Press renderer.
+ * Builds and caches per-PartType alpha grids used by the part-press renderer and JEI book pages.
  *
- * <p>Each entry is a {@code float[GRID][GRID]} where the value is the source texture's
- * alpha at that cell, normalized to {@code [0, 1]}. The press uses this to scale tooth
- * heights — fully opaque pixels (alpha=1) mean "no tooth here" and fully transparent
- * pixels (alpha=0) mean "full tooth". Partially transparent pixels yield proportional
- * tooth heights, so feathered part textures naturally produce ramped teeth.
- *
- * <p>Cache is forever-lived; texture reloads should call {@link #invalidate()}.
+ * <p>Each entry is a {@code float[GRID][GRID]} of the source texture's alpha at that cell,
+ * area-averaged into [0,1]. Fully opaque pixels mean "no tooth", fully transparent mean
+ * "full tooth", in-between values yield ramped sub-pixel teeth. Entries are cached forever;
+ * a resource reload should call {@link #invalidate()}.
  */
 public final class PartSilhouetteCache {
+    /** Grid resolution per axis. */
     public static final int GRID = 12;
 
     private static final Map<Identifier, float[][]> CACHE = new HashMap<>();
@@ -34,8 +32,10 @@ public final class PartSilhouetteCache {
     private PartSilhouetteCache() {}
 
     /**
-     * Per-cell alpha values, normalized to {@code [0, 1]}. {@code alpha[x][z]}; {@code 0} = fully
-     * transparent (full tooth), {@code 1} = fully opaque (no tooth).
+     * Returns the cached alpha grid for the given part type, building it on first access.
+     *
+     * @param pt part type to sample; {@code null} or one with no template texture returns an all-zero grid
+     * @return {@code grid[x][z]} normalized alpha in [0,1]; 0 = fully transparent, 1 = fully opaque
      */
     public static float[][] forPartType(PartType pt) {
         if (pt == null) return EMPTY;
@@ -44,11 +44,22 @@ public final class PartSilhouetteCache {
         return CACHE.computeIfAbsent(pt.id(), id -> readAlphaGrid(tmpl));
     }
 
+    /**
+     * Convenience wrapper that resolves the {@link PartType} from its id before delegating
+     * to {@link #forPartType(PartType)}.
+     *
+     * @param id part type identifier
+     * @return alpha grid for the resolved part type, or an all-zero grid if not registered
+     */
     public static float[][] forPartTypeId(Identifier id) {
         PartType pt = SmitheryAPI.PART_TYPES.get(id);
         return forPartType(pt);
     }
 
+    /**
+     * Drops every cached grid. Call after a resource pack reload so subsequent lookups
+     * re-read updated PNGs.
+     */
     public static void invalidate() {
         CACHE.clear();
     }
@@ -65,19 +76,12 @@ public final class PartSilhouetteCache {
                 raw = ImageIO.read(in);
             }
             if (raw == null) return EMPTY;
-            // Normalize to ARGB so indexed/grayscale PNGs yield correct alpha readback.
             BufferedImage rgba = new BufferedImage(raw.getWidth(), raw.getHeight(),
                     BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = rgba.createGraphics();
             g.drawImage(raw, 0, 0, null);
             g.dispose();
 
-            // Area-average sampling: each cell covers a w/GRID × h/GRID slice of the source
-            // texture; we average alpha over every source pixel that overlaps the cell. Nearest-
-            // neighbor sampling (the obvious approach) skips source pixels entirely when the
-            // source resolution doesn't evenly divide GRID — e.g. 16→12 drops src pixels 3, 7,
-            // 11, 15 along each axis, which the user noticed as "pixels not accounted for".
-            // Averaging keeps every source pixel's contribution proportional.
             int w = rgba.getWidth();
             int h = rgba.getHeight();
             float[][] grid = new float[GRID][GRID];

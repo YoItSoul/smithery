@@ -15,43 +15,57 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Persisted composition of a Smithery tool: which ToolType it is and what material occupies
- * each of its slots, in the ToolType's declared slot order. Materials are referenced by id;
- * stats are looked up live so datapack overrides take effect on existing tools.
+ * Persisted composition of a Smithery tool: the {@link ToolType} id plus the material
+ * id occupying each slot in the ToolType's declared slot order. Materials are looked
+ * up live so datapack overrides take effect on existing tools. Invariant violations
+ * (slot count mismatch, unknown material id) leave the composition invalid rather than
+ * throwing.
  *
- * Slot count must equal ToolType.slots().size(). Stacks that fail this invariant are treated
- * as broken (fall through to neutral defaults) — never thrown from, so a bad datapack can't
- * crash a player's inventory.
+ * @param toolTypeId    id of the bound ToolType
+ * @param slotMaterials material ids per slot, in the ToolType's declared order
  */
 public record ToolComposition(Identifier toolTypeId, List<Identifier> slotMaterials) {
 
+    /**
+     * Canonical constructor that defensively copies {@code slotMaterials} to an
+     * immutable list.
+     */
     public ToolComposition {
         slotMaterials = List.copyOf(slotMaterials);
     }
 
+    /** Codec for persistence into ItemStack data components. */
     public static final Codec<ToolComposition> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("tool_type").forGetter(ToolComposition::toolTypeId),
             Identifier.CODEC.listOf().fieldOf("slot_materials").forGetter(ToolComposition::slotMaterials)
     ).apply(i, ToolComposition::new));
 
+    /** Stream codec for network sync. */
     public static final StreamCodec<ByteBuf, ToolComposition> STREAM_CODEC = StreamCodec.composite(
             Identifier.STREAM_CODEC, ToolComposition::toolTypeId,
             Identifier.STREAM_CODEC.apply(ByteBufCodecs.list()), ToolComposition::slotMaterials,
             ToolComposition::new
     );
 
+    /** Resolves the live {@link ToolType}, or null if the id is unregistered. */
     public ToolType toolType() {
         return SmitheryAPI.TOOL_TYPES.get(toolTypeId);
     }
 
-    /** Materials in slot order; entries may be null if a referenced material was removed. */
+    /**
+     * Returns the materials in slot order; entries may be null if a referenced material
+     * was removed from the registry.
+     */
     public List<Material> materials() {
         List<Material> out = new ArrayList<>(slotMaterials.size());
         for (Identifier id : slotMaterials) out.add(SmitheryAPI.MATERIALS.get(id));
         return Collections.unmodifiableList(out);
     }
 
-    /** Distinct materials present across all slots (insertion order). Used for synergy matching. */
+    /**
+     * Returns the distinct material ids across all slots in insertion order; used for
+     * synergy matching.
+     */
     public List<Identifier> distinctMaterials() {
         List<Identifier> out = new ArrayList<>();
         for (Identifier id : slotMaterials) {
@@ -60,7 +74,10 @@ public record ToolComposition(Identifier toolTypeId, List<Identifier> slotMateri
         return out;
     }
 
-    /** True if every referenced slot material resolves to a registered Material. */
+    /**
+     * True iff every referenced material resolves to a registered {@link Material} and
+     * the slot count matches the bound ToolType's slot list.
+     */
     public boolean isValid() {
         ToolType tt = toolType();
         if (tt == null || tt.slots().size() != slotMaterials.size()) return false;

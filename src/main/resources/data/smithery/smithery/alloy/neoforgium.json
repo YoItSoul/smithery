@@ -1,0 +1,9 @@
+{
+  "_comment": "NeoForgium — hidden easter-egg alloy. FOX BLOOD ONLY: generic blood from other mobs will not fire this recipe. NeoForge's mascot is a fox, so the metal honours foxes specifically. Discovery path: put a fox in the forge, drop iron in, let the forge's heat damage the fox repeatedly to spill fox_blood into the alloy stock. 4 fox_blood (576 mB) + 4 iron (576 mB) → 1 neoforgium ingot (144 mB). Same temp gate as slimeknightium.",
+  "inputs": [
+    { "material": "smithery:fox_blood", "mb": 576 },
+    { "material": "smithery:iron",      "mb": 576 }
+  ],
+  "result": { "material": "smithery:neoforgium", "mb": 144 },
+  "min_temperature_c": 1700
+}

@@ -29,29 +29,22 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Adds smithery-context tooltips to player-facing items that have a role in the smithery
- * pipeline. Two independent tooltip blocks:
+ * Tooltip handler that annotates player-facing items with their smithery-pipeline roles.
  *
- * <ol>
- *   <li><b>"Can be made into parts: …"</b> — appears on any item that maps to a smithery
- *       material (via part press input OR via a hand-craft bowstring source). Lists every
- *       part type the material is eligible for, after applying both sides of
- *       {@link PartEligibility} restrictions.</li>
- *   <li><b>"Can be melted into: &lt;molten name&gt;"</b> (+ optional "Used in alloys: …" line)
- *       — appears on any item that's a {@link MeltingRecipe} input. The alloy line is added
- *       only when the resulting material is the input side of one or more registered
- *       {@link AlloyRecipe} entries.</li>
- * </ol>
- *
- * <p>Lookup is cheap-ish: melting is an O(1) map hit; alloys iterate the (small) registered
- * recipe set; parts iterate the (small) PartType list per resolved material. Tooltip events
- * fire only when an item is hovered, so the per-hover cost is fine without caching.
+ * <p>Adds two independent tooltip blocks: a "can be made into parts" list driven by
+ * {@link PartEligibility}, and a "can be melted into" line (optionally followed by a "used in
+ * alloys" list) driven by {@link MeltingRecipe} + {@link AlloyRecipe} lookups.
  */
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class MaterialSourceTooltipHandler {
 
     private MaterialSourceTooltipHandler() {}
 
+    /**
+     * Appends smithery part-source and melt-into tooltips to the hovered item's tooltip.
+     *
+     * @param event NeoForge's item-tooltip event whose stack is inspected
+     */
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {
         ItemStack stack = event.getItemStack();
@@ -62,15 +55,6 @@ public final class MaterialSourceTooltipHandler {
         appendMeltingTooltip(stack, tooltip);
     }
 
-    // ---------------------------------------------------------------------
-    //  "Can be made into parts: ..."
-    // ---------------------------------------------------------------------
-
-    /**
-     * Resolves the smithery material this item is a source for, or null if it's not a
-     * recognised smithery source. Mirrors {@code PartPressBlockEntity.resolveMaterialFor}
-     * for press inputs and adds the bowstring hand-craft sources.
-     */
     private static @Nullable Identifier resolveMaterialForTooltip(ItemStack stack) {
         if (stack.is(ItemTags.LOGS))         return SmitheryMaterials.WOOD;
         if (stack.is(Items.FLINT))           return SmitheryMaterials.FLINT;
@@ -78,8 +62,6 @@ public final class MaterialSourceTooltipHandler {
         if (stack.is(Items.RESIN_CLUMP))     return SmitheryMaterials.RESIN;
         if (isCoralBlockItem(stack))         return SmitheryMaterials.CORAL;
 
-        // Bowstring hand-craft sources. The 1:1 shaped recipes in data/smithery/recipe/
-        // turn each of these into the corresponding bowstring PartItem.
         if (stack.is(Items.STRING))                              return SmitheryMaterials.STRING;
         if (stack.is(SmitheryItems.FLAMESTRING.get()))           return SmitheryMaterials.FLAMESTRING;
         if (stack.is(SmitheryItems.BREEZESTRING.get()))          return SmitheryMaterials.BREEZESTRING;
@@ -102,9 +84,6 @@ public final class MaterialSourceTooltipHandler {
         Identifier matId = resolveMaterialForTooltip(stack);
         if (matId == null) return;
 
-        // Walk every registered PartType and keep the ones where (part × material) is allowed
-        // by PartEligibility. Synthetic-cast parts (ingot / nugget) are skipped — those are
-        // already "raw resource" outputs and don't make sense in a "made into parts" list.
         List<PartType> eligible = new ArrayList<>();
         for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
             if (pt.syntheticCast()) continue;
@@ -121,22 +100,16 @@ public final class MaterialSourceTooltipHandler {
         }
     }
 
-    // ---------------------------------------------------------------------
-    //  "Can be melted into: ..." + "Used in alloys: ..."
-    // ---------------------------------------------------------------------
-
     private static void appendMeltingTooltip(ItemStack stack, List<Component> tooltip) {
         Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
         MeltingRecipe recipe = SmitheryAPI.MELTING_RECIPES.get(itemId);
         if (recipe == null) return;
 
         Identifier outMat = recipe.outputMaterialId();
-        // "Can be melted into: <molten material name>"
         tooltip.add(Component.translatable("tooltip." + Smithery.MODID + ".source.melt",
                 Component.translatable(moltenFluidLangKey(outMat)))
                 .withStyle(ChatFormatting.GRAY));
 
-        // Alloys: any registered alloy that takes outMat as one of its inputs.
         Set<Identifier> producedAlloys = new LinkedHashSet<>();
         for (AlloyRecipe ar : AlloyRecipes.all()) {
             for (AlloyRecipe.Input in : ar.inputs()) {
@@ -157,7 +130,6 @@ public final class MaterialSourceTooltipHandler {
         }
     }
 
-    /** Lang key for the molten fluid label that matches the SmitheryFluids registration. */
     private static String moltenFluidLangKey(Identifier materialId) {
         return "fluid." + materialId.getNamespace() + ".molten_" + materialId.getPath();
     }

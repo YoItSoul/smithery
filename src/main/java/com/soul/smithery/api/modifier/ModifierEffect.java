@@ -13,50 +13,57 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * An instance of a registered Modifier with a specific parameter set.
+ * One configured instance of a registered {@link Modifier} with a specific parameter set.
  *
- * The Modifier itself defines behavior (passive stat, active event hook, durability multiplier).
- * The ModifierEffect attaches one configured instance of that behavior to a (material, ToolType)
- * pair, a synergy, or a post-craft modifier item.
+ * <p>The {@link Modifier} defines behavior (passive stat, active event hook, durability
+ * multiplier); a ModifierEffect attaches one configured instance of that behavior to a
+ * (material, ToolType) pair, a synergy, or a post-craft modifier item. Params are stored as a
+ * boxed map and read via the {@code paramX(name, default)} accessors.
  */
 public final class ModifierEffect {
     private final Identifier modifierId;
     private final Map<String, Object> params;
 
+    /** Constructs an effect referencing {@code modifierId} with the given parameter map. */
     public ModifierEffect(Identifier modifierId, Map<String, Object> params) {
         this.modifierId = Objects.requireNonNull(modifierId, "modifierId");
         this.params = params == null ? Map.of() : Collections.unmodifiableMap(new HashMap<>(params));
     }
 
+    /** Identifier of the {@link Modifier} this effect references. */
     public Identifier modifierId() { return modifierId; }
+
+    /** Unmodifiable view of this effect's parameter map. */
     public Map<String, Object> params() { return params; }
 
+    /** Raw parameter lookup (returns {@code null} if missing). */
     public Object param(String key) { return params.get(key); }
+
+    /** Reads a float-typed parameter, returning {@code def} when missing or non-numeric. */
     public float paramFloat(String key, float def) {
         Object v = params.get(key);
         return v instanceof Number n ? n.floatValue() : def;
     }
+
+    /** Reads an int-typed parameter, returning {@code def} when missing or non-numeric. */
     public int paramInt(String key, int def) {
         Object v = params.get(key);
         return v instanceof Number n ? n.intValue() : def;
     }
+
+    /** Reads a boolean-typed parameter, returning {@code def} when missing or non-boolean. */
     public boolean paramBool(String key, boolean def) {
         Object v = params.get(key);
         return v instanceof Boolean b ? b : def;
     }
 
+    /** Convenience factory for a parameterless effect. */
     public static ModifierEffect of(Identifier id) { return new ModifierEffect(id, Map.of()); }
+
+    /** Convenience factory carrying parameters. */
     public static ModifierEffect of(Identifier id, Map<String, Object> params) { return new ModifierEffect(id, params); }
 
     @Override public String toString() { return "ModifierEffect[" + modifierId + ", " + params + "]"; }
-
-    // ---- Codecs for persistence (data components) + network sync ----
-    //
-    // Params are serialized as a String → Float map. This covers every currently-registered
-    // modifier param (chance, radius, duration_ticks, damage, etc.). int-typed params survive
-    // because the param accessor (paramInt) casts the stored Number via floatValue(). Booleans
-    // are not supported in v1 — no modifier currently uses them; if one's added later, extend
-    // the codec to a tagged variant rather than a raw float map.
 
     private static Map<String, Object> floatMapToObjectMap(Map<String, Float> floats) {
         Map<String, Object> out = new HashMap<>(floats.size());
@@ -72,6 +79,7 @@ public final class ModifierEffect {
         return out;
     }
 
+    /** Codec used for persistence (data components) and JSON serialization. Params encode as a string-to-float map. */
     public static final Codec<ModifierEffect> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("id").forGetter(ModifierEffect::modifierId),
             Codec.unboundedMap(Codec.STRING, Codec.FLOAT)
@@ -79,6 +87,7 @@ public final class ModifierEffect {
                     .forGetter(e -> objectMapToFloatMap(e.params()))
     ).apply(i, (id, params) -> new ModifierEffect(id, floatMapToObjectMap(params))));
 
+    /** Stream codec used for network sync. */
     public static final StreamCodec<ByteBuf, ModifierEffect> STREAM_CODEC = StreamCodec.composite(
             Identifier.STREAM_CODEC,                                  ModifierEffect::modifierId,
             ByteBufCodecs.map(java.util.HashMap::new,

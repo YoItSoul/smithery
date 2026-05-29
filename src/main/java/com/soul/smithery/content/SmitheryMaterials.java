@@ -9,97 +9,119 @@ import net.minecraft.resources.Identifier;
 import java.util.Map;
 
 /**
- * Built-in materials.
+ * Built-in material registrations exposed as static identifier handles.
  *
- * <h3>Tier organization</h3>
- * <ul>
- *   <li><b>Starters</b> — wood, copper, gold, iron — vanilla-tool-equivalent stats</li>
- *   <li><b>Meltable specialty</b> — stone, lapis, redstone, prismarine, blaze, amethyst,
- *       diamond, emerald, netherite, bedrock — each has a melting recipe and (when meltingTemp > 0)
- *       a corresponding molten fluid auto-bootstrapped by SmitheryFluids.</li>
- *   <li><b>Non-meltable specialty</b> — flint, slime, resin, coral — no forge route, must be
- *       obtained by future crafting recipes (TODO).</li>
- * </ul>
+ * <p>Materials fall into four families: starters (wood/copper/gold/iron), meltable specialty
+ * (stone/lapis/redstone/prismarine/blaze/amethyst/diamond/emerald/netherite/bedrock), non-meltable
+ * specialty (flint/slime/resin/coral), and bowstring-class strings. A material's binder
+ * contribution drives modifier slot count and the multiplicative durability term; non-binder
+ * roles grant no slots.
  *
- * <h3>Modifier slots — binder-only model</h3>
- * Modifier slot count is determined SOLELY by the binder material. Non-binder parts
- * (blade/head/handle/guard) grant 0 modifier slots regardless of their material. So a
- * tool's total slot count = its binder material's binder-slot grant. Binder choice
- * therefore drives "how many modifiers can I stack on this tool" independently of the
- * blade/head choice (which drives damage/mining speed/harvest level).
- *
- * <p>Binders also drive durability via {@code binderMultiplier} — the tool's additive
- * durability gets multiplied by this. So a slime binder (1.5×) makes the tool more
- * durable; a gold binder (0.7×) makes it less. Binder slot count and binder multiplier
- * together summarize "what does this binder do" — nothing else flows from the binder.
- *
- * Stat values are starting points; tune as gameplay shakes out.
+ * <p>Stat values are tuned starting points; the iron-iron-wood-iron sword is the canonical
+ * anchor against vanilla.
  */
 public final class SmitheryMaterials {
+    /** Identifier of the built-in wood material. */
     public static Identifier WOOD;
+    /** Identifier of the built-in copper material. */
     public static Identifier COPPER;
+    /** Identifier of the built-in gold material. */
     public static Identifier GOLD;
+    /** Identifier of the built-in iron material. */
     public static Identifier IRON;
-    // Meltable specialty materials.
+    /** Identifier of the built-in stone material. */
     public static Identifier STONE;
+    /** Identifier of the built-in lapis material. */
     public static Identifier LAPIS;
+    /** Identifier of the built-in redstone material. */
     public static Identifier REDSTONE;
+    /** Identifier of the built-in prismarine material. */
     public static Identifier PRISMARINE;
+    /** Identifier of the built-in blaze material. */
     public static Identifier BLAZE;
+    /** Identifier of the built-in amethyst material. */
     public static Identifier AMETHYST;
+    /** Identifier of the built-in diamond material. */
     public static Identifier DIAMOND;
+    /** Identifier of the built-in emerald material. */
     public static Identifier EMERALD;
+    /** Identifier of the built-in netherite material. */
     public static Identifier NETHERITE;
-    public static Identifier ANCIENT_DEBRIS;     // cast-only — fluid intermediate for netherite alloy
+    /** Identifier of the cast-only ancient-debris intermediate that feeds the netherite alloy. */
+    public static Identifier ANCIENT_DEBRIS;
+    /** Identifier of the built-in bedrock material. */
     public static Identifier BEDROCK;
-    // Non-meltable specialty materials.
+    /** Identifier of the slimeknightium easter-egg alloy material. */
+    public static Identifier SLIMEKNIGHTIUM;
+    /** Identifier of the neoforgium easter-egg alloy material (hidden from JEI). */
+    public static Identifier NEOFORGIUM;
+    /** Identifier of the generic mob-blood fluid material. */
+    public static Identifier BLOOD;
+    /** Identifier of the fox-specific blood fluid material that feeds the neoforgium alloy. */
+    public static Identifier FOX_BLOOD;
+    /** Identifier of the built-in flint material. */
     public static Identifier FLINT;
+    /** Identifier of the built-in slime material. */
     public static Identifier SLIME;
+    /** Identifier of the built-in resin material. */
     public static Identifier RESIN;
+    /** Identifier of the built-in coral material. */
     public static Identifier CORAL;
-    // Bowstring-class materials — restricted via PartEligibility to the BOWSTRING part type
-    // (and any future ranged-weapon string slot — crossbow etc.).
+    /** Identifier of the vanilla-string bowstring-class material. */
     public static Identifier STRING;
+    /** Identifier of the flame-themed bowstring-class material. */
     public static Identifier FLAMESTRING;
+    /** Identifier of the breeze-themed bowstring-class material. */
     public static Identifier BREEZESTRING;
+    /** Identifier of the red-slime material (bowstring-eligible and unrestricted general use). */
     public static Identifier RED_SLIME;
+    /** Identifier of the kelp-string bowstring-class material. */
     public static Identifier KELP_STRING;
 
+    /**
+     * Registers every built-in material plus the bowstring eligibility allow-list and
+     * material-side restrictions for string-class materials.
+     *
+     * <p>Must run after {@link SmitheryPartTypes#register()} so the binder part type id is
+     * available.
+     */
     public static void register() {
-        // ────────────────────────── Starters ──────────────────────────
 
         WOOD = id("wood");
         SmitheryAPI.registerMaterial(WOOD, binderSlots(MaterialStats.builder()
                 .harvestLevel(0)
                 .miningSpeed(2.0f)
-                .attackDamage(0.5f)
-                .durabilityPerIngot(60)
-                .meltingTemp(0f)             // wood doesn't melt
+                .attackDamage(2.0f)
+                .durabilityPerIngot(35)
+                .meltingTemp(0f)
                 .moltenColor(0xFF8B5A2B)
                 .partColor(0xFF8B5A2B)
-                .binderMultiplier(0.7f), 1).build());
+                .binderMultiplier(1.0f), 1)
+                .armor(35f, 1f, 5f, 0.85f, 0f, 3f)
+                .build());
 
         COPPER = id("copper");
         SmitheryAPI.registerMaterial(COPPER, binderSlots(MaterialStats.builder()
                 .harvestLevel(2)
-                .miningSpeed(6.0f)
-                .attackDamage(1.5f)
-                .durabilityPerIngot(80)
+                .miningSpeed(5.3f)
+                .attackDamage(3.0f)
+                .durabilityPerIngot(210)
                 .meltingTemp(1085f)
                 .moltenColor(0xFFFF7733)
                 .partColor(0xFFB87333)
-                .binderMultiplier(0.85f), 1)
+                .binderMultiplier(1.05f), 1)
                 .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.VERDANT,
                         Map.of("chance", 0.15f, "duration_ticks", 60))
                 .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.CORROSIVE,
                         Map.of("chance", 0.25f, "duration_ticks", 100, "amplifier", 1))
+                .armor(210f, 11f, 50f, 1.0f, 0f, 14f)
                 .build());
 
         GOLD = id("gold");
         SmitheryAPI.registerMaterial(GOLD, binderSlots(MaterialStats.builder()
                 .harvestLevel(2)
                 .miningSpeed(12.0f)
-                .attackDamage(1.0f)
+                .attackDamage(4.0f)
                 .durabilityPerIngot(32)
                 .meltingTemp(1064f)
                 .moltenColor(0xFFFFE066)
@@ -109,128 +131,130 @@ public final class SmitheryMaterials {
                         Map.of("xp_multiplier", 1.25f))
                 .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.GILDED,
                         Map.of("xp_multiplier", 1.25f))
-                // Gold pickaxes intrinsically grant the data-driven smithery:golden_touch
-                // modifier — emulates Fortune-on-ores via BlockDropsEvent. See
-                // data/smithery/smithery/modifier/golden_touch.json.
                 .addModifier(SmitheryToolTypes.PICKAXE,
                         Identifier.fromNamespaceAndPath(Smithery.MODID, "golden_touch"))
+                .armor(32f, 7f, 10f, 0.7f, 0f, 5f)
                 .build());
 
         IRON = id("iron");
         SmitheryAPI.registerMaterial(IRON, binderSlots(MaterialStats.builder()
                 .harvestLevel(2)
-                .miningSpeed(6.5f)
-                .attackDamage(2.0f)
-                .durabilityPerIngot(150)
+                .miningSpeed(6.0f)
+                .attackDamage(4.0f)
+                .durabilityPerIngot(204)
                 .meltingTemp(1538f)
                 .moltenColor(0xFFFFAA55)
                 .partColor(0xFFCFCFCF)
-                .binderMultiplier(1.0f), 2)
-                .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.SHARP,
-                        Map.of("damage", 2.0f))
+                .binderMultiplier(0.85f), 2)
                 .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.MAGNETIZED,
                         Map.of("radius", 5.0f))
+                .armor(204f, 15f, 50f, 1.0f, 0f, 15f)
                 .build());
-
-        // ────────────────────────── Meltable specialty ──────────────────────────
 
         STONE = id("stone");
         SmitheryAPI.registerMaterial(STONE, binderSlots(MaterialStats.builder()
                 .harvestLevel(1)
                 .miningSpeed(4.0f)
-                .attackDamage(1.0f)
-                .durabilityPerIngot(131)        // vanilla stone-tool durability
+                .attackDamage(3.0f)
+                .durabilityPerIngot(120)
                 .meltingTemp(800f)
                 .moltenColor(0xFFAAAAAA)
                 .partColor(0xFF7E7E7E)
-                .binderMultiplier(0.8f), 1).build());
+                .binderMultiplier(0.5f), 1)
+                .armor(120f, 5f, 20f, 0.95f, 0f, 8f)
+                .build());
 
         LAPIS = id("lapis");
         SmitheryAPI.registerMaterial(LAPIS, binderSlots(MaterialStats.builder()
                 .harvestLevel(1)
                 .miningSpeed(4.5f)
-                .attackDamage(1.5f)
+                .attackDamage(3.0f)
                 .durabilityPerIngot(150)
                 .meltingTemp(850f)
                 .moltenColor(0xFF2030C0)
                 .partColor(0xFF345DD0)
-                .binderMultiplier(0.8f), 2).build());
+                .binderMultiplier(0.8f), 2)
+                .armor(150f, 6f, 25f, 0.85f, 0f, 10f)
+                .build());
 
         REDSTONE = id("redstone");
         SmitheryAPI.registerMaterial(REDSTONE, binderSlots(MaterialStats.builder()
                 .harvestLevel(2)
                 .miningSpeed(5.5f)
-                .attackDamage(1.0f)
-                .durabilityPerIngot(120)
-                .meltingTemp(700f)              // low melt — soft material
+                .attackDamage(3.0f)
+                .durabilityPerIngot(150)
+                .meltingTemp(700f)
                 .moltenColor(0xFFFF0000)
                 .partColor(0xFFAA0000)
-                .binderMultiplier(0.7f), 1).build());
+                .binderMultiplier(0.7f), 1)
+                .armor(150f, 5f, 25f, 0.8f, 0f, 10f)
+                .build());
 
         PRISMARINE = id("prismarine");
         SmitheryAPI.registerMaterial(PRISMARINE, binderSlots(MaterialStats.builder()
                 .harvestLevel(1)
-                .miningSpeed(5.0f)
-                .attackDamage(1.5f)
-                .durabilityPerIngot(200)
+                .miningSpeed(5.5f)
+                .attackDamage(6.2f)
+                .durabilityPerIngot(430)
                 .meltingTemp(900f)
                 .moltenColor(0xFF5FA3A3)
                 .partColor(0xFF7CB3A8)
-                .binderMultiplier(0.9f), 2).build());
+                .binderMultiplier(0.6f), 2)
+                .armor(430f, 14f, 60f, 1.0f, 1f, 20f)
+                .build());
 
         BLAZE = id("blaze");
         SmitheryAPI.registerMaterial(BLAZE, binderSlots(MaterialStats.builder()
                 .harvestLevel(2)
-                .miningSpeed(7.0f)
-                .attackDamage(2.5f)
-                .durabilityPerIngot(180)
+                .miningSpeed(6.0f)
+                .attackDamage(5.5f)
+                .durabilityPerIngot(550)
                 .meltingTemp(1200f)
                 .moltenColor(0xFFFF7700)
                 .partColor(0xFFFFAA00)
-                .binderMultiplier(1.0f), 2).build());
-        // TODO blaze items should ALSO be a high-heat fuel source for the forge — separate
-        // fuel registry, wire when the fuel/heat system gets revisited.
+                .binderMultiplier(1.0f), 2)
+                .armor(550f, 12f, 60f, 1.0f, 1f, 20f)
+                .build());
 
         AMETHYST = id("amethyst");
         SmitheryAPI.registerMaterial(AMETHYST, binderSlots(MaterialStats.builder()
                 .harvestLevel(2)
                 .miningSpeed(6.0f)
-                .attackDamage(2.0f)
-                .durabilityPerIngot(180)
+                .attackDamage(4.0f)
+                .durabilityPerIngot(200)
                 .meltingTemp(1100f)
                 .moltenColor(0xFFB070F0)
                 .partColor(0xFFA85FE6)
-                .binderMultiplier(0.9f), 2).build());
+                .binderMultiplier(0.9f), 2)
+                .armor(200f, 8f, 30f, 0.9f, 0f, 12f)
+                .build());
 
         DIAMOND = id("diamond");
         SmitheryAPI.registerMaterial(DIAMOND, binderSlots(MaterialStats.builder()
                 .harvestLevel(3)
                 .miningSpeed(8.0f)
-                .attackDamage(3.0f)
-                .durabilityPerIngot(250)
+                .attackDamage(5.0f)
+                .durabilityPerIngot(500)
                 .meltingTemp(1800f)
                 .moltenColor(0xFF00CCCC)
                 .partColor(0xFF4FE2E0)
                 .binderMultiplier(1.0f), 3)
-                .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.SHARP,
-                        Map.of("damage", 3.0f))
+                .armor(500f, 20f, 80f, 1.1f, 2f, 30f)
                 .build());
 
         EMERALD = id("emerald");
         SmitheryAPI.registerMaterial(EMERALD, binderSlots(MaterialStats.builder()
                 .harvestLevel(3)
                 .miningSpeed(7.5f)
-                .attackDamage(2.5f)
-                .durabilityPerIngot(200)
+                .attackDamage(5.0f)
+                .durabilityPerIngot(400)
                 .meltingTemp(1500f)
                 .moltenColor(0xFF50C878)
                 .partColor(0xFF50C878)
-                .binderMultiplier(1.0f), 3).build());
+                .binderMultiplier(1.0f), 3)
+                .armor(400f, 18f, 70f, 1.05f, 1f, 25f)
+                .build());
 
-        // Ancient debris — fluid-only intermediate consumed by the netherite alloy recipe.
-        // castOnly suppresses PartItem generation; the material exists purely so its molten
-        // fluid (auto-bootstrapped because meltingTemp > 0) can sit in the forge waiting to
-        // be combined with molten gold via data/smithery/smithery/alloy/netherite.json.
         ANCIENT_DEBRIS = id("ancient_debris");
         SmitheryAPI.registerMaterial(ANCIENT_DEBRIS, MaterialStats.builder()
                 .harvestLevel(3)
@@ -238,7 +262,7 @@ public final class SmitheryMaterials {
                 .attackDamage(2.5f)
                 .durabilityPerIngot(180)
                 .meltingTemp(1800f)
-                .moltenColor(0xFF503535)         // dark reddish-brown
+                .moltenColor(0xFF503535)
                 .partColor(0xFF433333)
                 .binderMultiplier(1.0f)
                 .castOnly(true)
@@ -247,83 +271,124 @@ public final class SmitheryMaterials {
         NETHERITE = id("netherite");
         SmitheryAPI.registerMaterial(NETHERITE, binderSlots(MaterialStats.builder()
                 .harvestLevel(4)
-                .miningSpeed(9.0f)
-                .attackDamage(4.0f)
-                .durabilityPerIngot(350)
+                .miningSpeed(7.0f)
+                .attackDamage(8.72f)
+                .durabilityPerIngot(820)
                 .meltingTemp(2200f)
                 .moltenColor(0xFF402F2D)
                 .partColor(0xFF4D4946)
                 .binderMultiplier(1.2f), 4)
-                .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.SHARP,
-                        Map.of("damage", 4.0f))
+                .armor(820f, 20f, 100f, 1.2f, 3f, 40f)
                 .build());
-        // TODO netherite is technically an alloy of gold + ancient debris — when the
-        // alloying system lands, replace the direct netherite_scrap/ingot melt route with
-        // an alloy recipe (4 gold + 4 ancient-debris fluid → 1 netherite ingot worth).
 
         BEDROCK = id("bedrock");
         SmitheryAPI.registerMaterial(BEDROCK, binderSlots(MaterialStats.builder()
-                .harvestLevel(5)                 // beyond netherite — endgame
+                .harvestLevel(5)
                 .miningSpeed(12.0f)
-                .attackDamage(5.0f)
-                .durabilityPerIngot(1000)
-                .meltingTemp(11000f)             // 5× netherite — needs a fuel beyond molten blaze
+                .attackDamage(10.0f)
+                .durabilityPerIngot(1500)
+                .meltingTemp(11000f)
                 .moltenColor(0xFF1A1A1A)
                 .partColor(0xFF333333)
-                .binderMultiplier(2.0f), 5).build());
+                .binderMultiplier(2.0f), 5)
+                .armor(1500f, 25f, 200f, 1.5f, 5f, 80f)
+                .build());
 
-        // ────────────────────────── Non-meltable specialty ──────────────────────────
+        SLIMEKNIGHTIUM = id("slimeknightium");
+        SmitheryAPI.registerMaterial(SLIMEKNIGHTIUM, binderSlots(MaterialStats.builder()
+                .harvestLevel(3)
+                .miningSpeed(5.8f)
+                .attackDamage(5.1f)
+                .durabilityPerIngot(850)
+                .meltingTemp(1700f)
+                .moltenColor(0xFF992233)
+                .partColor(0xFFCC2233)
+                .binderMultiplier(0.5f), 3)
+                .armor(850f, 17f, 90f, 1.1f, 2f, 35f)
+                .build());
+
+        NEOFORGIUM = id("neoforgium");
+        SmitheryAPI.registerMaterial(NEOFORGIUM, binderSlots(MaterialStats.builder()
+                .harvestLevel(3)
+                .miningSpeed(7.0f)
+                .attackDamage(8.72f)
+                .durabilityPerIngot(820)
+                .meltingTemp(1700f)
+                .moltenColor(0xFF8B0000)
+                .partColor(0xFF7A0E1A)
+                .binderMultiplier(0.5f), 3)
+                .armor(820f, 18f, 100f, 1.15f, 3f, 35f)
+                .build());
+
+        BLOOD = id("blood");
+        SmitheryAPI.registerMaterial(BLOOD, MaterialStats.builder()
+                .harvestLevel(0).miningSpeed(0f).attackDamage(0f).durabilityPerIngot(0)
+                .meltingTemp(50f)
+                .moltenColor(0xFFB22222)
+                .partColor(0xFFB22222)
+                .binderMultiplier(1.0f)
+                .castOnly(true)
+                .fluidBase(MaterialStats.FluidBase.WATER)
+                .build());
+
+        FOX_BLOOD = id("fox_blood");
+        SmitheryAPI.registerMaterial(FOX_BLOOD, MaterialStats.builder()
+                .harvestLevel(0).miningSpeed(0f).attackDamage(0f).durabilityPerIngot(0)
+                .meltingTemp(50f)
+                .moltenColor(0xFF8B1A1A)
+                .partColor(0xFF8B1A1A)
+                .binderMultiplier(1.0f)
+                .castOnly(true)
+                .fluidBase(MaterialStats.FluidBase.WATER)
+                .build());
 
         FLINT = id("flint");
         SmitheryAPI.registerMaterial(FLINT, binderSlots(MaterialStats.builder()
                 .harvestLevel(1)
-                .miningSpeed(4.0f)
-                .attackDamage(2.0f)              // naturally sharp
-                .durabilityPerIngot(100)
+                .miningSpeed(5.0f)
+                .attackDamage(2.9f)
+                .durabilityPerIngot(150)
                 .meltingTemp(0f)
                 .partColor(0xFF5A5A5A)
-                .binderMultiplier(0.7f), 1).build());
+                .binderMultiplier(0.6f), 1)
+                .armor(150f, 3f, 15f, 0.85f, 0f, 8f)
+                .build());
 
         SLIME = id("slime");
         SmitheryAPI.registerMaterial(SLIME, binderSlots(MaterialStats.builder()
                 .harvestLevel(0)
-                .miningSpeed(3.0f)
-                .attackDamage(1.0f)
-                .durabilityPerIngot(80)
+                .miningSpeed(4.24f)
+                .attackDamage(1.8f)
+                .durabilityPerIngot(1000)
                 .meltingTemp(0f)
                 .partColor(0xFF7FCD33)
-                .binderMultiplier(1.5f), 3).build());          // sticky → great binder, high slot count
+                .binderMultiplier(0.7f), 3)
+                .armor(1000f, 5f, 30f, 0.9f, 0f, 30f)
+                .build());
 
         RESIN = id("resin");
         SmitheryAPI.registerMaterial(RESIN, binderSlots(MaterialStats.builder()
                 .harvestLevel(1)
                 .miningSpeed(4.5f)
-                .attackDamage(1.5f)
+                .attackDamage(3.0f)
                 .durabilityPerIngot(150)
                 .meltingTemp(0f)
                 .partColor(0xFFFF8C00)
-                .binderMultiplier(1.1f), 2).build());
+                .binderMultiplier(1.1f), 2)
+                .armor(150f, 6f, 20f, 0.95f, 0f, 12f)
+                .build());
 
         CORAL = id("coral");
         SmitheryAPI.registerMaterial(CORAL, binderSlots(MaterialStats.builder()
                 .harvestLevel(1)
                 .miningSpeed(4.0f)
-                .attackDamage(1.0f)
+                .attackDamage(3.0f)
                 .durabilityPerIngot(120)
                 .meltingTemp(0f)
-                .partColor(0xFFE0E0E0)            // neutral base — per-coral-color variants TODO
-                .binderMultiplier(0.9f), 1).build());
-        // TODO support per-coral-color variants (tube/brain/bubble/fire/horn) that tint the
-        // tool to match. Either as 5 separate material ids or a single material with dynamic
-        // partColor stored on the ItemStack.
-
-        // ────────────────────────── Bowstring-class materials ──────────────────────────
-        //
-        // Restricted to the BOWSTRING part type (see PartEligibility registrations at the
-        // bottom of this method). Stats lean light & low-durability (these are string-like
-        // materials, not structural). binderMultiplier is set on the bowstring side — the
-        // bow's bowstring slot is the multiplicative role, so the multiplier scales total
-        // bow durability. Higher = more shots before breaking.
+                .partColor(0xFFE0E0E0)
+                .binderMultiplier(0.9f), 1)
+                .armor(120f, 4f, 15f, 0.9f, 0f, 8f)
+                .build());
 
         STRING = id("string");
         SmitheryAPI.registerMaterial(STRING, binderSlots(MaterialStats.builder()
@@ -332,7 +397,7 @@ public final class SmitheryMaterials {
                 .attackDamage(0.0f)
                 .durabilityPerIngot(50)
                 .meltingTemp(0f)
-                .partColor(0xFFE8E0C8)            // off-white
+                .partColor(0xFFE8E0C8)
                 .binderMultiplier(0.9f), 1).build());
 
         FLAMESTRING = id("flamestring");
@@ -342,7 +407,7 @@ public final class SmitheryMaterials {
                 .attackDamage(1.0f)
                 .durabilityPerIngot(120)
                 .meltingTemp(0f)
-                .partColor(0xFFFF6622)            // fiery orange
+                .partColor(0xFFFF6622)
                 .binderMultiplier(1.0f), 2).build());
 
         BREEZESTRING = id("breezestring");
@@ -352,18 +417,21 @@ public final class SmitheryMaterials {
                 .attackDamage(0.5f)
                 .durabilityPerIngot(140)
                 .meltingTemp(0f)
-                .partColor(0xFFB0E2FF)            // light wind blue
+                .partColor(0xFFB0E2FF)
                 .binderMultiplier(1.1f), 2).build());
 
         RED_SLIME = id("red_slime");
         SmitheryAPI.registerMaterial(RED_SLIME, binderSlots(MaterialStats.builder()
                 .harvestLevel(0)
-                .miningSpeed(1.0f)
-                .attackDamage(1.0f)
-                .durabilityPerIngot(100)
-                .meltingTemp(0f)
-                .partColor(0xFFCC2233)            // redstone-tinted slime
-                .binderMultiplier(1.3f), 3).build());
+                .miningSpeed(4.03f)
+                .attackDamage(1.8f)
+                .durabilityPerIngot(780)
+                .meltingTemp(600f)
+                .moltenColor(0xFFCC2233)
+                .partColor(0xFFCC2233)
+                .binderMultiplier(1.3f), 3)
+                .armor(780f, 4f, 25f, 0.9f, 0f, 25f)
+                .build());
 
         KELP_STRING = id("kelp_string");
         SmitheryAPI.registerMaterial(KELP_STRING, binderSlots(MaterialStats.builder()
@@ -372,13 +440,9 @@ public final class SmitheryMaterials {
                 .attackDamage(0.5f)
                 .durabilityPerIngot(160)
                 .meltingTemp(0f)
-                .partColor(0xFF3F8E45)            // kelp green
+                .partColor(0xFF3F8E45)
                 .binderMultiplier(1.1f), 2).build());
 
-        // ────── Bowstring eligibility whitelist ──────
-        // SLIME is also eligible (already a registered material). Code-registered here so
-        // the allow-list applies at SmitheryItems.registerBuiltInParts time — data-pack
-        // entries augment this set on /reload.
         Identifier bowstringId = SmitheryPartTypes.BOWSTRING.id();
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, STRING);
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, SLIME);
@@ -387,26 +451,12 @@ public final class SmitheryMaterials {
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, RED_SLIME);
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, KELP_STRING);
 
-        // Material-side restriction: the four remaining bowstring-class materials are eligible
-        // ONLY for the BOWSTRING part type (and any future ranged-weapon string slots — add
-        // additional part-type ids here when crossbow string / bowtruss land). Without this,
-        // a "string sword blade" would auto-generate as a part item since other part types
-        // are unrestricted by default.
-        //
-        // SLIME and RED_SLIME stay unrestricted — they're general-purpose binder/handle
-        // materials, and the design calls for red slime to mirror slime's part coverage.
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(STRING,       bowstringId);
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(FLAMESTRING,  bowstringId);
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(BREEZESTRING, bowstringId);
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(KELP_STRING,  bowstringId);
     }
 
-    /**
-     * Sets the modifier-slot count this material contributes WHEN USED AS THE BINDER part.
-     * All other part types implicitly grant 0 slots (the modifierSlots map returns 0 for
-     * keys not present). The tool's total modifier slot count is therefore exactly the
-     * binder material's binder-slot grant — a single deliberate choice per tool.
-     */
     private static MaterialStats.Builder binderSlots(MaterialStats.Builder b, int count) {
         return b.modifierSlots(SmitheryPartTypes.BINDER, count);
     }

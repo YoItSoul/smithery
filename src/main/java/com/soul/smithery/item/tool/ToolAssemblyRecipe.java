@@ -30,30 +30,26 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Shapeless crafting recipe that assembles a SmitheryToolItem from PartItem inputs.
- *
- * The required PartType counts are derived from the ToolType's slot list — the JSON only needs
- * to name the tool. Inputs are matched as a multiset of PartTypes (positions don't matter); the
- * resulting tool's ToolComposition is built by walking the ToolType's slot order and pulling
- * the material from each matched input stack.
- *
- * JSON shape:
- *   {
- *     "type": "smithery:tool_assembly",
- *     "tool_type": "smithery:sword",
- *     "group": "smithery_tools"
- *   }
+ * Shapeless crafting recipe that assembles a {@link SmitheryToolItem} from
+ * {@link PartItem} inputs. Required PartType counts are derived from the
+ * {@link ToolType}'s slot list, so the JSON only needs to name the tool; inputs are
+ * matched as a multiset of PartTypes and the resulting tool's {@link ToolComposition}
+ * is built by walking slot order and pulling each matched input's material.
  */
 public final class ToolAssemblyRecipe implements CraftingRecipe {
 
     private final Identifier toolTypeId;
     private final String group;
 
+    /**
+     * Constructs the recipe for a given tool type id and crafting-book group.
+     */
     public ToolAssemblyRecipe(Identifier toolTypeId, String group) {
         this.toolTypeId = toolTypeId;
         this.group = group;
     }
 
+    /** Returns the bound ToolType id. */
     public Identifier toolTypeId() { return toolTypeId; }
 
     @Override
@@ -73,7 +69,6 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
             if (stack.isEmpty()) continue;
             nonEmpty++;
             if (!(stack.getItem() instanceof PartItem partItem)) return false;
-            // Refuse silently if the player put in more than one of a single part stack.
             if (stack.getCount() != 1) return false;
             provided.merge(partItem.partTypeId(), 1, Integer::sum);
         }
@@ -135,8 +130,6 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
         return NonNullList.withSize(input.size(), ItemStack.EMPTY);
     }
 
-    // ---- Serializer ----
-
     private static final MapCodec<ToolAssemblyRecipe> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Identifier.CODEC.fieldOf("tool_type").forGetter(ToolAssemblyRecipe::toolTypeId),
             Codec.STRING.optionalFieldOf("group", "").forGetter(ToolAssemblyRecipe::group)
@@ -149,9 +142,11 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
                     ToolAssemblyRecipe::new
             );
 
+    /** Recipe serializer, registered into the recipe-serializer registry. */
     public static final RecipeSerializer<ToolAssemblyRecipe> SERIALIZER =
             new RecipeSerializer<>(CODEC, STREAM_CODEC);
 
+    /** Returns the fixed {@code smithery:tool_assembly} serializer id. */
     public static Identifier serializerId() {
         return Identifier.fromNamespaceAndPath(Smithery.MODID, "tool_assembly");
     }

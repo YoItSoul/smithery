@@ -9,60 +9,22 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Atomic behaviour primitive composed into modifier definitions.
+ * Atomic behavior primitive composed into modifier definitions.
  *
- * <h2>Why actions exist</h2>
- * Modifier <em>behaviour</em> can't live in JSON directly — JSON can't express arbitrary code.
- * The way to make modifiers data-driven is to define a fixed set of action <em>types</em>
- * (each a Java implementation) that JSON references by id with params. Modders extend the
- * library by registering new action types from their own Java mods; modpack authors compose
- * actions in JSON without touching any code.
+ * <p>Modifier behavior can't live in JSON directly, so Smithery exposes a fixed set of action
+ * <em>types</em> (each a Java implementation) that JSON references by id with parameters. Modders
+ * extend the library by registering new action types from their own Java mods; modpack authors
+ * compose actions in JSON without touching any code.
  *
- * <h2>Three categories</h2>
- * Actions are bucketed by which modifier hook they fire from:
- * <ul>
- *   <li>{@link Passive} — runs at tool-compose time to adjust {@link Modifier.MutablePassiveStats}
- *       (bonus damage, mining speed, durability multiplier).</li>
- *   <li>{@link OnAttack} — runs when a player attacks an entity with the tool.</li>
- *   <li>{@link OnBreak} — runs when a player breaks a block with the tool.</li>
- * </ul>
- * An action's "category" is determined by which sub-interface it implements (it can implement
- * multiple — e.g. a "shock" action that fires on both attack and break would implement both
- * {@link OnAttack} and {@link OnBreak}).
+ * <p>Actions are bucketed by which modifier hook they fire from — {@link Passive},
+ * {@link OnAttack}, {@link OnBreak}, {@link OnBlockDrops}, {@link OnKill}, {@link OnMobDrops},
+ * {@link OnCompose}. An action can implement more than one bucket (e.g. a "shock" action that
+ * fires on both attack and break).
  *
- * <h2>Param resolution</h2>
- * Action instances carry their parameter values as final fields populated from JSON via their
- * {@link ActionType#codec()}. Each runtime callback also receives the live {@link ModifierEffect}
- * — actions <em>may</em> consult {@code effect.paramFloat("name", default)} to allow a material
- * grant or anvil source to override the JSON-baked default. The convention is JSON-baked values
- * are <em>defaults</em>, runtime ModifierEffect params <em>override</em>.
- *
- * <h2>Registering a new action type (Java)</h2>
- * <pre>{@code
- *   public record SummonLightningAction(float chance) implements ModifierAction.OnAttack {
- *       public static final ActionType<SummonLightningAction> TYPE = ActionType.of(
- *               Identifier.fromNamespaceAndPath("yourmod", "summon_lightning"),
- *               RecordCodecBuilder.mapCodec(i -> i.group(
- *                       Codec.FLOAT.fieldOf("chance").forGetter(SummonLightningAction::chance)
- *               ).apply(i, SummonLightningAction::new)));
- *       public Identifier type() { return TYPE.id(); }
- *       public void execute(AttackContext ctx, ModifierEffect effect) {
- *           float roll = effect.paramFloat("chance", chance);
- *           if (ctx.target().level().getRandom().nextFloat() >= roll) return;
- *           // ... spawn lightning at target.position()
- *       }
- *   }
- *
- *   // In your mod init:
- *   ModifierAction.ON_ATTACK.register(SummonLightningAction.TYPE);
- * }</pre>
- *
- * <h2>Using an action from JSON</h2>
- * Place it in the appropriate bucket of a modifier file at
- * {@code data/<ns>/smithery/modifier/<id>.json}:
- * <pre>{@code
- *   { "on_attack": [ { "type": "yourmod:summon_lightning", "chance": 0.10 } ] }
- * }</pre>
+ * <p>Action instances carry their parameter values as final fields populated from JSON via their
+ * {@link ActionType#codec()}. Each runtime callback also receives the live {@link ModifierEffect};
+ * actions <em>may</em> consult {@code effect.paramFloat(...)} to allow a material grant or anvil
+ * source to override the JSON-baked default.
  */
 public interface ModifierAction {
 
@@ -71,69 +33,79 @@ public interface ModifierAction {
 
     /** Marker for actions invoked at tool-compose time to adjust passive stats. */
     interface Passive extends ModifierAction {
+        /** Mutates {@code stats} based on the effect's params. */
         void apply(Modifier.MutablePassiveStats stats, ModifierEffect effect);
     }
 
     /** Marker for actions invoked when a player attacks an entity with the tool. */
     interface OnAttack extends ModifierAction {
+        /** Executes the action against the given attack context. */
         void execute(Modifier.AttackContext ctx, ModifierEffect effect);
     }
 
-    /** Marker for actions invoked when a player breaks a block with the tool. */
+    /** Marker for actions invoked when a player breaks a block with the tool (pre-break). */
     interface OnBreak extends ModifierAction {
+        /** Executes the action against the given block-break context. */
         void execute(Modifier.BlockBreakContext ctx, ModifierEffect effect);
     }
 
     /**
-     * Fires AFTER a block has been broken and its drops spawned (NeoForge {@code BlockDropsEvent}).
-     * Receives the live mutable drops list and an XP accessor — use for drop manipulation
-     * (pull, multiply) or XP bonuses on block breaking.
+     * Marker for actions fired AFTER a block has been broken and its drops spawned (NeoForge
+     * {@code BlockDropsEvent}). Used for drop manipulation (pull, multiply) or XP bonuses.
      */
     interface OnBlockDrops extends ModifierAction {
+        /** Executes the action against the post-drop context. */
         void onDrops(Modifier.BlockDropsContext ctx, ModifierEffect effect);
     }
 
     /**
-     * Fires when an entity killed by the tool's owner drops XP (NeoForge {@code LivingExperienceDropEvent}).
-     * Receives an XP accessor and the victim entity — use for kill-XP multipliers, on-kill
-     * effects, and similar.
+     * Marker for actions fired when an entity killed by the tool's owner drops XP (NeoForge
+     * {@code LivingExperienceDropEvent}). Used for kill-XP multipliers and on-kill effects.
      */
     interface OnKill extends ModifierAction {
+        /** Executes the action against the kill context. */
         void onKill(Modifier.KillContext ctx, ModifierEffect effect);
     }
 
     /**
-     * Fires when an entity killed by the tool's owner drops items (NeoForge {@code LivingDropsEvent}).
-     * Receives the mutable drops collection — used for Looting-style emulation that scales
-     * drop counts per kill.
+     * Marker for actions fired when an entity killed by the tool's owner drops items (NeoForge
+     * {@code LivingDropsEvent}). Used for Looting-style emulation that scales drop counts.
      */
     interface OnMobDrops extends ModifierAction {
+        /** Executes the action against the mob-drops context. */
         void onDrops(Modifier.MobDropsContext ctx, ModifierEffect effect);
     }
 
     /**
      * Marker for actions invoked at tool-assembly time. Receives a {@link Modifier.ComposeContext}
-     * with the stack being assembled and an optional {@code HolderLookup.Provider} for any
-     * registry access the action needs (the enchantment registry, for instance, is data-pack
-     * driven and only reachable through a lookup provider).
+     * with the stack being assembled and an optional registry lookup for any registry access the
+     * action needs (the enchantment registry, for instance, is data-pack-driven and only
+     * reachable through a lookup provider).
      */
     interface OnCompose extends ModifierAction {
+        /** Executes the action against the compose context. */
         void apply(Modifier.ComposeContext ctx, ModifierEffect effect);
     }
 
     /**
-     * Type handle paired with its codec. Created via {@link #of} and registered into one of
-     * the three category registries below.
+     * Type handle paired with its codec.
+     *
+     * @param <A>   the concrete action type
+     * @param id    the action type id (matches the JSON {@code "type"} field)
+     * @param codec the {@link MapCodec} used to parse the remainder of the JSON object
      */
     record ActionType<A extends ModifierAction>(Identifier id, MapCodec<A> codec) {
+        /** Convenience constructor wrapping a type id and codec into an {@link ActionType}. */
         public static <A extends ModifierAction> ActionType<A> of(Identifier id, MapCodec<A> codec) {
             return new ActionType<>(id, codec);
         }
     }
 
     /**
-     * Per-category registry. Keyed by action id; the {@code dispatchCodec()} reads the JSON
+     * Per-category registry. Keyed by action id; the {@link #dispatchCodec()} reads the JSON
      * {@code "type"} field and looks up the right sub-codec to parse the remainder.
+     *
+     * @param <A> the marker sub-interface this registry handles
      */
     final class Registry<A extends ModifierAction> {
         private final Map<Identifier, ActionType<? extends A>> entries = new LinkedHashMap<>();
@@ -141,8 +113,6 @@ public interface ModifierAction {
 
         @SuppressWarnings("unchecked")
         Registry() {
-            // Dispatch: read "type", look up codec, parse rest of object. If "type" doesn't
-            // match any registered action, parsing fails — surfaced as a /reload log entry.
             this.dispatchCodec = Identifier.CODEC.dispatch(
                     "type",
                     ModifierAction::type,
@@ -152,13 +122,16 @@ public interface ModifierAction {
                     });
         }
 
+        /** Registers an action type into this category and returns it. */
         public <T extends A> ActionType<T> register(ActionType<T> type) {
             entries.put(type.id(), type);
             return type;
         }
 
+        /** Dispatch codec keyed by {@code "type"} that parses any registered action of this category. */
         public Codec<A> dispatchCodec() { return dispatchCodec; }
 
+        /** Unmodifiable view of every registered (id to action type) entry. */
         public Map<Identifier, ActionType<? extends A>> all() {
             return Collections.unmodifiableMap(entries);
         }

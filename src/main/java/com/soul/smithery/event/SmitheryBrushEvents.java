@@ -14,43 +14,35 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
 
 /**
- * Game-bus event handlers that adapt vanilla's brush-use mechanic to the Casting Table.
+ * Adapts vanilla's brush-use ticking to {@link CastingTableBlockEntity} so the casting table
+ * accepts brushing the same way suspicious sand does.
  *
- * Background: vanilla {@code BrushItem.useOn} puts the player into the long brush-use
- * animation regardless of target block, then {@code onUseTick} per-tick checks
- * {@code instanceof BrushableBlockEntity} before advancing the brush state. Since our
- * Casting Table BE is NOT a {@link net.minecraft.world.level.block.entity.BrushableBlockEntity}
- * (its constructor hardcodes its own BE type, so we can't simply extend it), the
- * vanilla per-tick logic skips us — we'd get the use animation but no brushing.
- *
- * This handler closes that gap: on every server-side tick where the player is using
- * a brush, we raycast their look direction and — if it lands on a CastingTableBlockEntity —
- * advance our state-machine on the same 10-tick cadence vanilla uses. The result is
- * a brushing experience visually identical to suspicious-sand.
+ * <p>Vanilla {@code BrushItem.onUseTick} only advances brush state when the targeted BE is a
+ * {@code BrushableBlockEntity}; smithery's casting table is its own BE type and would otherwise
+ * see the animation without state changes. This handler raycasts on the matching 10-tick cadence
+ * and calls {@code tryBrush} when the player is aiming at a casting table.
  */
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class SmitheryBrushEvents {
 
-    /** Vanilla BrushItem.getUseDuration() returns 200 ticks. */
     private static final int BRUSH_USE_DURATION_TICKS = 200;
-    /** Vanilla BrushItem advances brush state every 10 ticks (1 stroke = ½ second). */
     private static final int BRUSH_ADVANCE_INTERVAL_TICKS = 10;
 
+    /**
+     * Server-side tick handler that advances casting-table brush state on the same cadence
+     * vanilla brushing uses.
+     *
+     * @param event NeoForge's per-tick item-use event
+     */
     @SubscribeEvent
     public static void onBrushTick(LivingEntityUseItemEvent.Tick event) {
         if (!(event.getEntity() instanceof Player player)) return;
         if (!event.getItem().is(Items.BRUSH)) return;
-        // Authoritative state lives on the server — particles/animation are vanilla
-        // BrushItem's job and they're already running because useOn returned CONSUME.
         if (player.level().isClientSide()) return;
 
-        // Only advance on the exact tick boundaries vanilla brush uses. Skip the
-        // very first tick of use (elapsed == 0) so right-clicking once doesn't
-        // immediately mutate state — matches "press and hold" feel.
         int elapsed = BRUSH_USE_DURATION_TICKS - event.getDuration();
         if (elapsed <= 0 || elapsed % BRUSH_ADVANCE_INTERVAL_TICKS != 0) return;
 
-        // Same raycast vanilla BrushItem uses to find the targeted block.
         HitResult hr = ProjectileUtil.getHitResultOnViewVector(
                 player, EntitySelector.CAN_BE_PICKED, player.blockInteractionRange());
         if (!(hr instanceof BlockHitResult bhr) || bhr.getType() == HitResult.Type.MISS) return;

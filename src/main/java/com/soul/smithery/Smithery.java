@@ -23,14 +23,27 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.slf4j.Logger;
 
+/**
+ * Mod entry point.
+ *
+ * <p>Hosts the {@code @Mod} hook, the shared logger, the creative-mode tab registrations, and
+ * orchestrates the load-bearing registration order between Smithery API content, deferred-register
+ * content (items / blocks / fluids / etc.), and common setup. The constructor wires every
+ * subsystem onto the mod event bus.
+ */
 @Mod(Smithery.MODID)
 public class Smithery {
+    /** Mod identifier used as the namespace for every {@code Identifier} this mod creates. */
     public static final String MODID = "smithery";
+
+    /** Shared SLF4J logger for the mod. */
     public static final Logger LOGGER = LogUtils.getLogger();
 
+    /** Deferred register backing all Smithery creative-mode tabs. */
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
+    /** Creative tab listing every auto-generated PartItem. */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> PARTS_TAB =
             CREATIVE_MODE_TABS.register("parts_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".parts"))
@@ -45,6 +58,7 @@ public class Smithery {
                             .forEach(di -> output.accept(di.get())))
                     .build());
 
+    /** Creative tab listing Smithery's placeable blocks (forge controller, casting table, etc.). */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> BLOCKS_TAB =
             CREATIVE_MODE_TABS.register("blocks_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".blocks"))
@@ -64,13 +78,12 @@ public class Smithery {
                     })
                     .build());
 
+    /** Creative tab listing every registered molten-material bucket. */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> FLUIDS_TAB =
             CREATIVE_MODE_TABS.register("fluids_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".fluids"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> {
-                        // Default-icon fallback: iron bucket if registered, otherwise the first
-                        // registered molten bucket, otherwise vanilla iron ingot as a last resort.
                         var ironEntry = com.soul.smithery.registry.SmitheryFluids.forMaterial(
                                 com.soul.smithery.content.SmitheryMaterials.IRON);
                         if (ironEntry != null) return ironEntry.bucket.get().getDefaultInstance();
@@ -81,12 +94,6 @@ public class Smithery {
                         return net.minecraft.world.item.Items.IRON_INGOT.getDefaultInstance();
                     })
                     .displayItems((params, output) -> {
-                        // Iterate the live fluid registry so anything dynamically added
-                        // by a downstream mod's material registration shows up automatically.
-                        // Only buckets — LiquidBlocks have no BlockItem so adding them would
-                        // pass an empty (count=0) ItemStack to Output.accept, which throws
-                        // "The stack count must be 1". Matches vanilla, where lava/water
-                        // appear in creative only as buckets.
                         for (var entry : com.soul.smithery.registry.SmitheryFluids.entries().values()) {
                             output.accept(entry.bucket.get());
                         }
@@ -94,10 +101,8 @@ public class Smithery {
                     .build());
 
     /**
-     * Player-facing crafting materials that aren't parts (which live in PARTS_TAB) and aren't
-     * placeable blocks (BLOCKS_TAB) or fluids (FLUIDS_TAB). The bowstring-class items live
-     * here: flamestring, breezestring, red_slime, kelp_string, plus the in-progress
-     * unfinished_kelp_string. Future smithery-crafted resource items go here too.
+     * Creative tab listing miscellaneous Smithery-crafted resource items (bowstring-class items,
+     * intermediates) that aren't parts, placeable blocks, or fluids.
      */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> ITEMS_TAB =
             CREATIVE_MODE_TABS.register("items_tab", () -> CreativeModeTab.builder()
@@ -115,6 +120,7 @@ public class Smithery {
                     })
                     .build());
 
+    /** Creative tab listing one example composed tool per (material x tool type) pair. */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> TOOLS_TAB =
             CREATIVE_MODE_TABS.register("tools_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".tools"))
@@ -123,64 +129,47 @@ public class Smithery {
                             SmitheryItems.SWORD.get().getDefaultInstance(),
                             com.soul.smithery.content.SmitheryToolPresets.iron(SmitheryToolTypes.SWORD)))
                     .displayItems((params, output) -> {
-                        // Show one example tool per (material × tool type) as a starter set until
-                        // recipes land. Iterates the live tool registry so any tool type added by a
-                        // downstream mod also shows up here automatically.
                         for (var mat : com.soul.smithery.api.SmitheryAPI.MATERIALS.all()) {
                             for (var tt : com.soul.smithery.api.SmitheryAPI.TOOL_TYPES.all()) {
                                 var toolItem = net.minecraft.core.registries.BuiltInRegistries.ITEM
                                         .getValue(tt.id());
                                 if (toolItem == null) continue;
-                                output.accept(com.soul.smithery.item.tool.SmitheryToolItem.applyComposition(
-                                        new net.minecraft.world.item.ItemStack(toolItem),
-                                        com.soul.smithery.content.SmitheryToolPresets.uniform(tt, mat.id())));
+                                var stack = new net.minecraft.world.item.ItemStack(toolItem);
+                                var comp = com.soul.smithery.content.SmitheryToolPresets.uniform(tt, mat.id());
+                                if (toolItem instanceof com.soul.smithery.item.tool.SmitheryArmorItem) {
+                                    if (!mat.stats().supportsArmor()) continue;
+                                    output.accept(com.soul.smithery.item.tool.SmitheryArmorItem.applyComposition(stack, comp));
+                                } else {
+                                    output.accept(com.soul.smithery.item.tool.SmitheryToolItem.applyComposition(stack, comp));
+                                }
                             }
                         }
                     })
                     .build());
 
+    /**
+     * Wires Smithery into the mod and event buses.
+     *
+     * <p>Order is load-bearing: PartTypes/ToolTypes register before materials reference them;
+     * modifiers before materials add modifier effects; materials before items/fluids derive from
+     * them; synergies after both materials and modifiers exist. Deferred registers attach last.
+     */
     public Smithery(IEventBus modEventBus, ModContainer modContainer) {
-        // 1. Register Smithery API entries — order is load-bearing:
-        //    - PartTypes/ToolTypes must exist before materials reference them.
-        //    - Modifiers must exist before MaterialStats.addModifier(...) calls resolve them.
-        //    - Materials must exist before items are queued.
-        //    - Synergies need both Materials and Modifiers registered first.
         SmitheryPartTypes.register();
         SmitheryToolTypes.register();
-        // Action library must register BEFORE modifier reload (server start) so JSON modifiers
-        // can resolve their action type ids. Also before SmitheryModifiers in case code-defined
-        // modifiers ever want to reference action types directly.
         com.soul.smithery.content.SmitheryModifierActions.register();
         SmitheryModifiers.register();
         SmitheryMaterials.register();
         SmitherySynergies.register();
         SmitheryMeltingRecipes.register();
-        // Modder-example bundle: registers material smithery:ender + smithery:pearl cast.
-        // Lives in its own class as a copy-paste reference for modders extending the system.
         com.soul.smithery.content.example.EnderExampleContent.register();
-        // Queue per-PartType "sand with cutout" block registrations now that PartTypes
-        // exist. Must happen before SmitheryBlocks.register(modEventBus) attaches the
-        // DeferredRegister to the bus.
         com.soul.smithery.registry.SmitheryBlocks.registerImpressedSandVariants();
-        // Build per-material molten fluid entries from the populated MATERIALS registry.
-        // Must happen AFTER SmitheryMaterials.register() and BEFORE SmitheryFluids.register
-        // (which hands the DeferredRegisters to the mod bus).
         com.soul.smithery.registry.SmitheryFluids.bootstrap();
 
-        // 2. Now that all built-in materials are in the registry, queue one PartItem per
-        //    (material × part type) pair into the deferred item register.
         SmitheryItems.registerBuiltInParts();
 
-        // Auto-register a remelt recipe for every PartItem we just queued: putting the part
-        // back into the forge yields exactly its castMb of the source material. Lossless
-        // "uncraft" path for broken / unwanted parts. Runs here so modder content registered
-        // between this point and SmitheryMaterials.register() is included too.
         SmitheryMeltingRecipes.registerPartRemeltRecipes();
 
-        // 3. Hook deferred registers to the mod event bus so they fire at RegisterEvent time.
-        // Block registration must occur before item registration completes so that BlockItem
-        // suppliers can resolve their backing blocks; both are bound to the same bus event so
-        // order of attach doesn't matter, only that they all attach.
         com.soul.smithery.registry.SmitheryBlocks.register(modEventBus);
         SmitheryDataComponents.register(modEventBus);
         SmitheryItems.register(modEventBus);
@@ -198,11 +187,6 @@ public class Smithery {
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
-        // Forge fuels — must run after Fluids deferred-register fires (i.e. now in common
-        // setup). Modders can register their own hot fuels by calling ForgeFuels.register
-        // from their own setup event. Built-ins: vanilla lava (1650°C — vanilla forge target)
-        // and smithery:molten_blaze (3500°C — high enough to melt netherite, gates post-nether
-        // material recipes behind blaze farming).
         event.enqueueWork(() -> {
             com.soul.smithery.api.forge.ForgeFuels.register(
                     net.minecraft.world.level.material.Fluids.LAVA,
@@ -214,6 +198,15 @@ public class Smithery {
                         blazeEntry.source.get(),
                         new com.soul.smithery.api.forge.ForgeFuels.Profile(3500f));
             }
+
+            com.soul.smithery.api.forge.ForgeMobDrops.setDefault(
+                    com.soul.smithery.content.SmitheryMaterials.BLOOD);
+            com.soul.smithery.api.forge.ForgeMobDrops.register(
+                    net.minecraft.world.entity.animal.fox.Fox.class,
+                    com.soul.smithery.content.SmitheryMaterials.FOX_BLOOD);
+            com.soul.smithery.api.forge.ForgeMobDrops.register(
+                    net.minecraft.world.entity.monster.Blaze.class,
+                    com.soul.smithery.content.SmitheryMaterials.BLAZE);
         });
 
         var api = com.soul.smithery.api.SmitheryAPI.MATERIALS;
@@ -227,7 +220,5 @@ public class Smithery {
     }
 
     private void onBuildCreativeTabs(BuildCreativeModeTabContentsEvent event) {
-        // Parts tab already populates its own items via displayItems.
-        // This hook is reserved for adding our items into vanilla tabs if needed later.
     }
 }

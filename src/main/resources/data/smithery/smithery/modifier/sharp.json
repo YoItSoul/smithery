@@ -1,0 +1,10 @@
+{
+  "_comment": "Multi-level damage modifier. Each level needs 64 'quartz units' to commit. Sources: nether quartz = 1 unit/item, quartz block = 4 units/item (matches the 4:1 crafting ratio). So level 1 = 64 quartz OR 16 blocks OR any mix that sums to 64. Each level scales cost by 1.5: 64, 96, 144, 216... Each level adds +0.5 bonus attack damage and consumes one modifier slot.",
+  "durability_multiplier": 1.0,
+  "max_level": 10,
+  "level_cost": 64,
+  "level_cost_scaling": 1.5,
+  "passives": [
+    { "type": "smithery:bonus_damage", "amount": 0.5 }
+  ]
+}

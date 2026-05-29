@@ -25,47 +25,48 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 
 /**
- * Built-in modifiers. Behavior callbacks read params from the ModifierEffect attached at
- * craft time (or post-craft via the Anvil); the same modifier ID can therefore be used
- * across materials with different parameter values.
+ * Built-in modifier registrations plus their canonical anvil source mappings.
  *
- * Active modifier callbacks (onAttack, onBreak) are invoked by the global event router
- * once tools and their modifier slots are wired up in Phase 6.
+ * <p>Behaviour callbacks read parameters from the {@link ModifierEffect} attached at craft time
+ * (or post-craft via the anvil), so the same modifier id can be reused across materials with
+ * different parameter values. Active callbacks (onAttack, onBreak, …) are dispatched by
+ * {@link com.soul.smithery.event.ToolModifierEventRouter}.
  */
 public final class SmitheryModifiers {
-    /**
-     * Per-player cooldown for once-per-attack modifiers (currently just LUNGE). Server-side only —
-     * event handlers run on the server thread so no synchronization is needed. Keyed by player UUID
-     * with a game-time value; entries are looked up and rewritten each tick on use, so it self-cleans
-     * over time via WeakHashMap when player references are released on disconnect.
-     */
     private static final Map<UUID, Long> LAST_LUNGE_TICK = new WeakHashMap<>();
-    /** Min game-ticks between LUNGE firings on the same player. KineticWeapon's
-     *  HIT_FEEDBACK_TICKS = 10 covers the entire multi-pierce burst in a single tick;
-     *  10 ticks (0.5s) is a safe cooldown that also rate-limits LMB spam. */
     private static final long LUNGE_COOLDOWN_TICKS = 10L;
 
+    /** Identifier of the SHARP passive damage-bonus modifier. */
     public static Identifier SHARP;
+    /** Identifier of the MAGNETIZED drop-pulling modifier. */
     public static Identifier MAGNETIZED;
+    /** Identifier of the VERDANT chance-to-poison modifier. */
     public static Identifier VERDANT;
+    /** Identifier of the CORROSIVE chance-to-weaken modifier. */
     public static Identifier CORROSIVE;
+    /** Identifier of the LUCKY_STRIKE kill-XP-multiplier modifier. */
     public static Identifier LUCKY_STRIKE;
+    /** Identifier of the GILDED block-XP-multiplier modifier. */
     public static Identifier GILDED;
+    /** Identifier of the NETHER_SHARPENED anvil-applied damage-bonus modifier. */
     public static Identifier NETHER_SHARPENED;
+    /** Identifier of the LUNGE spear-exclusive forward-impulse modifier. */
     public static Identifier LUNGE;
 
+    /**
+     * Registers every built-in modifier and its anvil source mapping.
+     *
+     * <p>Must run after {@link SmitheryModifierActions#register()} so action types referenced
+     * by JSON modifiers can resolve, and after tool/material registration so any material
+     * grants referencing these modifier ids can find them.
+     */
     public static void register() {
-        // ---- Passive: +N attack damage ----
+        // smithery:sharp is JSON-defined (data/smithery/smithery/modifier/sharp.json) as a
+        // multi-level upgrade modifier fed by nether quartz, mirroring the haste/lapis_blessing
+        // pattern. The identifier is kept here so synergies and material grants can reference it
+        // by name before the JSON modifier reload runs.
         SHARP = id("sharp");
-        SmitheryAPI.registerModifier(Modifier.builder(SHARP)
-                .category(Modifier.ModifierCategory.PASSIVE)
-                .passive((effect, stats) -> stats.bonusAttackDamage += effect.paramFloat("damage", 2.0f))
-                .build());
 
-        // ---- Active: on BLOCK DROPS (after drops spawn), pull dropped items toward player ----
-        // FIRES FROM BlockDropsEvent, NOT BlockBreakEvent. Drops don't exist yet at break-time;
-        // they're spawned afterwards. Iterating the drops list NeoForge gives us guarantees
-        // we hit every dropped item the block produced.
         MAGNETIZED = id("magnetized");
         SmitheryAPI.registerModifier(Modifier.builder(MAGNETIZED)
                 .category(Modifier.ModifierCategory.ACTIVE)
@@ -80,7 +81,6 @@ public final class SmitheryModifiers {
                 })
                 .build());
 
-        // ---- Active: chance to apply Poison on hit ----
         VERDANT = id("verdant");
         SmitheryAPI.registerModifier(Modifier.builder(VERDANT)
                 .category(Modifier.ModifierCategory.ACTIVE)
@@ -95,8 +95,6 @@ public final class SmitheryModifiers {
                 })
                 .build());
 
-        // ---- Passive + Active: −armor on hit (small attack speed penalty as the cost) ----
-        // The −armor side is applied in active onAttack; the speed cost (if any) is passive.
         CORROSIVE = id("corrosive");
         SmitheryAPI.registerModifier(Modifier.builder(CORROSIVE)
                 .category(Modifier.ModifierCategory.ACTIVE)
@@ -106,14 +104,11 @@ public final class SmitheryModifiers {
                     int amp = effect.paramInt("amplifier", 1);
                     if (!(ctx.target() instanceof LivingEntity target)) return;
                     if (target.level().getRandom().nextFloat() < chance) {
-                        // Weakness lowers attack output; closest vanilla analog to "−armor"
-                        // without writing a custom attribute modifier yet.
                         target.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, duration, amp));
                     }
                 })
                 .build());
 
-        // ---- Active: multiply XP dropped by killed entities ----
         LUCKY_STRIKE = id("lucky_strike");
         SmitheryAPI.registerModifier(Modifier.builder(LUCKY_STRIKE)
                 .category(Modifier.ModifierCategory.ACTIVE)
@@ -123,11 +118,6 @@ public final class SmitheryModifiers {
                 })
                 .build());
 
-        // ---- Active: multiply XP dropped by broken blocks (ores in particular) ----
-        // BlockDropsEvent exposes both the drops list and the XP amount the block will drop.
-        // We don't gate on "is this an ore" — the multiplier just applies to whatever XP the
-        // block drops naturally (ores being the main source). Stone breaks drop no XP, so
-        // they're naturally unaffected.
         GILDED = id("gilded");
         SmitheryAPI.registerModifier(Modifier.builder(GILDED)
                 .category(Modifier.ModifierCategory.ACTIVE)
@@ -137,24 +127,12 @@ public final class SmitheryModifiers {
                 })
                 .build());
 
-        // ---- Post-craft, applied at Anvil from a Nether Star: +6 damage ----
         NETHER_SHARPENED = id("nether_sharpened");
         SmitheryAPI.registerModifier(Modifier.builder(NETHER_SHARPENED)
                 .category(Modifier.ModifierCategory.PASSIVE)
                 .passive((effect, stats) -> stats.bonusAttackDamage += effect.paramFloat("damage", 6.0f))
                 .build());
 
-        // ---- Active: spear-exclusive Lunge. Replicates vanilla minecraft:lunge enchantment ----
-        // Vanilla Lunge fires on post_piercing_attack and applies: +1 item damage, forward impulse
-        // (0.458 × level along the player's look direction, xz-plane only), exhaustion (4.0 × level),
-        // and a random LUNGE_{1..3} sound. Gates: not in vehicle, not fall-flying, not in water,
-        // and either creative OR food ≥ 7. We hook onAttackEntity (which fires once per LMB attack
-        // via AttackEntityEvent — same call-once semantics as vanilla's post_piercing_attack hook
-        // at the end of Player.attack()) and replay the same effects in Java.
-        //
-        // Tool-type gate: only fires on smithery:spear tools. Vanilla restricts Lunge to the
-        // #minecraft:spears tag; we check the held tool's ToolType id at runtime instead so the
-        // modifier is harmless if anvil-applied to a non-spear by mistake.
         LUNGE = id("lunge");
         SmitheryAPI.registerModifier(Modifier.builder(LUNGE)
                 .category(Modifier.ModifierCategory.ACTIVE)
@@ -164,19 +142,12 @@ public final class SmitheryModifiers {
                     if (!"spear".equals(toolItem.toolTypeId().getPath())) return;
                     if (!(ctx.attacker() instanceof Player player)) return;
                     if (player.level().isClientSide()) return;
-                    // Vanilla gates: not in a vehicle, not fall-flying, not in water,
-                    // and (creative OR food ≥ 7).
                     if (player.isPassenger()) return;
                     if (player.isFallFlying()) return;
                     if (player.isInWater()) return;
                     boolean creative = player.getAbilities().instabuild;
                     if (!creative && player.getFoodData().getFoodLevel() < 7) return;
 
-                    // Once-per-attack gate. Both LMB melee (one Item.hurtEnemy call) and the
-                    // spear's charged stab (one Item.hurtEnemy call per pierced entity) route
-                    // here; without this gate, a multi-pierce stab would apply N impulses
-                    // and N×exhaustion. KineticWeapon completes the whole pierce burst in a
-                    // single tick, so the cooldown only has to swallow same-tick repeats.
                     long now = player.level().getGameTime();
                     Long last = LAST_LUNGE_TICK.get(player.getUUID());
                     if (last != null && now - last < LUNGE_COOLDOWN_TICKS) return;
@@ -186,22 +157,19 @@ public final class SmitheryModifiers {
                     float impulse = 0.458f * level;
                     float exhaustion = 4.0f * level;
 
-                    // Forward impulse in player look direction, xz only (matches coordinate_scale [1,0,1]).
                     Vec3 look = player.getLookAngle();
                     Vec3 flat = new Vec3(look.x, 0.0, look.z);
                     double len = flat.length();
                     if (len > 1.0e-4) {
                         Vec3 push = flat.scale(impulse / len);
                         player.push(push.x, 0.0, push.z);
-                        player.hurtMarked = true;       // resync velocity to the client
+                        player.hurtMarked = true;
                     }
 
                     if (!creative) player.causeFoodExhaustion(exhaustion);
 
-                    // Damage the spear (1 per use), matching the vanilla change_item_damage effect.
                     ctx.tool().hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
 
-                    // Random lunge sound, matched to vanilla's [LUNGE_1, LUNGE_2, LUNGE_3] pool.
                     Holder<SoundEvent> sound = switch (player.getRandom().nextInt(3)) {
                         case 0  -> SoundEvents.LUNGE_1;
                         case 1  -> SoundEvents.LUNGE_2;
@@ -212,15 +180,8 @@ public final class SmitheryModifiers {
                 })
                 .build());
 
-        // ---- Built-in anvil source mappings ----
-        // Modders extend by calling ModifierSources.register(...) from their own init class.
-        // Nether Star → NETHER_SHARPENED with +6 damage is the canonical single-shot example.
-        // maxLevel of NETHER_SHARPENED is 1 (default) — one Nether Star per tool, no stacking.
         ModifierSources.register(Items.NETHER_STAR,
                 ModifierEffect.of(NETHER_SHARPENED, Map.of("damage", 6.0f)));
-        // Phantom Membrane → LUNGE. Thematic: phantoms dive-strike from above, mirroring the
-        // spear lunge. Each membrane contributes one unit toward the next level (max 3 levels);
-        // applied to non-spear tools the modifier silently no-ops (the runtime gate above).
         ModifierSources.register(Items.PHANTOM_MEMBRANE,
                 ModifierEffect.of(LUNGE, Map.of("level", 1)));
     }

@@ -17,17 +17,16 @@ import net.minecraft.world.phys.BlockHitResult;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Item input port for the Forge multiblock. Right-click with an item to push one (or more,
- * if held stack size allows) into the connected forge's nearest empty interior slot. Hoppers
- * feeding the block via the item capability follow the same path. Insertion is gated by the
- * controller having at least one empty interior slot — overfilled forges reject inserts
- * without consuming the source item.
- *
- * <p>Bare-hand right-click prints a short status (linked controller pos + empty slot count)
- * for debugging.
+ * Item input port for the Forge multiblock. Right-clicking with an item pushes one (or
+ * more, up to the held stack size) into the connected forge's nearest empty interior
+ * slot; hoppers route through the same path via the item capability on the underlying
+ * {@link ForgeItemPortBlockEntity}.
  */
 public class ForgeItemPortBlock extends Block implements EntityBlock {
 
+    /**
+     * Constructs the item port with the given block properties.
+     */
     public ForgeItemPortBlock(Properties properties) {
         super(properties);
     }

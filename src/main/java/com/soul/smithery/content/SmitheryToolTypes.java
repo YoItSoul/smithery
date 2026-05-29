@@ -4,42 +4,45 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.tool.DurabilityRole;
 import com.soul.smithery.api.tool.ToolType;
+import com.soul.smithery.item.tool.ToolComposition;
 import net.minecraft.resources.Identifier;
 
 /**
- * Built-in tool types.
+ * Built-in tool-type registrations.
  *
- * Slot composition:
- *   Sword    = blade + guard + handle + binder           (4 slots)
- *   Pickaxe  = pick_head   + handle × 2 + binder         (4 slots)
- *   Axe      = axe_head    + handle × 2 + binder         (4 slots)
- *   Shovel   = shovel_head + handle × 2 + binder         (4 slots)
- *   Hoe      = hoe_head    + handle × 2 + binder         (4 slots)
- *   Spear    = spear_head  + handle × 2 + binder         (4 slots)
- *   Bow      = bow_limb × 2 + bowstring                  (3 slots)
- *   Arrow    = arrow_head + arrow_shaft + fletching      (3 slots)
- *
- * The "head + 2×handle + binder" family all share the same shaped-recipe layout. Two
- * handles support bi-material grips (e.g. wood main + leather fore-grip wrap) — distinct
- * slots that render as distinct layers in the layered tool model.
- *
- * Ranged: the bow is the launcher (no binder; the bowstring serves the multiplicative role
- * via its material's binderMultiplier when used in that slot). The arrow is the ammunition —
- * structurally a 3-part tool whose "durability" represents shots remaining.
- *
- * Slot order is significant for shaped recipe consumption order, drives the per-slot
- * layer order in the dynamic tool model, and indexes into {@link ToolComposition#slotMaterials()}.
+ * <p>Slot order matters: it drives shaped-recipe consumption order, layered-model render order,
+ * and indexing into {@link ToolComposition#slotMaterials()}. The head + 2 handles + binder family
+ * shares the same shaped recipe layout across pickaxe / axe / shovel / hoe / spear.
  */
 public final class SmitheryToolTypes {
+    /** Tool type for swords (blade + guard + handle + binder). */
     public static ToolType SWORD;
+    /** Tool type for pickaxes (head + 2 handles + binder). */
     public static ToolType PICKAXE;
+    /** Tool type for axes (head + 2 handles + binder). */
     public static ToolType AXE;
+    /** Tool type for shovels (head + 2 handles + binder). */
     public static ToolType SHOVEL;
+    /** Tool type for hoes (head + 2 handles + binder). */
     public static ToolType HOE;
+    /** Tool type for spears (head + 2 handles + binder). */
     public static ToolType SPEAR;
+    /** Tool type for bows (2 limbs + bowstring). */
     public static ToolType BOW;
+    /** Tool type for arrows (head + shaft + fletching). */
     public static ToolType ARROW;
+    /** Tool type for helmets (helmet core + armor plates + armor trim). */
+    public static ToolType HELMET;
+    /** Tool type for chestplates (chestplate core + armor plates + armor trim). */
+    public static ToolType CHESTPLATE;
+    /** Tool type for leggings (leggings core + armor plates + armor trim). */
+    public static ToolType LEGGINGS;
+    /** Tool type for boots (boots core + armor plates + armor trim). */
+    public static ToolType BOOTS;
 
+    /**
+     * Registers every built-in tool type. Must run after {@link SmitheryPartTypes#register()}.
+     */
     public static void register() {
         SWORD = SmitheryAPI.registerToolType(ToolType.builder(id("sword"))
                 .addPart(SmitheryPartTypes.SWORD_BLADE, DurabilityRole.ADDITIVE)
@@ -78,20 +81,39 @@ public final class SmitheryToolTypes {
                 .addPart(SmitheryPartTypes.BINDER, DurabilityRole.MULTIPLIER)
                 .build());
 
-        // Bow: two limbs (additive durability) + bowstring (acts multiplicatively, like a binder —
-        // the string's material binderMultiplier scales final bow durability). 3-slot recipe.
         BOW = SmitheryAPI.registerToolType(ToolType.builder(id("bow"))
                 .addPart(SmitheryPartTypes.BOW_LIMB, DurabilityRole.ADDITIVE, 2)
                 .addPart(SmitheryPartTypes.BOWSTRING, DurabilityRole.MULTIPLIER)
                 .build());
 
-        // Arrow: arrow_head (additive — drives damage/effects) + shaft (additive — drives shots
-        // remaining) + fletching (multiplicative — small durability scalar via binderMultiplier).
-        // 3-slot recipe. Each crafted arrow is a single ItemStack whose durability == shots left.
         ARROW = SmitheryAPI.registerToolType(ToolType.builder(id("arrow"))
                 .addPart(SmitheryPartTypes.ARROW_HEAD, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.ARROW_SHAFT, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.FLETCHING, DurabilityRole.MULTIPLIER)
+                .build());
+
+        HELMET = SmitheryAPI.registerToolType(ToolType.builder(id("helmet"))
+                .addPart(SmitheryPartTypes.HELMET_CORE, DurabilityRole.ADDITIVE)
+                .addPart(SmitheryPartTypes.ARMOR_PLATES, DurabilityRole.MULTIPLIER)
+                .addPart(SmitheryPartTypes.ARMOR_TRIM, DurabilityRole.ADDITIVE)
+                .build());
+
+        CHESTPLATE = SmitheryAPI.registerToolType(ToolType.builder(id("chestplate"))
+                .addPart(SmitheryPartTypes.CHESTPLATE_CORE, DurabilityRole.ADDITIVE)
+                .addPart(SmitheryPartTypes.ARMOR_PLATES, DurabilityRole.MULTIPLIER)
+                .addPart(SmitheryPartTypes.ARMOR_TRIM, DurabilityRole.ADDITIVE)
+                .build());
+
+        LEGGINGS = SmitheryAPI.registerToolType(ToolType.builder(id("leggings"))
+                .addPart(SmitheryPartTypes.LEGGINGS_CORE, DurabilityRole.ADDITIVE)
+                .addPart(SmitheryPartTypes.ARMOR_PLATES, DurabilityRole.MULTIPLIER)
+                .addPart(SmitheryPartTypes.ARMOR_TRIM, DurabilityRole.ADDITIVE)
+                .build());
+
+        BOOTS = SmitheryAPI.registerToolType(ToolType.builder(id("boots"))
+                .addPart(SmitheryPartTypes.BOOTS_CORE, DurabilityRole.ADDITIVE)
+                .addPart(SmitheryPartTypes.ARMOR_PLATES, DurabilityRole.MULTIPLIER)
+                .addPart(SmitheryPartTypes.ARMOR_TRIM, DurabilityRole.ADDITIVE)
                 .build());
     }
 

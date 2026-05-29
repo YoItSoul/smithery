@@ -2,8 +2,14 @@ package com.soul.smithery.api.alloy;
 
 import net.minecraft.resources.Identifier;
 
-/** One component of an alloy recipe: a material and its ratio. 1 ratio unit = 144 mB. */
+/**
+ * One component of a legacy {@link AlloyDefinition} recipe.
+ *
+ * @param materialId the contributing material's id
+ * @param ratio      ratio units of this component required per minimum batch; one ratio unit equals 144 mB
+ */
 public record AlloyComponent(Identifier materialId, int ratio) {
+    /** Creates a component, rejecting non-positive ratios. */
     public AlloyComponent {
         if (ratio <= 0) throw new IllegalArgumentException("ratio must be > 0");
     }

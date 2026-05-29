@@ -15,12 +15,12 @@ import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
 import java.util.Map;
 
 /**
- * Loads alloy recipes from {@code data/<namespace>/smithery/alloy/*.json}.
- * Each file is one recipe; the file's resource id becomes the recipe's id (so
- * {@code data/smithery/smithery/alloy/netherite.json} registers as {@code smithery:netherite}).
+ * Server-side reload listener that loads alloy recipes from
+ * {@code data/<namespace>/smithery/alloy/*.json}.
  *
- * Reruns on every {@code /reload}; clears the data-side registry first so removed JSON files
- * don't linger. Code-registered alloys (via {@link AlloyRecipes#register}) are not touched.
+ * <p>Each file is one recipe whose resource id becomes the registered alloy id. Re-runs on every
+ * {@code /reload}; the data layer of {@link AlloyRecipes} is cleared first so removed JSON files
+ * do not linger. Code-registered alloys are untouched.
  */
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class AlloyReloadListener extends SimpleJsonResourceReloadListener<AlloyRecipe> {
@@ -41,6 +41,12 @@ public final class AlloyReloadListener extends SimpleJsonResourceReloadListener<
         Smithery.LOGGER.info("Loaded {} alloy recipes from data packs", registered);
     }
 
+    /**
+     * Registers this listener with the server reload pipeline under the {@code smithery:alloys}
+     * id.
+     *
+     * @param event the NeoForge add-reload-listeners event
+     */
     @SubscribeEvent
     public static void onAddReloadListeners(AddServerReloadListenersEvent event) {
         event.addListener(

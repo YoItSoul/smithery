@@ -21,94 +21,74 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * GUI for the Forge Controller.
+ * Screen for the forge controller.
  *
- * Left panel  — scrollable list of forge item slots (click to take, scroll to scroll).
- * Right panel — molten fluid levels per material.
- * Status strip — temperature + fuel bar below the panels.
- * Player inventory at standard positions matching ForgeControllerMenu slot coordinates.
+ * <p>The left panel is a scrollable list of forge item slots (click to take, scroll to scroll).
+ * The right panel is a stacked molten-fluid tank, with the currently-selected output fluid
+ * highlighted at the bottom and click-to-select on each layer. A status strip beneath the
+ * panels shows temperature, validity, and a fuel bar; a small toggle in the top-right pauses
+ * or resumes the auto-alloy loop.
  *
- * Uses MC 26.1.2's extract* rendering API (GuiGraphicsExtractor).
+ * <p>Rendering uses the {@code extractBackground}/{@code extractLabels} pipeline introduced in
+ * MC 26.1.2. Forge item slots live off-screen on the menu side and are rendered here manually.
  */
 public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControllerMenu> {
 
-    // ---- Layout ----
     private static final int IMG_W = 248;
     private static final int IMG_H = 222;
 
-    // Left panel (outer)
     private static final int PL_X = 7;
     private static final int PL_Y = 18;
     private static final int PL_W = 116;
     private static final int PL_H = 105;
 
-    // Right panel (outer)
     private static final int PR_X = 127;
     private static final int PR_Y = 18;
     private static final int PR_W = 114;
     private static final int PR_H = 105;
 
-    // Left panel inner content area (2px border on each side)
     private static final int PLC_X = PL_X + 2;
     private static final int PLC_Y = PL_Y + 2;
-    private static final int PLC_W = PL_W - 4;   // 112
+    private static final int PLC_W = PL_W - 4;
 
-    // Right panel inner content area
     private static final int PRC_X = PR_X + 2;
     private static final int PRC_Y = PR_Y + 2;
-    private static final int PRC_W = PR_W - 4;   // 110
+    private static final int PRC_W = PR_W - 4;
 
-    // Forge slot list inside left panel: 10px header row, then item rows
     private static final int LIST_HEADER_H = 10;
     private static final int ROW_H         = 18;
-    private static final int ROW_W         = PLC_W - 5; // leave 5px for scroll bar
-    private static final int SLOTS_VISIBLE = (PL_H - 4 - LIST_HEADER_H) / ROW_H; // 5
+    private static final int ROW_W         = PLC_W - 5;
+    private static final int SLOTS_VISIBLE = (PL_H - 4 - LIST_HEADER_H) / ROW_H;
 
-    // Right-panel header takes two stacked lines: "Molten Metals" + capacity readout.
     private static final int FLUID_HEADER_H = 20;
 
-    // Tinkers-style vertical fluid tank: each registered molten material is a
-    // colored band stacked bottom-up, height proportional to its mB / total capacity.
-    // Centered in the right panel, with a 1px dark border. The "ceiling" inside
-    // the border (above the topmost layer) stays dark to read as empty headroom.
     private static final int TANK_W       = 40;
-    private static final int TANK_X       = PRC_X + (PRC_W - TANK_W) / 2; // centered in inner area
+    private static final int TANK_X       = PRC_X + (PRC_W - TANK_W) / 2;
     private static final int TANK_Y       = PRC_Y + FLUID_HEADER_H + 2;
     private static final int TANK_BOTTOM  = PR_Y + PR_H - 4;
     private static final int TANK_H       = TANK_BOTTOM - TANK_Y;
     private static final int COL_TANK_EMPTY = 0xFF1A1A1A;
 
-    // Animated lava-flow sprite used as the layer fill texture, tinted per-material.
-    // The PNG is the same one used for the actual world fluid; we drive the animation
-    // manually here because raw blit() doesn't honor .mcmeta — it sees only the sheet.
-    // Dedicated GUI-only copy of molten_flow.png. We can't reference the in-world
-    // textures/block/molten_flow.png because the fluid atlas registers it as a sprite and
-    // the resulting GPU texture is the cropped current-frame (32×32), not the full 32×512
-    // strip our blit math assumes. Sampling the cropped GPU texture with srcHeight/512 ends
-    // up reading a sub-pixel slice and stretching it 16× vertically → the "stretched stripes"
-    // bug. Keeping a separate copy under textures/gui/ side-steps the atlas entirely.
     private static final net.minecraft.resources.Identifier MOLTEN_FLOW_TEXTURE =
             net.minecraft.resources.Identifier.fromNamespaceAndPath(
                     com.soul.smithery.Smithery.MODID, "textures/gui/molten_flow.png");
+    private static final net.minecraft.resources.Identifier WATER_FLOW_TEXTURE =
+            net.minecraft.resources.Identifier.fromNamespaceAndPath(
+                    com.soul.smithery.Smithery.MODID, "textures/gui/water_flow.png");
     private static final int FLOW_FRAME_W      = 32;
     private static final int FLOW_FRAME_H      = 32;
-    private static final int FLOW_FRAME_COUNT  = 16;       // sheet is 32 × (32 × 16) = 32×512
+    private static final int FLOW_FRAME_COUNT  = 16;
     private static final int FLOW_TEX_W        = 32;
     private static final int FLOW_TEX_H        = 512;
-    private static final int FLOW_FRAMETIME_MS = 150;      // mcmeta frametime = 3 ticks → 150 ms
+    private static final int FLOW_FRAMETIME_MS = 150;
 
-    // ---- Alloy toggle button (top-right corner) ----
-    // 14×14 square. Background colour switches based on the menu's synced isAlloyEnabled.
-    // Clicking sends the BUTTON_TOGGLE_ALLOY menu-button click, which the menu's
-    // clickMenuButton flips on the BE.
     private static final int ALLOY_BTN_W = 14;
     private static final int ALLOY_BTN_H = 14;
-    private static final int ALLOY_BTN_X = 222;     // near right edge of the 248-wide GUI
+    private static final int ALLOY_BTN_X = 222;
     private static final int ALLOY_BTN_Y = 4;
-    private static final int COL_ALLOY_ON  = 0xFF2E8B57;   // sea green
-    private static final int COL_ALLOY_OFF = 0xFF8B2E2E;   // muted red
+    private static final int COL_ALLOY_ON  = 0xFF2E8B57;
+    private static final int COL_ALLOY_OFF = 0xFF8B2E2E;
 
-    // ---- Colors ----
     private static final int COL_BG       = 0xFFC6C6C6;
     private static final int COL_BORDER   = 0xFF787878;
     private static final int COL_INNER    = 0xFFD4D4D4;
@@ -122,58 +102,41 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     private static final int COL_TEMP_HOT = 0xFFFF5500;
     private static final int COL_SCBAR    = 0xFFAAAAAA;
 
-    // ---- State ----
     private int scrollOffset = 0;
 
+    /**
+     * Constructs the screen for the given menu.
+     *
+     * @param menu the synced container menu
+     * @param playerInventory player inventory (used for title display)
+     * @param title screen title component
+     */
     public ForgeControllerScreen(ForgeControllerMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title, IMG_W, IMG_H);
         this.titleLabelX     = PL_X + 2;
         this.titleLabelY     = 6;
-        this.inventoryLabelX = 44;  // align with leftmost inventory slot interior (centered inv)
-        this.inventoryLabelY = 134; // 9px above player inventory at y=143
+        this.inventoryLabelX = 44;
+        this.inventoryLabelY = 134;
     }
-
-    // ---- Render pipeline (extract* pattern) ----
-    //
-    // Critical: in MC 26.1.2, AbstractContainerScreen.extractRenderState calls
-    // extractContents → which in turn calls super.extractRenderState (drawing
-    // the screen background via extractBackground), translates the matrix by
-    // (leftPos, topPos), then calls extractLabels and extractSlots.
-    //
-    // So:
-    //   - Override extractBackground (drawn in ABSOLUTE screen coords) for our
-    //     custom panels/textures/etc. This is what ContainerScreen (vanilla
-    //     chest GUI) does. Overriding extractContents instead suppresses the
-    //     extractSlots call, which is why item icons stopped rendering.
-    //   - Override extractLabels (drawn in coords RELATIVE to leftPos/topPos
-    //     since the matrix is already translated) for our title and
-    //     "Inventory" label.
 
     @Override
     public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        super.extractBackground(g, mouseX, mouseY, partialTick); // dim overlay / blur
+        super.extractBackground(g, mouseX, mouseY, partialTick);
 
         int x = leftPos, y = topPos;
 
-        // Main background fill.
         g.fill(x, y, x + IMG_W, y + IMG_H, COL_BG);
 
-        // Top panels.
         drawPanel(g, x + PL_X, y + PL_Y, PL_W, PL_H);
         drawPanel(g, x + PR_X, y + PR_Y, PR_W, PR_H);
 
-        // Player inventory slot region from vanilla inventory.png.
         drawPlayerInvSlots(g, x, y);
 
-        // Panel contents (forge slot list, fluid list, status strip).
         renderForgeSlots(g, x, y, mouseX, mouseY);
         renderFluidTank(g, x, y, mouseX, mouseY);
         renderStatusStrip(g, x, y);
         renderAlloyToggleButton(g, x, y, mouseX, mouseY);
 
-        // Forge slot tooltip — vanilla's extractTooltip doesn't fire for our
-        // off-screen forge slots, so we set the tooltip ourselves. Includes
-        // detailed melt status: not-meltable / too-cool / melting / forge-full.
         int listTopY  = y + PLC_Y + LIST_HEADER_H;
         int listLeftX = x + PLC_X;
         if (mouseX >= listLeftX && mouseX < listLeftX + ROW_W
@@ -190,9 +153,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         }
     }
 
-    // ---- Melt state computation (client-side, mirrors the server logic) ----
-
-    /** Per-slot melt state used by both the in-row progress bar and the tooltip. */
     private static final class MeltState {
         enum Status { NOT_MELTABLE, TOO_COOL, FORGE_FULL, MELTING }
         Status status;
@@ -200,13 +160,9 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         int    progressMb;
         int    maxMb;
         int    barColor;
-        Material material; // nullable
+        Material material;
     }
 
-    /**
-     * Mirrors {@link com.soul.smithery.block.entity.ForgeControllerBlockEntity#meltFromSlots}
-     * gating logic on the client so the GUI can label why a slot is or isn't melting.
-     */
     private MeltState computeMeltState(ItemStack stack, int slotIdx) {
         MeltState ms = new MeltState();
         ms.progressMb = menu.getMeltProgressMb(slotIdx);
@@ -283,32 +239,23 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
 
     @Override
     protected void extractLabels(GuiGraphicsExtractor g, int mouseX, int mouseY) {
-        // Matrix is translated by (leftPos, topPos) before this is called.
         g.text(font, title, titleLabelX, titleLabelY, COL_TEXT, false);
         g.text(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, COL_TEXT, false);
     }
 
-    /**
-     * Top-right corner toggle. Coloured square (green = alloying on, red = paused) with
-     * an "A" letter in the center. Hover tooltip explains the current state. Clicking
-     * sends a menu button click that flips the BE flag server-side.
-     */
     private void renderAlloyToggleButton(GuiGraphicsExtractor g, int x, int y, int mouseX, int mouseY) {
         int bx = x + ALLOY_BTN_X;
         int by = y + ALLOY_BTN_Y;
         boolean enabled = menu.isAlloyEnabled();
         int fill = enabled ? COL_ALLOY_ON : COL_ALLOY_OFF;
-        // Border + fill.
         g.fill(bx, by, bx + ALLOY_BTN_W, by + ALLOY_BTN_H, COL_BORDER);
         g.fill(bx + 1, by + 1, bx + ALLOY_BTN_W - 1, by + ALLOY_BTN_H - 1, fill);
-        // "A" letter centered.
         String label = "A";
         int textW = font.width(label);
         g.text(font, net.minecraft.network.chat.Component.literal(label),
                 bx + (ALLOY_BTN_W - textW) / 2,
                 by + (ALLOY_BTN_H - 8) / 2,
                 0xFFFFFFFF, false);
-        // Hover tooltip.
         if (mouseX >= bx && mouseX < bx + ALLOY_BTN_W && mouseY >= by && mouseY < by + ALLOY_BTN_H) {
             net.minecraft.network.chat.Component tip = enabled
                     ? net.minecraft.network.chat.Component.translatable(
@@ -319,29 +266,19 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         }
     }
 
-    // ---- Drawing helpers ----
-
     private void drawPanel(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         g.fill(x, y, x + w, y + h, COL_BORDER);
         g.fill(x + 1, y + 1, x + w - 1, y + h - 1, COL_INNER);
     }
 
-    /**
-     * Blits the player-inventory slot region from vanilla's inventory.png
-     * (3 rows × 9 cols + 4px gap + hotbar = 162×76 from texture coord 7,83).
-     * Aligns to the menu's slot positions: first row at y=143, hotbar at y=201,
-     * left edge at x=43 (centered in the 248px screen).
-     */
     private void drawPlayerInvSlots(GuiGraphicsExtractor g, int sx, int sy) {
         g.blit(RenderPipelines.GUI_TEXTURED,
                 AbstractContainerScreen.INVENTORY_LOCATION,
-                sx + 43, sy + 142,   // dest top-left (1px above first slot at y=143)
-                7f, 83f,              // src u, v in inventory.png
-                162, 76,              // width × height
-                256, 256);            // texture sheet size
+                sx + 43, sy + 142,
+                7f, 83f,
+                162, 76,
+                256, 256);
     }
-
-    // ---- Left panel: forge slot list ----
 
     private void renderForgeSlots(GuiGraphicsExtractor g, int sx, int sy, int mouseX, int mouseY) {
         int slotCount = menu.getForgeSlotCount();
@@ -358,11 +295,9 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             int rx = cx;
             int ry = listTop + row * ROW_H;
 
-            // Row frame.
             g.fill(rx, ry, rx + ROW_W, ry + ROW_H - 1, COL_ROW_BRD);
             g.fill(rx + 1, ry + 1, rx + ROW_W - 1, ry + ROW_H - 2, COL_ROW_BG);
 
-            // Hover highlight.
             if (isInRow(mouseX, mouseY, sx, sy, row)) {
                 g.fill(rx + 1, ry + 1, rx + ROW_W - 1, ry + ROW_H - 2, COL_HOVER);
             }
@@ -381,7 +316,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
                 }
                 g.text(font, name, rx + 20, ry + 2, COL_TEXT, false);
 
-                // Per-slot melt progress bar in the bottom half of the row.
                 MeltState ms = computeMeltState(stack, slotIdx);
                 int barX = rx + 20;
                 int barY = ry + 12;
@@ -395,7 +329,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             }
         }
 
-        // Scroll bar (shown when list overflows visible area).
         if (slotCount > SLOTS_VISIBLE) {
             int totalH = SLOTS_VISIBLE * ROW_H;
             int barH   = Math.max(6, totalH * SLOTS_VISIBLE / slotCount);
@@ -415,13 +348,10 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             && mouseY >= ry && mouseY < ry + ROW_H - 1;
     }
 
-    // ---- Right panel: stacked-fluid tank (Tinkers-style) ----
-
     private void renderFluidTank(GuiGraphicsExtractor g, int sx, int sy, int mouseX, int mouseY) {
         int cx = sx + PRC_X;
         int cy = sy + PRC_Y;
 
-        // Header.
         g.text(font, "Molten Metals", cx, cy, COL_TEXT, false);
 
         int capacity = menu.getFluidCapacityMb();
@@ -431,17 +361,12 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             g.text(font, cap, sx + PR_X + PR_W - 2 - font.width(cap), cy + 10, COL_GRAY, false);
         }
 
-        // Tank frame (1px border + dark empty interior).
         int tankX = sx + TANK_X;
         int tankY = sy + TANK_Y;
         g.fill(tankX, tankY, tankX + TANK_W, tankY + TANK_H, COL_BORDER);
         g.fill(tankX + 1, tankY + 1, tankX + TANK_W - 1, tankY + TANK_H - 1, COL_TANK_EMPTY);
         if (capacity <= 0) return;
 
-        // Stacked fluid layers — each filled with the animated molten_flow sprite,
-        // tinted by the material color. Approach mirrors Tinkers' GuiUtil.drawGuiTank:
-        // pick a single time-driven frame, then tile that frame at its native 32×32
-        // size across the layer, cropping the partial tiles at the right/top edges.
         int innerX = tankX + 1;
         int innerY = tankY + 1;
         int innerW = TANK_W - 2;
@@ -452,10 +377,12 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         for (FluidLayer layer : layers) {
             int color = layer.material.stats().moltenColor() | 0xFF000000;
             int layerH = layer.bottomY - layer.topY;
-            drawTiledMolten(g, innerX, layer.topY, innerW, layerH, baseV, color);
-            // 1px highlight along the top of each layer so adjacent layers don't blur together.
+            net.minecraft.resources.Identifier flowTex =
+                    layer.material.stats().fluidBase()
+                            == com.soul.smithery.api.material.MaterialStats.FluidBase.WATER
+                    ? WATER_FLOW_TEXTURE : MOLTEN_FLOW_TEXTURE;
+            drawTiledMolten(g, innerX, layer.topY, innerW, layerH, baseV, color, flowTex);
             g.fill(innerX, layer.topY, innerX + innerW, layer.topY + 1, brighten(color));
-            // Selected layer: 1px outline + a subtle inner overlay so it reads as "active".
             if (layer.selected) {
                 int outline = 0xFFFFD060;
                 g.fill(innerX, layer.topY, innerX + innerW, layer.topY + 1, outline);
@@ -465,7 +392,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             }
         }
 
-        // Hover tooltip: which layer is the mouse over?
         if (mouseX >= innerX && mouseX < innerX + innerW
                 && mouseY >= innerY && mouseY < innerY + innerH) {
             for (FluidLayer layer : layers) {
@@ -490,14 +416,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         }
     }
 
-    /**
-     * Pixel-resolved layer used by both the tank renderer and its hover tooltip.
-     * Layers stack from {@code TANK_BOTTOM} upwards. The currently-selected output
-     * fluid (if any) is iterated first so it lands at the bottom of the stack —
-     * that's the visual cue "this is what the drains are pumping". {@code matIdx}
-     * tracks the source material index so click handling can identify which layer
-     * the player hit and ship the right id to the server.
-     */
     private record FluidLayer(Material material, int matIdx, int storedMb,
                               int topY, int bottomY, boolean selected) {}
 
@@ -509,9 +427,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         List<Material> materials = menu.getMaterials();
         int selectedIdx = menu.getOutputFluidMaterialIndex();
 
-        // Build iteration order: selected material first (renders at bottom), then the rest
-        // in registration order. Layers are stacked from the bottom up, so the first
-        // iterated entry occupies the lowest band of pixels.
         int[] order = buildLayerOrder(materials.size(), selectedIdx);
         for (int idx : order) {
             int stored = menu.getStoredMbForMaterial(idx);
@@ -541,7 +456,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         return order;
     }
 
-    /** Top-edge highlight: brighten an ARGB color by ~30 per channel, clamped. */
     private static int brighten(int argb) {
         int r = Math.min(255, ((argb >>> 16) & 0xFF) + 30);
         int gn = Math.min(255, ((argb >>> 8)  & 0xFF) + 30);
@@ -549,14 +463,9 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         return 0xFF000000 | (r << 16) | (gn << 8) | b;
     }
 
-    /**
-     * Tile the molten_flow sprite at native 32×32 size across (destX..destX+w, destY..destY+h),
-     * cropping the partial tile at the right/bottom edges when the area isn't a clean
-     * multiple of the frame size. {@code baseV} pins us to a single animation frame (caller
-     * computes that once per draw call so all tiles in the tank stay in sync).
-     */
     private static void drawTiledMolten(GuiGraphicsExtractor g, int destX, int destY,
-                                        int w, int h, float baseV, int tintArgb) {
+                                        int w, int h, float baseV, int tintArgb,
+                                        net.minecraft.resources.Identifier flowTexture) {
         int yRemaining = h;
         int dy = destY;
         while (yRemaining > 0) {
@@ -565,11 +474,8 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             int dx = destX;
             while (xRemaining > 0) {
                 int colW = Math.min(FLOW_FRAME_W, xRemaining);
-                // 13-arg blit: (pipe, id, x, y, u, v, destW, destH, srcW, srcH, texW, texH, tint).
-                // Passing destW=srcW and destH=srcH means no stretching — just cropping
-                // at the partial edges, matching Tinkers' putTiledTextureQuads behavior.
                 g.blit(RenderPipelines.GUI_TEXTURED,
-                        MOLTEN_FLOW_TEXTURE,
+                        flowTexture,
                         dx, dy,
                         0f, baseV,
                         colW, rowH,
@@ -584,10 +490,8 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         }
     }
 
-    // ---- Status strip ----
-
     private void renderStatusStrip(GuiGraphicsExtractor g, int sx, int sy) {
-        int stripY = sy + PL_Y + PL_H + 4; // 4px below panels
+        int stripY = sy + PL_Y + PL_H + 4;
 
         float temp = menu.getTemperatureC();
         int tempColor = menu.isForgeValid() && temp > 100f ? COL_TEMP_HOT : COL_TEXT;
@@ -597,7 +501,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         int statusColor = menu.isForgeValid() ? 0xFF00AA00 : 0xFFAA0000;
         g.text(font, status, sx + PL_X + 48, stripY, statusColor, false);
 
-        // Fuel bar (right side of status strip).
         int fuelMb  = menu.getFuelMb();
         int fuelCap = menu.getFuelCapacityMb();
         if (fuelCap > 0) {
@@ -612,8 +515,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         }
     }
 
-    // ---- Scroll ----
-
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         int px = leftPos + PL_X, py = topPos + PL_Y;
@@ -625,12 +526,8 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
-    // ---- Click handling for forge slots ----
-
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        // Alloy toggle button (top-right). Sends a menu button click; the server-side
-        // menu's clickMenuButton flips the controller's alloyEnabled flag.
         int btnX = leftPos + ALLOY_BTN_X;
         int btnY = topPos  + ALLOY_BTN_Y;
         if (event.x() >= btnX && event.x() < btnX + ALLOY_BTN_W
@@ -654,7 +551,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             }
         }
 
-        // Fluid tank click — select / deselect output fluid.
         int tankX = leftPos + TANK_X;
         int tankY = topPos  + TANK_Y;
         int innerX = tankX + 1;
@@ -675,10 +571,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         return super.mouseClicked(event, doubleClick);
     }
 
-    /**
-     * Maps the clicked material → fluid id and sends the C2S packet. Server interprets
-     * "click the already-selected layer" as "clear selection" — no special sentinel needed.
-     */
     private void sendOutputFluidSelection(FluidLayer layer) {
         net.minecraft.resources.Identifier matId = layer.material.id();
         com.soul.smithery.registry.SmitheryFluids.Entry entry =
@@ -687,8 +579,6 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         net.minecraft.resources.Identifier fluidId =
                 net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(entry.source.get());
         if (fluidId == null) return;
-        // NeoForge 26.1.x removed PacketDistributor.sendToServer; route the C2S payload through
-        // the client's network handler directly.
         net.minecraft.client.multiplayer.ClientPacketListener conn =
                 net.minecraft.client.Minecraft.getInstance().getConnection();
         if (conn != null) {

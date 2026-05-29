@@ -8,20 +8,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Convenience factories for ToolComposition. Used by the creative-tab tool tab so players can
- * spawn example tools before recipe support exists; modders can also use these to /give tools
- * during testing.
+ * Factory helpers for {@link ToolComposition} instances used by creative tabs and tests.
  */
 public final class SmitheryToolPresets {
 
-    /** All slots filled with the same material. */
+    /**
+     * Builds a composition with every slot of the given tool type filled by the same material.
+     *
+     * @param tt         the tool type to compose
+     * @param materialId material identifier applied to every slot
+     * @return a uniform-material composition for {@code tt}
+     */
     public static ToolComposition uniform(ToolType tt, Identifier materialId) {
         List<Identifier> mats = new ArrayList<>(tt.slots().size());
         for (int i = 0; i < tt.slots().size(); i++) mats.add(materialId);
         return new ToolComposition(tt.id(), mats);
     }
 
-    /** Convenience: uniform iron tool. */
+    /**
+     * Convenience wrapper that calls {@link #uniform(ToolType, Identifier)} with iron.
+     *
+     * @param tt the tool type to compose in iron
+     * @return an all-iron composition for {@code tt}
+     */
     public static ToolComposition iron(ToolType tt) {
         return uniform(tt, SmitheryMaterials.IRON);
     }

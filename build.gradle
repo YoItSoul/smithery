@@ -210,6 +210,30 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
 
+/**
+ * Generates HTML API documentation for Smithery into {@code build/docs/javadoc}.
+ *
+ * Coverage matches the source pass: public and protected members only — private and
+ * package-private declarations are intentionally skipped. Run with {@code ./gradlew javadoc}.
+ *
+ * {@code failOnError = false} keeps the build alive when the doclet trips on Minecraft /
+ * NeoForge / JEI / Modonomicon / Geckolib classes it cannot resolve (those libraries are
+ * not on the javadoc classpath in offline runs). Doclint is disabled for the same reason
+ * — we explicitly skip private docs by design, which would otherwise emit MISSING tag noise.
+ */
+javadoc {
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.memberLevel = JavadocMemberLevel.PROTECTED
+    options.author = false
+    options.version = false
+    options.windowTitle = "${mod_name} ${mod_version} API"
+    options.docTitle = "${mod_name} ${mod_version} API"
+    options.bottom = "<i>Smithery — modular Tinkers-style tool crafting for NeoForge.</i>"
+    options.addStringOption('Xdoclint:none', '-quiet')
+    failOnError = false
+}
+
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.
 idea {
     module {

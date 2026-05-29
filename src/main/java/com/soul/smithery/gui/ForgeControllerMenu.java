@@ -20,43 +20,39 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 
 /**
- * Menu for the Forge Controller.
+ * Container menu for the forge controller multiblock.
  *
- * The number of forge slots is dynamic — one per interior air block. Because the
- * client may not have a fully-synced BE at menu-open time, the slot count is sent
- * explicitly from the server via the extra-data buf rather than being read from
- * the client's BE. If they disagreed, vanilla's ContainerSetContent packet would
- * crash with IndexOutOfBoundsException.
+ * <p>Forge slot count is dynamic (one per interior air block) and is sent explicitly from the
+ * server through the extra-data buffer so the client never disagrees with the server's slot
+ * vector. Forge item slots are placed off-screen because the screen renders them manually as
+ * a scrollable list; the menu still exposes their stacks for tooltips, melt progress, and
+ * shift-click routing.
  *
- * Forge item slots are placed at an off-screen position so vanilla rendering skips
- * them; the screen draws them manually in its scrollable left panel.
- *
- * ContainerData layout:
- *   [0] temperature × 10 (tenths of °C)
- *   [1] fuel mB
- *   [2] fuel capacity mB
- *   [3] structure valid (1/0)
- *   [4] hole count
- *   [5] fluid capacity mB
- *   [6] total stored fluid mB
- *   [7 + i] stored mB for material i (in SmitheryAPI.MATERIALS registry order)
+ * <p>Container data layout is documented by the {@code DATA_*} constants; per-fluid stored
+ * mB and per-slot melt progress live in trailing variable-length regions.
  */
 public class ForgeControllerMenu extends AbstractContainerMenu {
 
+    /** Container data index: forge temperature in tenths of degrees Celsius. */
     public static final int DATA_TEMP            = 0;
+    /** Container data index: total fuel stored across all ports, in mB. */
     public static final int DATA_FUEL            = 1;
+    /** Container data index: combined fuel capacity in mB. */
     public static final int DATA_FUEL_CAP        = 2;
+    /** Container data index: 1 if the multiblock validated, 0 otherwise. */
     public static final int DATA_VALID           = 3;
+    /** Container data index: number of leak (hole) positions on the last validation. */
     public static final int DATA_HOLES           = 4;
+    /** Container data index: combined fluid capacity in mB. */
     public static final int DATA_FLUID_CAP       = 5;
+    /** Container data index: total stored fluid across all materials in mB. */
     public static final int DATA_FLUID_TOTAL     = 6;
-    /** Index into materialList of the player-selected output fluid; -1 if none. */
+    /** Container data index of the player-selected output fluid material; -1 if none. */
     public static final int DATA_OUTPUT_FLUID_IX = 7;
-    /** 1 = alloying enabled (default), 0 = paused. Toggled via the screen's alloy button. */
+    /** Container data index: 1 if the auto-alloy loop is enabled, 0 if paused. */
     public static final int DATA_ALLOY_ENABLED   = 8;
+    /** Container data index where the per-material fluid amounts begin. */
     public static final int DATA_FLUID_BASE      = 9;
-    // Melt progress per slot (in mB) lives after the fluid slots in syncData.
-    // dataMeltBase = DATA_FLUID_BASE + materialList.size().
 
     private static final int OFFSCREEN = -9999;
     private static final int FORGE_SLOT_MAX_STACK = 1;
@@ -68,22 +64,32 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     private final int dataMeltBase;
     private final int[] syncData;
 
-    // ----- Client-side (network) entry point -----
-    // The buf was filled by ForgeControllerBlock with: BlockPos, then VarInt(slotCount).
+    /**
+     * Client-side network constructor invoked by NeoForge with the server-supplied buf.
+     *
+     * @param id assigned menu id
+     * @param playerInv local player's inventory
+     * @param buf payload containing the controller position followed by a varint slot count
+     */
     public ForgeControllerMenu(int id, Inventory playerInv, RegistryFriendlyByteBuf buf) {
         this(id, playerInv, buf.readBlockPos(), buf.readVarInt());
     }
 
-    // ----- Client-side construction with explicit slot count from server -----
     private ForgeControllerMenu(int id, Inventory playerInv, BlockPos pos, int forgeSlotCount) {
         this(id, playerInv,
-                lookupBE(playerInv.player, pos),  // may exist on client (used by stillValid, screen accessors)
+                lookupBE(playerInv.player, pos),
                 pos,
                 forgeSlotCount,
-                new SimpleContainer(Math.max(forgeSlotCount, 1))); // populated by vanilla ContainerSetContent
+                new SimpleContainer(Math.max(forgeSlotCount, 1)));
     }
 
-    // ----- Server-side entry point (from BE.createMenu) -----
+    /**
+     * Server-side constructor invoked from the block entity's {@code createMenu}.
+     *
+     * @param id assigned menu id
+     * @param playerInv inventory of the opening player
+     * @param be controller block entity, or {@code null} when the BE is missing (fallback path)
+     */
     public ForgeControllerMenu(int id, Inventory playerInv, @Nullable ForgeControllerBlockEntity be) {
         this(id, playerInv,
                 be,
@@ -92,7 +98,6 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
                 be != null ? be.getSlotContainer() : new SimpleContainer(1));
     }
 
-    // ----- Main constructor (does all the work) -----
     private ForgeControllerMenu(int id,
                                 Inventory playerInv,
                                 @Nullable ForgeControllerBlockEntity be,
@@ -106,12 +111,8 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
         this.forgeSlotCount = forgeSlotCount;
         this.dataMeltBase   = DATA_FLUID_BASE + materialList.size();
         this.syncData       = new int[dataMeltBase + forgeSlotCount];
-        // -1 sentinel until the server's first broadcast arrives; the default Java int 0
-        // would otherwise be misread as "material index 0 is selected" by the client screen.
         this.syncData[DATA_OUTPUT_FLUID_IX] = -1;
 
-        // Forge item slots — rendered manually by the screen. Capped at 1 stack
-        // per slot so each interior air block holds exactly one melting item.
         for (int i = 0; i < forgeSlotCount; i++) {
             addSlot(new Slot(slotContainer, i, OFFSCREEN, OFFSCREEN) {
                 @Override public int getMaxStackSize()                  { return FORGE_SLOT_MAX_STACK; }
@@ -119,15 +120,11 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
             });
         }
 
-        // Player main inventory (rows 0-2) — centered horizontally in the 248px-wide screen.
-        // 9 slots × 18px = 162px wide, so left margin = (248 - 162) / 2 = 43,
-        // and the first slot's interior begins at x = 43 + 1 (border) = 44.
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 addSlot(new Slot(playerInv, col + row * 9 + 9, 44 + col * 18, 143 + row * 18));
             }
         }
-        // Hotbar.
         for (int col = 0; col < 9; col++) {
             addSlot(new Slot(playerInv, col, 44 + col * 18, 201));
         }
@@ -144,8 +141,6 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
         return null;
     }
 
-    // ---- Server-side data push ----
-
     @Override
     public void broadcastChanges() {
         if (blockEntity != null) {
@@ -159,8 +154,6 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
             syncData[DATA_OUTPUT_FLUID_IX] = computeOutputFluidIndex(blockEntity);
             syncData[DATA_ALLOY_ENABLED]   = blockEntity.isAlloyEnabled() ? 1 : 0;
             for (int i = 0; i < materialList.size(); i++) {
-                // Storage is now keyed by Fluid (not Material). Look up the molten fluid for
-                // each material; if absent (e.g. wood has no molten form), report 0.
                 com.soul.smithery.registry.SmitheryFluids.Entry entry =
                         com.soul.smithery.registry.SmitheryFluids.forMaterial(materialList.get(i).id());
                 syncData[DATA_FLUID_BASE + i] = entry == null ? 0
@@ -173,34 +166,104 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
         super.broadcastChanges();
     }
 
-    // ---- Accessors (read from syncData — valid on both sides) ----
-
+    /**
+     * Returns the synced forge temperature in degrees Celsius.
+     *
+     * @return current temperature in degrees Celsius
+     */
     public float getTemperatureC()      { return syncData[DATA_TEMP] / 10f; }
+
+    /**
+     * Returns the synced total fuel mB.
+     *
+     * @return current total fuel in mB
+     */
     public int getFuelMb()              { return syncData[DATA_FUEL]; }
+
+    /**
+     * Returns the synced combined fuel capacity.
+     *
+     * @return total fuel capacity in mB
+     */
     public int getFuelCapacityMb()      { return syncData[DATA_FUEL_CAP]; }
+
+    /**
+     * Returns whether the multiblock was reported valid on the last validation.
+     *
+     * @return {@code true} if the structure formed correctly
+     */
     public boolean isForgeValid()       { return syncData[DATA_VALID] == 1; }
+
+    /**
+     * Returns the number of leak positions reported on the last validation.
+     *
+     * @return number of holes
+     */
     public int getHoles()               { return syncData[DATA_HOLES]; }
+
+    /**
+     * Returns the synced combined fluid capacity.
+     *
+     * @return total fluid capacity in mB
+     */
     public int getFluidCapacityMb()     { return syncData[DATA_FLUID_CAP]; }
+
+    /**
+     * Returns the synced total fluid stored across all materials.
+     *
+     * @return total stored fluid in mB
+     */
     public int getTotalFluidMb()        { return syncData[DATA_FLUID_TOTAL]; }
+
+    /**
+     * Returns the snapshot of materials used to size and index the fluid sync arrays.
+     *
+     * @return immutable material list in registry order
+     */
     public List<Material> getMaterials(){ return materialList; }
+
+    /**
+     * Returns the number of forge slots this menu was created with.
+     *
+     * @return forge slot count
+     */
     public int getForgeSlotCount()      { return forgeSlotCount; }
+
+    /**
+     * Returns the controller block position this menu refers to.
+     *
+     * @return controller world position
+     */
     public BlockPos getBlockPos()       { return blockPos; }
 
+    /**
+     * Returns the synced stored mB for the material at the given material-list index.
+     *
+     * @param index index into {@link #getMaterials()}
+     * @return stored mB, or 0 if the index is out of range
+     */
     public int getStoredMbForMaterial(int index) {
         int i = DATA_FLUID_BASE + index;
         return (i >= 0 && i < syncData.length) ? syncData[i] : 0;
     }
 
-    /** Index into {@link #getMaterials()} of the currently-selected output fluid; -1 if none. */
+    /**
+     * Returns the index into {@link #getMaterials()} of the selected output fluid.
+     *
+     * @return material index, or -1 if no output is selected
+     */
     public int getOutputFluidMaterialIndex() {
         return syncData[DATA_OUTPUT_FLUID_IX];
     }
 
-    /** Whether the controller's auto-alloy loop is enabled (synced from server). */
+    /**
+     * Returns whether the controller's auto-alloy loop is enabled.
+     *
+     * @return {@code true} if alloying is currently enabled on the server
+     */
     public boolean isAlloyEnabled() { return syncData[DATA_ALLOY_ENABLED] == 1; }
 
-    // ---- Menu button IDs (used by clickMenuButton) ----
-    /** Toggles {@link ForgeControllerBlockEntity#isAlloyEnabled()}. */
+    /** Menu button id that toggles {@link ForgeControllerBlockEntity#isAlloyEnabled()}. */
     public static final int BUTTON_TOGGLE_ALLOY = 0;
 
     @Override
@@ -214,10 +277,6 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
         return false;
     }
 
-    /**
-     * Server-side helper to resolve the controller's selected Fluid id into a material-list
-     * index. -1 if no selection or the selected fluid doesn't map to one of our materials.
-     */
     private int computeOutputFluidIndex(ForgeControllerBlockEntity be) {
         net.minecraft.resources.Identifier fluidId = be.outputFluidId();
         if (fluidId == null) return -1;
@@ -232,14 +291,17 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
         return -1;
     }
 
-    /** Synced melt progress (mB) for the given forge slot; 0 if out of range. */
+    /**
+     * Returns the synced melt progress for the given forge slot.
+     *
+     * @param slotIndex zero-based forge slot index
+     * @return progress in mB, or 0 if the index is out of range
+     */
     public int getMeltProgressMb(int slotIndex) {
         int i = dataMeltBase + slotIndex;
         return (slotIndex >= 0 && slotIndex < forgeSlotCount && i < syncData.length)
                 ? syncData[i] : 0;
     }
-
-    // ---- Shift-click ----
 
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
@@ -248,11 +310,9 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
 
         ItemStack original = slot.getItem().copy();
         if (index < forgeSlotCount) {
-            // Forge → player inventory
             if (!moveItemStackTo(slot.getItem(), forgeSlotCount, forgeSlotCount + 36, true))
                 return ItemStack.EMPTY;
         } else {
-            // Player → forge (first empty slot)
             if (!moveItemStackTo(slot.getItem(), 0, forgeSlotCount, false))
                 return ItemStack.EMPTY;
         }

@@ -34,60 +34,47 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 
 /**
- * Part Press internal state — slots, selected part type, and redstone-driven open/closed pose.
- *
- * <h3>Slot model</h3>
- * Two slots: an input stack (raw material, accepted while open) and an output stack (cut part,
- * extractable while open). Single-item slots — the press cuts one part per close cycle.
- *
- * <h3>Cycle</h3>
- * <ol>
- *   <li>Open (POWERED=false). Player or hopper inserts raw material; bare-hand right-click
- *       cycles {@link #selectedPartIndex} through all non-synthetic part types.</li>
- *   <li>Redstone signal turns ON → block flips POWERED=true → {@link #onPowerChanged} triggers
- *       the close animation and runs the cut once: input shrinks by 1, output gains a fresh
- *       {@code smithery:<material>_<part_type>} stack resolved via {@link SmitheryAPI#MELTING_RECIPES}.</li>
- *   <li>Redstone signal turns OFF → POWERED=false → open animation; output is now reachable by
- *       hoppers or a bare-hand right-click.</li>
- * </ol>
- *
- * <h3>Material lookup</h3>
- * Reuses the global melting-recipe map ({@link SmitheryAPI#MELTING_RECIPES}) as a generic
- * "input item → Smithery material" lookup. mB amount is ignored — the press is a 1:1 cutter,
- * not a forge. Items without a melting recipe are rejected.
+ * Part Press internal state: input/output slots, selected part type, redstone-driven
+ * open/closed pose, and the Geckolib animation hookup. Open while unpowered (insert
+ * input, extract output, cycle template); on the rising power edge, runs one cut from
+ * input to output using the selected part type and the input's resolved material.
  */
 public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity {
 
-    /** Animation controller name (matches the one registered in {@link #registerControllers}). */
     private static final String CONTROLLER = "press";
-    /** Trigger animation ids — bone names in {@code part_press.animation.json}. */
     private static final String ANIM_OPEN = "open";
     private static final String ANIM_CLOSE = "close";
 
-    /** "Empty" idle animations the controller defaults to between triggers. */
     private static final RawAnimation IDLE_OPEN  = RawAnimation.begin().thenPlay(ANIM_OPEN);
     private static final RawAnimation IDLE_CLOSE = RawAnimation.begin().thenPlay(ANIM_CLOSE);
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
-    /** Index into the non-synthetic part-types list. Clamped on load. */
     private int selectedPartIndex = 0;
     private ItemStack input  = ItemStack.EMPTY;
     private ItemStack output = ItemStack.EMPTY;
     private boolean closed   = false;
 
+    /**
+     * Constructs a part press BE bound to the given position and blockstate.
+     */
     public PartPressBlockEntity(BlockPos pos, BlockState state) {
         super(SmitheryBlockEntities.PART_PRESS.get(), pos, state);
     }
 
-    // ---- Accessors ----
-
+    /** Current index into the non-synthetic part-types list. */
     public int selectedPartIndex() { return selectedPartIndex; }
+    /** Current input slot stack ({@code ItemStack.EMPTY} when empty). */
     public ItemStack inputItem()   { return input; }
+    /** Current output slot stack ({@code ItemStack.EMPTY} when empty). */
     public ItemStack outputItem()  { return output; }
+    /** True when the press is in its powered closed pose. */
     public boolean isClosed()      { return closed; }
 
-    /** The PartType currently selected — wraps {@link #selectedPartIndex} into the live registry list. */
+    /**
+     * Returns the PartType the press is currently configured to cut, wrapped through
+     * the live registry list. Null if no selectable part types exist.
+     */
     public @Nullable PartType selectedPartType() {
         List<PartType> all = nonSyntheticPartTypes();
         if (all.isEmpty()) return null;
@@ -95,8 +82,10 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         return all.get(idx);
     }
 
-    // ---- Mutations ----
-
+    /**
+     * Advances {@link #selectedPartIndex} to the next selectable part type and syncs
+     * to the client.
+     */
     public void cycleSelectedPart() {
         List<PartType> all = nonSyntheticPartTypes();
         if (all.isEmpty()) return;
@@ -108,11 +97,9 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
     }
 
     /**
-     * True iff the press can accept {@code stack} as raw material. The input slot has a hard
-     * capacity of ONE item — once anything is in there, no more inserts until the cut consumes
-     * it or the player pulls it back out. Also refuses while the output slot still holds an
-     * unclaimed part, since the press isn't "ready for the next job" until the player or a
-     * hopper has cleared the previous result.
+     * True iff the press can currently accept {@code stack} as raw material. Requires
+     * an empty input slot, an empty output slot, and a resolved material via
+     * {@link #resolveMaterialFor(ItemStack)}.
      */
     public boolean canAcceptInput(ItemStack stack) {
         if (stack.isEmpty()) return false;
@@ -122,16 +109,10 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
     }
 
     /**
-     * Resolves an input {@link ItemStack} to the smithery material id it should produce a part of.
-     *
-     * <p>The press is the <em>non-meltable</em> part-production path — meltable materials
-     * (iron, gold, stone, lapis, etc) go through the forge → cast pipeline, not the press.
-     * Domains don't overlap; iron ingots are rejected here on purpose so players can't bypass
-     * the forge with a redstone tick.
-     *
-     * <p>Accepted inputs: any log, flint, slime balls (regular + red), resin clumps, and
-     * live or dead coral blocks. Returns {@code null} for anything else — the press is the
-     * sole non-meltable→part path, so this list is authoritative.
+     * Resolves an input item to the smithery material id it should produce a part of.
+     * The press handles only non-meltable inputs (logs, flint, slime, resin, coral,
+     * red slime); meltables go through the forge/cast pipeline instead. Returns null
+     * for unsupported items.
      */
     public static @Nullable Identifier resolveMaterialFor(ItemStack stack) {
         if (stack.is(net.minecraft.tags.ItemTags.LOGS))   return SmitheryMaterials.WOOD;
@@ -139,13 +120,8 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         if (stack.is(net.minecraft.world.item.Items.SLIME_BALL))   return SmitheryMaterials.SLIME;
         if (stack.is(net.minecraft.world.item.Items.RESIN_CLUMP))  return SmitheryMaterials.RESIN;
         if (isCoralBlockItem(stack)) return SmitheryMaterials.CORAL;
-        // Red slime mirrors slime in part-press coverage — every part type slime can make,
-        // red slime can too. It also keeps its bowstring eligibility for shaped recipes.
         if (stack.is(com.soul.smithery.registry.SmitheryItems.RED_SLIME.get()))
             return SmitheryMaterials.RED_SLIME;
-        // Other bowstring-class materials (string / flamestring / breezestring / kelp_string)
-        // are NOT pressed — those bowstring PartItems are produced via shaped crafting recipes
-        // (data/smithery/recipe/*_bowstring.json) so each one is a deliberate, hand-formed part.
         return null;
     }
 
@@ -163,7 +139,10 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
             || it == net.minecraft.world.item.Items.DEAD_HORN_CORAL_BLOCK;
     }
 
-    /** Inserts exactly one item from {@code stack} into the (single-item) input slot. */
+    /**
+     * Inserts exactly one item from {@code stack} into the single-item input slot.
+     * Returns 1 on success, 0 if rejected.
+     */
     public int insertOne(ItemStack stack) {
         if (!canAcceptInput(stack)) return 0;
         input = stack.copyWithCount(1);
@@ -171,7 +150,7 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         return 1;
     }
 
-    /** Pops the current output stack out and returns it (caller is responsible for delivery). */
+    /** Pops the output stack out and clears it; caller is responsible for delivery. */
     public ItemStack takeOutput() {
         if (output.isEmpty()) return ItemStack.EMPTY;
         ItemStack out = output;
@@ -180,7 +159,7 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         return out;
     }
 
-    /** Pops the whole unpressed input stack out — lets the player retrieve raw material before cutting. */
+    /** Pops the unpressed input stack out and clears it; caller is responsible for delivery. */
     public ItemStack takeInput() {
         if (input.isEmpty()) return ItemStack.EMPTY;
         ItemStack out = input;
@@ -190,8 +169,9 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
     }
 
     /**
-     * Called by {@link com.soul.smithery.block.PartPressBlock#neighborChanged} on every transition.
-     * Drives the animation trigger and, on a fresh "going closed" edge, performs the cut.
+     * Power state transition hook from {@link com.soul.smithery.block.PartPressBlock}.
+     * On the rising "going closed" edge triggers the cut and the close animation; on
+     * the falling edge triggers the open animation.
      */
     public void onPowerChanged(boolean powered) {
         if (powered == closed) return;
@@ -205,10 +185,6 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         markDirtyAndSync();
     }
 
-    /**
-     * Consume one input and emit one part into the output slot, if the inputs+selection are valid
-     * and there's room in the output. No-op otherwise. Called once per close-edge.
-     */
     private void performCut() {
         if (input.isEmpty()) return;
         PartType pt = selectedPartType();
@@ -229,8 +205,6 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         input.shrink(1);
         if (input.isEmpty()) input = ItemStack.EMPTY;
     }
-
-    // ---- NBT ----
 
     @Override
     protected void saveAdditional(ValueOutput out) {
@@ -257,8 +231,6 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         output = in.read("output", ItemStack.OPTIONAL_CODEC).orElse(ItemStack.EMPTY);
     }
 
-    // ---- Sync helpers ----
-
     private void markDirtyAndSync() {
         setChanged();
         if (level instanceof ServerLevel sl) {
@@ -276,8 +248,6 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         return saveCustomOnly(registries);
     }
 
-    // ---- Geckolib hooks ----
-
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         AnimationController<PartPressBlockEntity> ctrl = new AnimationController<>(
@@ -292,13 +262,10 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         return cache;
     }
 
-    // ---- Item capability exposure ----
-    //
-    // Two virtual slots: 0 = input, 1 = output. Hoppers can insert into 0 only while open;
-    // they extract from 1 only while open. Closed state (POWERED=true) locks both — the press
-    // is mid-cut, not a buffer. Insertion is gated by canAcceptInput so hoppers can't smuggle
-    // unrelated items into the slot.
-
+    /**
+     * Returns the press's item capability: slot 0 is the input (insert-only while open),
+     * slot 1 is the output (extract-only while open). Both lock when the press is closed.
+     */
     public ResourceHandler<ItemResource> itemHandlerFor(@Nullable Direction side) {
         return new PressItemHandler();
     }
@@ -317,8 +284,6 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         }
 
         @Override public long getCapacityAsLong(int slot, ItemResource resource) {
-            // Input slot is single-item; output slot mirrors the part's stack size (always 1 for
-            // smithery PartItems but kept generic so future cast outputs aren't capped artificially).
             if (slot == 0) return 1L;
             if (slot == 1) return resource.isEmpty() ? 64L : resource.getItem().getDefaultMaxStackSize();
             return 0L;
@@ -327,13 +292,12 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         @Override public boolean isValid(int slot, ItemResource resource) {
             if (resource.isEmpty() || closed) return false;
             if (slot == 0) return canAcceptInput(resource.toStack(1));
-            return false; // output slot is extract-only
+            return false;
         }
 
         @Override
         public int insert(int slot, ItemResource resource, int amount, TransactionContext tx) {
             if (slot != 0 || closed || resource.isEmpty() || amount <= 0) return 0;
-            // Single-item slot: accept at most 1 item, and only when the slot is empty.
             if (!input.isEmpty()) return 0;
             if (!canAcceptInput(resource.toStack(1))) return 0;
             input = resource.toStack(1);
@@ -353,13 +317,6 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         }
     }
 
-    // ---- Helpers ----
-
-    /**
-     * Selectable PartTypes for the press: registered, non-synthetic, and not bowstring.
-     * Bowstrings are excluded because every bowstring PartItem is hand-crafted via shaped
-     * recipes (data/smithery/recipe/*_bowstring.json) — the press isn't a valid producer.
-     */
     private static List<PartType> nonSyntheticPartTypes() {
         return SmitheryAPI.PART_TYPES.all().stream()
                 .filter(pt -> !pt.syntheticCast())

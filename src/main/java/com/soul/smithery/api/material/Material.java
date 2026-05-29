@@ -5,22 +5,26 @@ import net.minecraft.resources.Identifier;
 import java.util.Objects;
 
 /**
- * A registered Material. Pairs an ID with a (mutable-by-override) stat block.
+ * Registered substance in Smithery (iron, gold, copper, blood, ender, etc.).
  *
- * Stats are held in a separate object so datapack overrides can replace them at resource reload
- * without invalidating Material identity (existing references to the Material remain valid; only
- * stats change).
+ * <p>Pairs an id with a mutable-by-override {@link MaterialStats} block. Stats live in a separate
+ * object so datapack overrides can replace them at resource reload without invalidating Material
+ * identity — existing references to the Material remain valid; only the stat block changes.
  */
 public final class Material {
     private final Identifier id;
     private volatile MaterialStats stats;
 
+    /** Constructs a material with the given id and initial stats. */
     public Material(Identifier id, MaterialStats stats) {
         this.id = Objects.requireNonNull(id);
         this.stats = Objects.requireNonNull(stats);
     }
 
+    /** Identifier for this material. */
     public Identifier id() { return id; }
+
+    /** Current stat block for this material. */
     public MaterialStats stats() { return stats; }
 
     /** Replace this material's stat block (used by datapack overrides). */

@@ -29,56 +29,33 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
- * Smithery bow. Extends vanilla {@link BowItem} so all of vanilla's draw / charge / shoot
- * pipeline runs unchanged — we only customise the projectile prep (smithery arrow damage
- * comes from its composition, not from any vanilla baseline) and the tooltip.
- *
- * <h3>Why extend BowItem (and not SmitheryToolItem)</h3>
- * BowItem extends ProjectileWeaponItem which provides the {@code shoot} / {@code draw} /
- * {@code useAmmo} pipeline tied into player.getProjectile / inventory ammo lookup.
- * Re-implementing that on top of SmitheryToolItem would duplicate a non-trivial amount of
- * vanilla logic; subclassing BowItem keeps us automatically forward-compatible when vanilla
- * tweaks the bow flow.
- *
- * <h3>Composition wiring</h3>
- * Per-stack composition lives in the TOOL_COMPOSITION component (written by
- * {@link SmitheryToolItem#applyComposition}). Durability comes from the bow limb +
- * bowstring materials; the bowstring material's binderMultiplier scales it.
- *
- * <h3>Ammo</h3>
- * Accepts both smithery arrows (via {@link SmitheryArrowItem}) and vanilla arrows — both
- * are reachable through {@code ItemTags.ARROWS}, which vanilla BowItem's default predicate
- * already uses. Smithery arrows carry their own composition; vanilla arrows fire with
- * baseline damage.
+ * Smithery bow item. Extends vanilla {@link BowItem} so the full draw/charge/shoot
+ * pipeline runs unchanged; only projectile prep (smithery arrow damage scaling) and
+ * the tooltip are customised. Per-stack composition lives in the TOOL_COMPOSITION
+ * component written by {@link SmitheryToolItem#applyComposition}.
  */
 public class SmitheryBowItem extends BowItem {
 
     private final Identifier toolTypeId;
 
+    /**
+     * Constructs the bow item bound to the given smithery ToolType id.
+     */
     public SmitheryBowItem(Properties properties, Identifier toolTypeId) {
         super(properties);
         this.toolTypeId = toolTypeId;
     }
 
+    /** Returns the bound ToolType id (e.g. {@code smithery:bow}). */
     public Identifier toolTypeId() { return toolTypeId; }
+    /** Resolves the live {@link ToolType} for this bow item, or null if unregistered. */
     public ToolType toolType() { return SmitheryAPI.TOOL_TYPES.get(toolTypeId); }
 
     @Override
     public Predicate<ItemStack> getAllSupportedProjectiles() {
-        // Accept anything tagged minecraft:arrows. Vanilla arrows + smithery arrows (the
-        // SmitheryArrowItem registration is tag-injected into #minecraft:arrows via
-        // data/minecraft/tags/item/arrows.json) both pass.
         return s -> s.is(ItemTags.ARROWS);
     }
 
-    /**
-     * Override so the projectile spawned for a smithery arrow carries the right per-arrow base
-     * damage (from the arrow's TOOL_COMPOSITION) and also picks up any bow-side damage bonus
-     * scaling from the bow's own composition. Vanilla flow:
-     *   ArrowItem.createArrow(...) → AbstractArrow with baseDamage = 2.0 (vanilla default)
-     *   then EnchantmentHelper.modifyDamage scales it.
-     * Our flow stamps the arrow's baseDamage from composition stats before returning.
-     */
     @Override
     protected Projectile createProjectile(Level level, LivingEntity shooter, ItemStack weapon,
                                           ItemStack projectile, boolean isCrit) {
@@ -89,23 +66,11 @@ public class SmitheryBowItem extends BowItem {
         return out;
     }
 
-    /**
-     * Stamps the arrow's baseDamage from the arrow's composition (arrow_head material's
-     * attackDamage drives the baseline). A separate bow-side scalar layers on top: a wooden
-     * bow shoots less hard than a netherite bow even with the same arrow. Both contributions
-     * come from {@link ToolStats}.
-     *
-     * If the projectile is a vanilla arrow (no smithery composition), we leave its baseDamage
-     * alone — vanilla's 2.0 default applies, plus any bow-side enchantment scaling.
-     */
     private static void applySmitheryArrowDamage(AbstractArrow arrow, ItemStack projectile, ItemStack weapon) {
         ToolComposition arrowComp = projectile.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
         if (arrowComp == null || !arrowComp.isValid()) return;
         ToolStats arrowStats = ToolStats.compute(arrowComp);
 
-        // Bow-side multiplier: average of limb attackDamage / 2.0 (vanilla baseline). A bow
-        // with mediocre limbs reduces damage vs a strong-material bow. Capped to ≥ 0.5 so a
-        // wood bow still does meaningful damage with iron arrows.
         float bowScalar = bowDamageScalar(weapon);
 
         double finalDamage = arrowStats.attackDamage * bowScalar;
@@ -114,20 +79,12 @@ public class SmitheryBowItem extends BowItem {
         }
     }
 
-    /**
-     * Bow-side damage scalar. Reads the bow's TOOL_COMPOSITION and returns a multiplier that
-     * scales arrow base damage. Calibrated so an iron-limb bow (attackDamage=2.0) reads as
-     * 1.0 — a neutral scalar — and other materials scale up/down from there.
-     */
     private static float bowDamageScalar(ItemStack weapon) {
         ToolComposition bowComp = weapon.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
         if (bowComp == null || !bowComp.isValid()) return 1.0f;
         ToolStats bowStats = ToolStats.compute(bowComp);
-        // Iron's attackDamage = 2.0 → 1.0× multiplier. Half-iron → 0.5×, double-iron → 2.0×.
         return Math.max(0.5f, bowStats.attackDamage / 2.0f);
     }
-
-    // ---- Display name & tooltip — mirror SmitheryToolItem's shape ----
 
     @Override
     public Component getName(ItemStack stack) {
@@ -161,34 +118,40 @@ public class SmitheryBowItem extends BowItem {
                 stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(),
                         java.util.List.<com.soul.smithery.api.modifier.ModifierEffect>of());
         ToolStats stats = ToolStats.compute(comp, applied);
+        com.soul.smithery.item.SmitheryTooltips.Tier tier = com.soul.smithery.item.SmitheryTooltips.currentTier();
 
-        // Parts breakdown
-        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")
-                .withStyle(ChatFormatting.GRAY));
+        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".section.summary")
+                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+
+        if (tier == com.soul.smithery.item.SmitheryTooltips.Tier.BASIC) {
+            com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
+            super.appendHoverText(stack, context, display, tooltip, flag);
+            return;
+        }
+
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+                Component.translatable("tooltip." + Smithery.MODID + ".tool.stats")));
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.durability", stats.maxDurability)));
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.attack_damage",
+                String.format("×%.2f", Math.max(0.5f, stats.attackDamage / 2.0f)))));
+
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+                Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")));
         List<ToolType.Slot> slots = tt.slots();
         for (int i = 0; i < slots.size(); i++) {
             ToolType.Slot slot = slots.get(i);
             Material m = SmitheryAPI.MATERIALS.get(comp.slotMaterials().get(i));
             if (m == null) continue;
             PartType pt = slot.partType();
-            tooltip.accept(Component.literal(" • ")
+            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.bullet(Component.empty()
                     .append(Component.translatable(PartItem.materialTranslationKey(m.id())))
                     .append(Component.literal(" "))
-                    .append(Component.translatable(PartItem.partTranslationKey(pt.id())))
-                    .withStyle(ChatFormatting.DARK_GRAY));
+                    .append(Component.translatable(PartItem.partTranslationKey(pt.id())))));
         }
 
-        // Stats — bow shows durability and a "bow damage scalar" derived from limb attackDamage.
-        // The arrow's own damage stat is shown on the arrow's tooltip; multiplying the two gives
-        // the actual shot damage at full charge.
-        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.stats")
-                .withStyle(ChatFormatting.GRAY));
-        tooltip.accept(SmitheryToolItem.statLine(Component.translatable(
-                "tooltip." + Smithery.MODID + ".tool.durability", stats.maxDurability)));
-        tooltip.accept(SmitheryToolItem.statLine(Component.translatable(
-                "tooltip." + Smithery.MODID + ".tool.attack_damage",
-                String.format("×%.2f", Math.max(0.5f, stats.attackDamage / 2.0f)))));
-
+        com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
         super.appendHoverText(stack, context, display, tooltip, flag);
     }
 

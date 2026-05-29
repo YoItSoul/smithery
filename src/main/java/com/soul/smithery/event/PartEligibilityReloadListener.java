@@ -14,17 +14,15 @@ import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
 import java.util.Map;
 
 /**
- * Loads {@code data/<namespace>/smithery/part_eligibility/*.json} files into
- * {@link PartEligibility}'s data-side allow-lists. Re-runs on every {@code /reload}, wiping
- * the prior data layer wholesale. Code-registered allow-lists are untouched and stack with
- * data entries at lookup time.
+ * Server-side reload listener that loads part-eligibility allow-lists from
+ * {@code data/<namespace>/smithery/part_eligibility/*.json} into {@link PartEligibility}'s
+ * data layer.
  *
- * <p>Filename is arbitrary — the {@code part_type} field inside the file is authoritative.
- *
- * <h3>Failure modes</h3>
- * Malformed JSON → logged + file skipped. Unknown part-type / material ids are accepted at
- * load time (the registry may not be fully populated yet); they simply never match anything
- * at lookup time.
+ * <p>The {@code part_type} field inside each file is authoritative (not the filename). Re-runs
+ * on every {@code /reload} and wipes the data layer wholesale; code-registered allow-lists are
+ * untouched and stack additively with data entries at lookup time. Unknown part-type or material
+ * ids are accepted silently because registries may not be fully populated at load time; they
+ * simply never match at lookup.
  */
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class PartEligibilityReloadListener
@@ -48,6 +46,12 @@ public final class PartEligibilityReloadListener
         Smithery.LOGGER.info("Loaded {} part-eligibility entries from data packs", registered);
     }
 
+    /**
+     * Registers this listener with the server reload pipeline under the
+     * {@code smithery:part_eligibility} id.
+     *
+     * @param event the NeoForge add-reload-listeners event
+     */
     @SubscribeEvent
     public static void onAddReloadListeners(AddServerReloadListenersEvent event) {
         event.addListener(

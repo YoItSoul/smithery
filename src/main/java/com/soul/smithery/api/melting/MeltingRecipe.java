@@ -5,20 +5,20 @@ import net.minecraft.resources.Identifier;
 import java.util.Objects;
 
 /**
- * "When this Item is consumed in the forge interior, produce {@code outputMb} of molten
- * {@code outputMaterialId}."
+ * Recipe matching one input item to an output material and mB amount produced in the forge.
  *
- * Smelt time scales with temperature using the formula in {@link com.soul.smithery.api.material.MaterialStats}
- * (see SMITHERY_DESIGN.md §4.4). Items only melt once the forge meets the material's melt point.
+ * <p>When this item is consumed in the forge interior, the forge produces {@code outputMb} of
+ * molten {@code outputMaterialId}. The smelt time scales with temperature via the
+ * {@link com.soul.smithery.api.material.MaterialStats} melt-rate formula and an item only melts
+ * once the forge reaches the material's melt point.
  *
- * v1 conventions (matching the design doc):
- *   - nugget = 16 mB
- *   - ingot  = 144 mB
- *   - raw / ore form = 288 mB (2× ingot)
- *   - block (9 ingots) = 1296 mB
+ * @param inputItemId      id of the item that melts
+ * @param outputMaterialId id of the material the item melts into
+ * @param outputMb         milliBuckets of output material produced (nugget=16, ingot=144, ore=288, block=1296)
  */
 public record MeltingRecipe(Identifier inputItemId, Identifier outputMaterialId, int outputMb) {
 
+    /** Compact constructor enforcing non-null ids and a positive output volume. */
     public MeltingRecipe {
         Objects.requireNonNull(inputItemId, "inputItemId");
         Objects.requireNonNull(outputMaterialId, "outputMaterialId");

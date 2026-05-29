@@ -23,31 +23,39 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Client-side debug renderer for wireframe boxes. Boxes are added with a tick duration; each
- * client tick decrements the counter and removes expired boxes. Each frame, the surviving
- * boxes are drawn with a red wireframe whose alpha fades to zero over the remaining lifetime.
+ * Client-side debug wireframe overlay for time-limited block positions.
  *
- * Currently only used by the forge multiblock validator to flag leak (hole) positions.
+ * <p>Boxes are queued with a tick duration; each client tick decrements remaining ticks
+ * and expired entries are dropped. Currently driven by the forge multiblock validator
+ * to highlight leak positions when a structure fails to close.
  */
 @EventBusSubscriber(modid = Smithery.MODID, value = Dist.CLIENT)
 public final class DebugBoxRenderer {
     private DebugBoxRenderer() {}
 
-    /** Mutable in-flight queue. Accessed only on the client thread. */
     private static final List<Box> BOXES = new ArrayList<>();
 
-    /** ARGB-packed full-red. Alpha is overwritten per frame to fade. */
     private static final int BASE_COLOR_RGB = 0x00FF0000;
 
-    /** Line width for renderShape (pixels in 1080p-ish; tune to taste). */
     private static final float LINE_WIDTH = 2.5f;
 
+    /**
+     * Adds wireframe boxes at the given positions with a shared lifetime.
+     *
+     * @param positions block positions to outline; copied as immutables so callers may mutate freely
+     * @param durationTicks how many client ticks each box should remain visible before fading out
+     */
     public static void queueLeaks(Collection<BlockPos> positions, int durationTicks) {
         for (BlockPos pos : positions) {
             BOXES.add(new Box(pos.immutable(), durationTicks, durationTicks));
         }
     }
 
+    /**
+     * Ticks down each pending box and removes the ones that have expired.
+     *
+     * @param event the post client-tick event
+     */
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         if (BOXES.isEmpty()) return;
@@ -59,6 +67,11 @@ public final class DebugBoxRenderer {
         }
     }
 
+    /**
+     * Draws each surviving box as a red wireframe cube, with alpha fading over its remaining lifetime.
+     *
+     * @param event the after-translucent-particles render-level event
+     */
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent.AfterTranslucentParticles event) {
         if (BOXES.isEmpty()) return;
@@ -68,7 +81,7 @@ public final class DebugBoxRenderer {
         Vec3 camPos = Minecraft.getInstance().gameRenderer.getMainCamera().position();
         MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         VertexConsumer consumer = buffers.getBuffer(RenderTypes.lines());
-        VoxelShape unitCube = Shapes.block(); // 0..1 cube
+        VoxelShape unitCube = Shapes.block();
 
         stack.pushPose();
         stack.translate(-camPos.x, -camPos.y, -camPos.z);

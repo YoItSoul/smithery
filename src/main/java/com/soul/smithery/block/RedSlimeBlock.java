@@ -9,23 +9,18 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Slime block tinted red that also emits a full redstone signal — vanilla slime physics
- * (sticky on adjacent blocks, bouncy on entity fall, low friction) plus a constant power
- * source on every side like the vanilla Redstone Block.
- *
- * <p>All other behaviour comes from extending {@link SlimeBlock} unchanged, so block-of-block
- * sticky pulls / piston interactions / sound type / falling-mob bounce all match vanilla
- * slime exactly. The only adds are the three {@code is/get*Signal} overrides.
- *
- * <p>{@code codec()} returns the parent SlimeBlock codec — overriding with a narrower generic
- * is a compile error in Java (return-type covariance can't move from {@code MapCodec<SlimeBlock>}
- * to {@code MapCodec<RedSlimeBlock>}). The block-codec system uses the runtime class for
- * registry lookups, so re-using the parent codec is correct as long as the constructor
- * signature matches (it does — both take just {@code BlockBehaviour.Properties}).
+ * Slime block tinted red that also emits a full redstone signal on every side. All
+ * vanilla slime physics (sticky neighbour-pull, fall bounce, low friction) are inherited
+ * unchanged; only the {@code is/get*Signal} overrides add the constant power source.
  */
 public class RedSlimeBlock extends SlimeBlock {
+    /** Block codec for serialization; re-uses the parent SlimeBlock codec since Java return-type
+     *  covariance forbids narrowing the parameterized type. */
     public static final MapCodec<RedSlimeBlock> CODEC = simpleCodec(RedSlimeBlock::new);
 
+    /**
+     * Constructs the red slime block with the given block properties.
+     */
     public RedSlimeBlock(BlockBehaviour.Properties properties) {
         super(properties);
     }

@@ -10,30 +10,15 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * Modder-facing registry mapping (material, cast-target part-type) pairs to the item
- * produced when the cast completes. Sparse — only registered pairs yield items; everything
- * else falls back to the default smithery PartItem resolution (or returns nothing for
- * combos with no built-in part item, like "iron + pearl").
+ * Modder-facing registry mapping (material, cast-target part-type) pairs to the produced item.
  *
- * Built-in mappings:
- *   - (smithery:iron,   smithery:ingot)  → minecraft:iron_ingot
- *   - (smithery:gold,   smithery:ingot)  → minecraft:gold_ingot
- *   - (smithery:copper, smithery:ingot)  → minecraft:copper_ingot
- *   - (smithery:iron,   smithery:nugget) → minecraft:iron_nugget
- *   - (smithery:gold,   smithery:nugget) → minecraft:gold_nugget
+ * <p>Sparse — only registered pairs yield items; everything else falls back to the default
+ * Smithery PartItem resolution (or returns nothing for combos with no built-in PartItem, like
+ * "iron + pearl"). Built-in mappings cover the vanilla ingot/nugget casts for iron, gold, and
+ * copper.
  *
- * Modder example — register an ender-pearl cast:
- * <pre>{@code
- *   // Material smithery:ender already registered via SmitheryAPI.registerMaterial(...).
- *   // PartType smithery:pearl registered via SmitheryAPI.registerPartType(...) with
- *   // textureTemplate = minecraft:item/ender_pearl.
- *   CastResults.register(enderMaterialId, pearlPartTypeId, () -> Items.ENDER_PEARL);
- * }</pre>
- * After that, pouring molten ender into a cast impressed with an ender pearl will yield a
- * vanilla ender pearl.
- *
- * Use {@link Supplier} (not a direct Item reference) so registration can run before the
- * item registry is populated — the supplier is only invoked at resolve time.
+ * <p>Result items are stored as {@link Supplier} so registration may run before the item registry
+ * is populated; the supplier is only invoked at resolve time.
  */
 public final class CastResults {
     private static final Map<Key, Supplier<Item>> ENTRIES = new HashMap<>();
@@ -49,9 +34,9 @@ public final class CastResults {
     }
 
     /**
-     * Returns the result item for the given (material, part-type) pair, or {@code null} if
-     * no mapping was registered. Caller decides what to do with null (typically falls back
-     * to the smithery PartItem lookup or yields nothing).
+     * Returns the result item for the given (material, part-type) pair, or {@code null} if no
+     * mapping was registered. Callers typically fall back to a Smithery PartItem lookup or yield
+     * nothing.
      */
     public static @Nullable Item resolve(Identifier materialId, Identifier partTypeId) {
         Supplier<Item> supplier = ENTRIES.get(new Key(materialId, partTypeId));

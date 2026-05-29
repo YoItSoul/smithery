@@ -19,6 +19,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -46,26 +47,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
- * State + behavior for the Forge multiblock.
- *
- * Interior air blocks serve as inventory slots: items dropped into the forge are
- * absorbed from the world and stored per-slot. The slot list is rebuilt whenever
- * the structure re-validates. Items are melted in place; the client renderer
- * draws each occupied slot's item floating in its air block.
+ * Server-side state and behaviour for the Forge multiblock. Validates the shell on a
+ * cadence, treats interior air blocks as per-block inventory slots, melts items in
+ * place, accumulates molten fluid storage, drives the alloy and mob-fluid pipelines,
+ * and exposes the controller menu for the player GUI.
  */
 public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvider {
 
-    // Forge size is unlimited by design — there is intentionally no hard cap on shell or
-    // interior block count. The validation BFS terminates naturally when no more connected
-    // brick/air blocks exist, and the per-tick melting loop only does meaningful work for
-    // slots with items in them. The BE renderer is view-distance culled at 64 blocks, and
-    // realistic item population is capped by how much source material the player feeds in.
-    //
-    // The one practical risk of "limitless" is that a player who accidentally connects their
-    // forge wall to an existing brick mega-structure will validate the entire connected blob.
-    // If that becomes a problem we can revisit with a time-bounded BFS rather than a count cap.
     private static final int VALIDATION_TICK_INTERVAL = 40;
 
     private static final float HEAT_AMBIENT_C        = 20.0f;
@@ -80,7 +71,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     private ValidationResult lastValidation = ValidationResult.invalid("not yet validated");
 
-    // ---- Persistent heat + fuel state ----
     private float temperatureC = HEAT_AMBIENT_C;
     private float lastSavedTemperatureC = HEAT_AMBIENT_C;
     private int   ticksSinceValidation = 0;
@@ -89,106 +79,106 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     private int totalFuelMb = 0;
     private int totalFuelCapacityMb = 0;
 
-    // ---- Player toggle: auto-alloying ----
-    // When false, processAlloys() skips firing recipes — useful when the player has all the
-    // inputs for a "more-specific" alloy in the forge but actually wants the less-specific
-    // result (silver+gold+iron present but they want electrum, not constantan). Toggle via
-    // the controller GUI button. Persisted and synced.
     private boolean alloyEnabled = true;
 
-    // ---- Fluid storage ----
     private final Map<Identifier, Integer> fluidStorage = new LinkedHashMap<>();
-    /**
-     * Player-selected fluid id to route out through drains/pipes. {@code null} until the
-     * player clicks one in the GUI. The GUI also re-anchors this entry to the END of
-     * {@link #fluidStorage} (LinkedHashMap iteration order) so it renders at the bottom
-     * of the molten-metal stack.
-     */
     private @Nullable Identifier outputFluidId;
 
-    // ---- Slot-based inventory ----
-    // One slot per interior air block. Positions are in deterministic order (Y asc, X asc, Z asc).
-    // Rebuilt by validateStructure(); items remapped by absolute position so they survive re-validates.
     private List<BlockPos> slotPositions = List.of();
     private NonNullList<ItemStack> slots = NonNullList.create();
     private float[] meltProgressPerSlot = new float[0];
 
-    // Temp: populated by loadAdditional(), consumed by the next validateStructure() call.
     private final Map<BlockPos, ItemStack> pendingSlotItems = new HashMap<>();
     private final Map<BlockPos, Float>     pendingProgress  = new HashMap<>();
 
+    private final Map<UUID, Float> trackedMobHealth = new HashMap<>();
+    private static final int MOB_FLUID_MB_PER_HIT = 50;
+    private static final float MOB_DAMAGE_MIN_TEMP_C = 100f;
+    private static final int MOB_DAMAGE_INTERVAL_TICKS = 20;
+
+    /**
+     * Constructs a forge controller BE bound to the given position and blockstate.
+     */
     public ForgeControllerBlockEntity(BlockPos pos, BlockState state) {
         super(SmitheryBlockEntities.FORGE_CONTROLLER.get(), pos, state);
     }
 
-    // ---- Accessors ----
+    /** Returns the most recent structure validation result. */
     public ValidationResult lastValidation()    { return lastValidation; }
+    /** Returns the current interior temperature in degrees Celsius. */
     public float temperatureC()                 { return temperatureC; }
+    /** True iff the forge had any fuel available on the previous tick. */
     public boolean isFueled()                   { return fueledLastTick; }
+    /** True iff auto-alloying is enabled via the GUI toggle. */
     public boolean isAlloyEnabled()             { return alloyEnabled; }
+    /** Sets the auto-alloy GUI toggle and marks the BE dirty on change. */
     public void setAlloyEnabled(boolean v) {
         if (alloyEnabled == v) return;
         alloyEnabled = v;
         setChanged();
     }
+    /** Total fuel currently stored across all fuel ports, in mB. */
     public int totalFuelMb()                    { return totalFuelMb; }
+    /** Total combined capacity of all fuel ports, in mB. */
     public int totalFuelCapacityMb()            { return totalFuelCapacityMb; }
+    /** Target temperature for the current fuel mix; ambient when unfueled. */
     public float targetTemperatureC()           { return fueledLastTick ? HEAT_TARGET_LAVA_C : HEAT_AMBIENT_C; }
+    /** Block positions of all interior slots in deterministic Y/X/Z order. */
     public List<BlockPos> slotPositions()       { return slotPositions; }
+    /** Backing item list, indexed parallel to {@link #slotPositions()}. */
     public NonNullList<ItemStack> slots()       { return slots; }
 
-    /** mB of melt progress accrued for slot {@code i}; 0 if invalid index. */
+    /**
+     * Returns the integer mB of melt progress accrued for slot {@code i}, or 0 if the
+     * index is out of range.
+     */
     public int meltProgressMb(int i) {
         return (i >= 0 && i < meltProgressPerSlot.length) ? (int) meltProgressPerSlot[i] : 0;
     }
 
-    // ---- Fluid storage ----
-    //
-    // Keys are Fluid IDs (e.g. "smithery:molten_iron") — not Material IDs.
-    // This matches the FluidStack identity used by IFluidHandler and lets the
-    // drain/casting plumbing speak Fluid natively. Translation from Material ID
-    // (used by melting recipes) happens at the callsite via SmitheryFluids#forMaterial.
-
+    /** True iff the forge is currently in a valid structural state and may store fluids. */
     public boolean canAccessFluids() { return lastValidation.valid; }
 
+    /** Total mB capacity for molten fluid (one block of interior = 1000 mB). */
     public int fluidCapacityMb() {
         return lastValidation.valid ? lastValidation.capacityMb() : 0;
     }
 
+    /** Sum of stored mB across every fluid currently in the forge. */
     public int totalStoredFluidMb() {
         int sum = 0;
         for (int v : fluidStorage.values()) sum += v;
         return sum;
     }
 
+    /** Free fluid capacity remaining, clamped to non-negative. */
     public int remainingFluidCapacityMb() {
         return Math.max(0, fluidCapacityMb() - totalStoredFluidMb());
     }
 
-    /** Stored mB of the given fluid; 0 if absent or the fluid has no registry key. */
+    /** Returns the mB stored for the given fluid; 0 if absent or unregistered. */
     public int storedFluidMb(net.minecraft.world.level.material.Fluid fluid) {
         Identifier id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
         return id == null ? 0 : fluidStorage.getOrDefault(id, 0);
     }
 
-    /** Read-only view of the storage map keyed by Fluid ID. */
+    /** Read-only view of the fluid storage map keyed by Fluid id. */
     public Map<Identifier, Integer> fluidStorageView() {
         return Collections.unmodifiableMap(fluidStorage);
     }
 
-    /** Currently-selected output fluid id, or {@code null} if the player hasn't picked one. */
+    /** Currently-selected output fluid id, or null if none picked in the GUI. */
     public @Nullable Identifier outputFluidId() { return outputFluidId; }
 
-    /** mB stored for the currently-selected output fluid; 0 if none selected or none in stock. */
+    /** mB stored for the currently-selected output fluid; 0 if none. */
     public int outputFluidMb() {
         return outputFluidId == null ? 0 : fluidStorage.getOrDefault(outputFluidId, 0);
     }
 
     /**
-     * Player picked a fluid in the GUI. Validates it's actually stored, then re-anchors
-     * the LinkedHashMap entry so it iterates LAST — that's what positions it at the
-     * bottom of the molten-metal stack in the renderer (which draws top-to-bottom in
-     * insertion order). Returns true if the selection changed.
+     * Selects {@code fluidId} as the output fluid and re-anchors its storage entry to the
+     * end of iteration order so the GUI renders it at the bottom of the stack. Returns
+     * true if the selection changed.
      */
     public boolean setOutputFluid(@Nullable Identifier fluidId) {
         if (fluidId != null && !fluidStorage.containsKey(fluidId)) {
@@ -197,8 +187,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         boolean changed = !Objects.equals(this.outputFluidId, fluidId);
         this.outputFluidId = fluidId;
         if (fluidId != null) {
-            // Move the selected fluid to the end of the LinkedHashMap iteration order.
-            // remove + put re-inserts at tail, leaving other entries' relative order intact.
             Integer amount = fluidStorage.remove(fluidId);
             if (amount != null) {
                 fluidStorage.put(fluidId, amount);
@@ -213,7 +201,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return changed;
     }
 
-    /** Adds mB of the given fluid up to remaining capacity. Returns how many mB were actually added. */
+    /** Adds up to {@code mb} of the given fluid, returning the amount actually accepted. */
     public int addFluid(net.minecraft.world.level.material.Fluid fluid, int mb) {
         Identifier id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
         if (id == null || !canAccessFluids() || mb <= 0) return 0;
@@ -224,12 +212,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return toAdd;
     }
 
-    /**
-     * Maps a save-file identifier to the canonical Fluid ID we now key the storage by.
-     * Handles both the new format (already a registered Fluid) and the pre-migration
-     * format (a Material ID that needs translating to its molten fluid). Returns null
-     * if the id can't be resolved either way.
-     */
     private static @Nullable Identifier resolveSavedFluidId(Identifier saved) {
         if (net.minecraft.core.registries.BuiltInRegistries.FLUID.containsKey(saved)) {
             return saved;
@@ -240,7 +222,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(entry.source.get());
     }
 
-    /** Drains up to {@code mb} of the given fluid. Returns how many mB were actually drained. */
+    /** Drains up to {@code mb} of the given fluid, returning the amount actually removed. */
     public int drainFluid(net.minecraft.world.level.material.Fluid fluid, int mb) {
         Identifier id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
         if (id == null || !canAccessFluids() || mb <= 0) return 0;
@@ -254,8 +236,11 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return toDrain;
     }
 
-    // ---- Server tick ----
-
+    /**
+     * Drives the full server-side tick: periodic structure revalidation, fuel tally and
+     * consumption, temperature simulation, item entity absorption, mob scalding, in-place
+     * melting, and the alloy pipeline.
+     */
     public void serverTick(ServerLevel level, BlockPos pos, BlockState state) {
         ticksSinceValidation++;
         if (ticksSinceValidation >= VALIDATION_TICK_INTERVAL) {
@@ -269,10 +254,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             return;
         }
 
-        // Tally fuel across all ports + determine target temperature from the highest-temp
-        // fuel present (lava → 1650, molten blaze → 3500, etc — see ForgeFuels registry).
-        // A forge with mixed lava+blaze ports climbs to blaze's temperature; once blaze is
-        // exhausted it falls back to lava's lower target.
         List<ForgeFuelPortBlockEntity> ports = collectFuelPorts(level);
         totalFuelMb = 0;
         totalFuelCapacityMb = 0;
@@ -289,13 +270,10 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         }
         fueledLastTick = totalFuelMb > 0;
 
-        // Consume fuel from the port currently driving the temperature target (highest-temp
-        // fuel runs first; once it's gone the next-hottest takes over for subsequent ticks).
         if (fueledLastTick) {
             fuelConsumptionAccumulator += FUEL_CONSUMPTION_PER_TICK;
             while (fuelConsumptionAccumulator >= 1f && !ports.isEmpty()) {
                 fuelConsumptionAccumulator -= 1f;
-                // Pick the port with the highest-temp fuel that still has any to burn.
                 ForgeFuelPortBlockEntity hot = null;
                 float hotTarget = -1f;
                 for (ForgeFuelPortBlockEntity p : ports) {
@@ -308,12 +286,11 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                     }
                 }
                 if (hot == null) break;
-                hot.drainFuel(1);
+                hot.drainFuelFromStack(hot.fuelFluid(), 1);
                 totalFuelMb--;
             }
         }
 
-        // Temperature simulation.
         float target = fueledLastTick ? fuelTarget : HEAT_AMBIENT_C;
         boolean heating = target > temperatureC;
         float rate = heating ? HEAT_RATE_PER_TICK : COOL_RATE_PER_TICK;
@@ -324,47 +301,52 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         if (temperatureC < HEAT_AMBIENT_C) temperatureC = HEAT_AMBIENT_C;
         markIfTemperatureMoved();
 
-        // Absorb any item entities that fell into the interior, then melt from slots.
         absorbItemEntities(level);
+        absorbMobFluids(level);
         meltFromSlots(level);
 
-        // Auto-alloy: scan registered recipes in priority order (more inputs first) and
-        // fire any whose preconditions are met. See AlloyRecipes.all() for sort details.
         processAlloys();
     }
 
-    /**
-     * Fires every applicable alloy this tick. Recipes execute in priority order (more inputs
-     * first); a higher-priority recipe that consumes a shared input prevents a lower-priority
-     * one from firing the same tick — the lower-priority recipe's preconditions become unmet
-     * after the deduction. Players control conflicts by managing what they put into the forge.
-     */
     private void processAlloys() {
         if (!alloyEnabled) return;
         for (com.soul.smithery.api.alloy.AlloyRecipe recipe : com.soul.smithery.api.alloy.AlloyRecipes.all()) {
-            if (!recipe.canFire(temperatureC, fluidStorage)) continue;
+            if (temperatureC < recipe.minTemperatureC()) continue;
 
-            // Deduct each input.
-            for (com.soul.smithery.api.alloy.AlloyRecipe.Input in : recipe.inputs()) {
-                int current = fluidStorage.getOrDefault(in.material(), 0);
-                int remaining = current - in.mb();
-                if (remaining <= 0) fluidStorage.remove(in.material());
-                else fluidStorage.put(in.material(), remaining);
+            int n = recipe.inputs().size();
+            Identifier[] inputFluidIds = new Identifier[n];
+            boolean canFire = true;
+            for (int i = 0; i < n; i++) {
+                com.soul.smithery.api.alloy.AlloyRecipe.Input in = recipe.inputs().get(i);
+                Identifier fluidId = materialToFluidId(in.material());
+                if (fluidId == null) { canFire = false; break; }
+                if (fluidStorage.getOrDefault(fluidId, 0) < in.mb()) { canFire = false; break; }
+                inputFluidIds[i] = fluidId;
             }
-            // Add the output. fluidStorage's LinkedHashMap iteration order is the GUI display
-            // order, so newly-introduced alloy outputs appear at the bottom (after the inputs
-            // they replaced). Players notice the new entry.
-            fluidStorage.merge(recipe.result().material(), recipe.result().mb(), Integer::sum);
+            if (!canFire) continue;
+
+            Identifier outputFluidId = materialToFluidId(recipe.result().material());
+            if (outputFluidId == null) continue;
+
+            for (int i = 0; i < n; i++) {
+                com.soul.smithery.api.alloy.AlloyRecipe.Input in = recipe.inputs().get(i);
+                Identifier fluidId = inputFluidIds[i];
+                int remaining = fluidStorage.getOrDefault(fluidId, 0) - in.mb();
+                if (remaining <= 0) fluidStorage.remove(fluidId);
+                else fluidStorage.put(fluidId, remaining);
+            }
+            fluidStorage.merge(outputFluidId, recipe.result().mb(), Integer::sum);
             setChanged();
         }
     }
 
-    // ---- Item absorption ----
+    private static @Nullable Identifier materialToFluidId(Identifier materialId) {
+        com.soul.smithery.registry.SmitheryFluids.Entry entry =
+                com.soul.smithery.registry.SmitheryFluids.forMaterial(materialId);
+        if (entry == null) return null;
+        return net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(entry.source.get());
+    }
 
-    /**
-     * Pulls ItemEntities inside the forge interior into the nearest empty slot.
-     * Once absorbed, the entity is removed from the world.
-     */
     private void absorbItemEntities(ServerLevel level) {
         if (slotPositions.isEmpty()) return;
         AABB box = computeInteriorAabb();
@@ -381,12 +363,9 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             ItemStack stack = entity.getItem();
             if (stack.isEmpty()) continue;
 
-            // Forge slots hold at most 1 item each. Pull items off the entity
-            // one at a time and into empty slots; if the entity has more than
-            // we have room for, the remainder stays as a world entity.
             while (!stack.isEmpty()) {
                 int slot = nearestEmptySlot(entity.position());
-                if (slot < 0) break; // no empty slots — leave the rest in world
+                if (slot < 0) break;
                 slots.set(slot, stack.copyWithCount(1));
                 stack.shrink(1);
                 changed = true;
@@ -400,7 +379,51 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         }
     }
 
-    /** True iff the forge is currently valid AND has at least one empty interior slot. */
+    private void absorbMobFluids(ServerLevel level) {
+        if (temperatureC < MOB_DAMAGE_MIN_TEMP_C) { trackedMobHealth.clear(); return; }
+        AABB box = computeInteriorAabb();
+        if (box == null) { trackedMobHealth.clear(); return; }
+        List<LivingEntity> mobs = level.getEntitiesOfClass(LivingEntity.class, box);
+        if (mobs.isEmpty()) { trackedMobHealth.clear(); return; }
+
+        boolean applyDamageThisTick = (level.getGameTime() % MOB_DAMAGE_INTERVAL_TICKS) == 0L;
+        var damageSource = level.damageSources().inFire();
+
+        Set<UUID> present = new HashSet<>();
+        for (LivingEntity entity : mobs) {
+            if (entity instanceof Player) continue;
+            if (!entity.isAlive()) continue;
+            BlockPos foot = BlockPos.containing(entity.position());
+            if (!lastValidation.interior.contains(foot)) continue;
+
+            UUID id = entity.getUUID();
+            present.add(id);
+
+            if (applyDamageThisTick) {
+                entity.hurt(damageSource, 1.0f);
+                if (!entity.isAlive()) continue;
+            }
+
+            float currentHp = entity.getHealth();
+            Float prevHp = trackedMobHealth.get(id);
+            if (prevHp != null && currentHp < prevHp - 0.01f) {
+                net.minecraft.world.level.material.Fluid fluid = fluidForEntity(entity);
+                if (fluid != null) addFluid(fluid, MOB_FLUID_MB_PER_HIT);
+            }
+            trackedMobHealth.put(id, currentHp);
+        }
+        trackedMobHealth.keySet().retainAll(present);
+    }
+
+    private static net.minecraft.world.level.material.@Nullable Fluid fluidForEntity(LivingEntity entity) {
+        Identifier materialId = com.soul.smithery.api.forge.ForgeMobDrops.materialFor(entity);
+        if (materialId == null) return null;
+        com.soul.smithery.registry.SmitheryFluids.Entry entry =
+                com.soul.smithery.registry.SmitheryFluids.forMaterial(materialId);
+        return entry == null ? null : entry.source.get();
+    }
+
+    /** True iff the forge is currently valid and has at least one empty interior slot. */
     public boolean hasEmptyInteriorSlot() {
         if (!lastValidation.valid) return false;
         for (ItemStack s : slots) if (s.isEmpty()) return true;
@@ -408,12 +431,9 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     }
 
     /**
-     * Inserts up to {@code amount} of {@code stack} into the nearest empty interior slot(s).
-     * Returns the number actually inserted. Used by the {@link ForgeItemPortBlockEntity} input
-     * port for both right-click and hopper insertion paths.
-     *
-     * <p>Each interior slot holds at most 1 item, so a stack of size N fills up to N empty
-     * slots in nearest-to-controller order before bailing.
+     * Inserts up to {@code amount} copies of {@code stack} into the nearest empty interior
+     * slots (one per slot, smallest-distance-first from the controller). Returns the count
+     * actually inserted.
      */
     public int tryInsertItem(ItemStack stack, int amount) {
         if (stack.isEmpty() || amount <= 0 || !lastValidation.valid) return 0;
@@ -447,8 +467,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return best;
     }
 
-    // ---- Slot melting ----
-
     private void meltFromSlots(ServerLevel level) {
         if (slots.isEmpty() || SmitheryAPI.MELTING_RECIPES.isEmpty()) return;
 
@@ -467,9 +485,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             if (temperatureC < stats.meltingTemp()) continue;
             if (remainingFluidCapacityMb() <= 0) continue;
 
-            // Translate the recipe's output Material ID to the registered Fluid for storage.
-            // If a material has a melting recipe but no registered fluid, skip — shouldn't
-            // happen for built-in materials but is defensive.
             com.soul.smithery.registry.SmitheryFluids.Entry fluidEntry =
                     com.soul.smithery.registry.SmitheryFluids.forMaterial(recipe.outputMaterialId());
             if (fluidEntry == null) continue;
@@ -498,11 +513,10 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         }
     }
 
-    // ---- Structure validation ----
-
     /**
-     * Re-validates the multiblock structure. Rebuilds slot positions from the interior
-     * whenever the structure is valid. Always call on server side only.
+     * Re-runs the full multiblock validation: BFS the shell, flood-fill the interior,
+     * classify face neighbours, count required ports, and rebuild the slot list. Always
+     * call server-side only. Returns the new {@link ValidationResult}.
      */
     public ValidationResult validateStructure() {
         if (level == null) {
@@ -510,7 +524,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             return lastValidation;
         }
 
-        // Phase 1: BFS the connected shell 26-connectedly from the controller.
         Set<BlockPos> shellPool = new HashSet<>();
         List<BlockPos> shellQueue = new ArrayList<>();
         shellQueue.add(worldPosition);
@@ -528,7 +541,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             return lastValidation;
         }
 
-        // Phase 2: shell AABB.
         int xMin = Integer.MAX_VALUE, xMax = Integer.MIN_VALUE;
         int yMin = Integer.MAX_VALUE, yMax = Integer.MIN_VALUE;
         int zMin = Integer.MAX_VALUE, zMax = Integer.MIN_VALUE;
@@ -540,7 +552,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         final int yTopShell = yMax;
         final int bxMin = xMin, bxMax = xMax, byMin = yMin, byMax = yMax, bzMin = zMin, bzMax = zMax;
 
-        // Phase 3: flood-fill the interior, capped by the shell AABB.
         Set<BlockPos> interior = new HashSet<>();
         List<BlockPos> queue = new ArrayList<>();
         for (Direction d : Direction.values()) {
@@ -564,7 +575,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             return lastValidation;
         }
 
-        // Phase 4: classify face neighbors — shell, holes, open top.
         Set<BlockPos> shell = new HashSet<>();
         Set<BlockPos> holePositions = new HashSet<>();
         boolean openTop = false;
@@ -578,7 +588,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
 
-        // Phase 5: required port counts.
         int controllerCount = 0, fuelPortCount = 0, drainCount = 0;
         for (BlockPos s : shell) {
             BlockState bs = level.getBlockState(s);
@@ -599,12 +608,8 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             return lastValidation;
         }
 
-        // Rebuild slot list from the new interior.
         rebuildSlots(interior);
 
-        // Link each drain BE in the shell back to this controller so the drain's fluid
-        // capability can passthrough to our storage. Runs every validation pass — cheap,
-        // and keeps the link fresh if drains were added/replaced since the last cycle.
         for (BlockPos s : shell) {
             if (level.getBlockState(s).is(SmitheryBlocks.FORGE_DRAIN.get())
                     && level.getBlockEntity(s) instanceof ForgeDrainBlockEntity drain) {
@@ -622,14 +627,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return lastValidation;
     }
 
-    /**
-     * Sorts interior blocks into a deterministic order and resizes the slot list.
-     * Items from the previous slot list (or from pendingSlotItems on load) are remapped
-     * by their absolute block position so they survive structure changes — and so is
-     * the in-progress melt amount for each slot, since validateStructure() runs every
-     * 40 ticks even when the structure is unchanged. Without remapping the float[] of
-     * progress, all melts would silently reset to 0 every 2 seconds.
-     */
     private void rebuildSlots(Set<BlockPos> interior) {
         List<BlockPos> newPositions = new ArrayList<>(interior);
         newPositions.sort((a, b) -> {
@@ -639,7 +636,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             return c != 0 ? c : Long.compare(a.getZ(), b.getZ());
         });
 
-        // Snapshot existing items + their melt progress keyed by BlockPos.
         Map<BlockPos, ItemStack> itemByPos     = new HashMap<>();
         Map<BlockPos, Float>     progressByPos = new HashMap<>();
         for (int i = 0; i < slotPositions.size(); i++) {
@@ -651,7 +647,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                 progressByPos.put(pos, meltProgressPerSlot[i]);
             }
         }
-        // Merge items + progress that were loaded from NBT but not yet assigned.
         itemByPos.putAll(pendingSlotItems);
         progressByPos.putAll(pendingProgress);
         pendingSlotItems.clear();
@@ -672,8 +667,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         slots = newSlots;
         meltProgressPerSlot = newProgress;
     }
-
-    // ---- Helpers ----
 
     private AABB computeInteriorAabb() {
         if (lastValidation.interior.isEmpty()) return null;
@@ -724,6 +717,10 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return level != null && level.getBlockState(pos).isAir();
     }
 
+    /**
+     * True iff {@code state} is one of the shell blocks the multiblock recognises:
+     * furnace bricks, the controller itself, fuel ports, drains, or item ports.
+     */
     public static boolean isShellBlock(BlockState state) {
         return state.is(SmitheryBlocks.FURNACE_BRICKS.get())
                 || state.is(SmitheryBlocks.FORGE_CONTROLLER.get())
@@ -732,8 +729,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                 || state.is(SmitheryBlocks.FORGE_ITEM_PORT.get());
     }
 
-    // ---- MenuProvider ----
-
     @Override
     public Component getDisplayName() {
         return Component.translatable("container.smithery.forge_controller");
@@ -741,15 +736,13 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     @Override
     public @Nullable AbstractContainerMenu createMenu(int containerId, Inventory playerInventory, Player player) {
-        // Import resolved at runtime — avoids a circular dependency between BE and GUI packages.
         return new com.soul.smithery.gui.ForgeControllerMenu(containerId, playerInventory, this);
     }
 
     /**
-     * Returns a live {@link Container} view of the forge's item slots. Changes made through this
-     * view are written directly into {@link #slots} and trigger {@link #setChanged()}.
-     * The slot count equals {@link #slotPositions}{@code .size()} at the time of the call; if the
-     * structure is later re-validated with a different interior, a new view should be obtained.
+     * Live container view over the forge's interior slots. Mutations write through to
+     * {@link #slots} and trigger {@link #setChanged()}; the slot count is fixed at the
+     * call site, so re-obtain after structure re-validation.
      */
     public Container getSlotContainer() {
         return new Container() {
@@ -785,8 +778,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         };
     }
 
-    // ---- Lifecycle ----
-
     @Override
     public void onLoad() {
         super.onLoad();
@@ -810,10 +801,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                 if (idStr.isEmpty() || mb <= 0) continue;
                 Identifier id = Identifier.tryParse(idStr.get());
                 if (id == null) continue;
-                // Storage uses Fluid IDs now. Existing worlds saved Material IDs before
-                // the migration — translate those forward by looking up the corresponding
-                // molten fluid via SmitheryFluids. Anything that doesn't resolve either
-                // way is dropped (was likely a stale/bogus id anyway).
                 Identifier resolvedFluidId = resolveSavedFluidId(id);
                 if (resolvedFluidId != null) {
                     fluidStorage.merge(resolvedFluidId, mb, Integer::sum);
@@ -822,15 +809,10 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         }
 
         outputFluidId = input.getString("outputFluidId").map(Identifier::tryParse).orElse(null);
-        // If the persisted output fluid is no longer in storage (e.g. drained dry between
-        // saves), null out the selection so the GUI doesn't show a stale tick mark.
         if (outputFluidId != null && !fluidStorage.containsKey(outputFluidId)) {
             outputFluidId = null;
         }
 
-        // Slot items + their in-progress melt amounts are loaded into pending maps and
-        // merged into the slot list the next time validateStructure() runs (triggered
-        // by onLoad on server side).
         pendingSlotItems.clear();
         pendingProgress.clear();
         Optional<ValueInput.ValueInputList> slotsIn = input.childrenList("slots");
@@ -853,8 +835,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
 
-        // Client side: populate slotPositions + slots directly from pendingSlotItems for the renderer.
-        // (On server, validateStructure() handles this; the client doesn't run validateStructure.)
         if (level != null && level.isClientSide()) {
             List<BlockPos> posList = new ArrayList<>(pendingSlotItems.keySet());
             posList.sort((a, b) -> {
@@ -905,7 +885,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             entry.putInt("z", pos.getZ());
             entry.putString("item", key.toString());
             entry.putInt("count", stack.getCount());
-            // Persist in-progress melt so it survives world reloads.
             if (i < meltProgressPerSlot.length && meltProgressPerSlot[i] > 0f) {
                 entry.putFloat("progress", meltProgressPerSlot[i]);
             }
@@ -917,25 +896,29 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return ClientboundBlockEntityDataPacket.create(this);
     }
 
-    /**
-     * Without this override the BE-data packet ships an empty CompoundTag — the
-     * default getUpdateTag() returns `new CompoundTag()` regardless of saveAdditional.
-     * That's why the in-world floating items never rendered: the client BE's
-     * slotPositions/slots stayed empty even after server-side absorbing.
-     */
     @Override
     public net.minecraft.nbt.CompoundTag getUpdateTag(net.minecraft.core.HolderLookup.Provider registries) {
         return saveCustomOnly(registries);
     }
 
-    // ---- ValidationResult ----
-
+    /**
+     * Snapshot of the structural validation pass: valid flag, failure reason, the interior
+     * and shell position sets, whether the top is open, and any hole positions that
+     * prevented validation. Returned by {@link #validateStructure()} and replayed via
+     * {@link #lastValidation()}.
+     */
     public static final class ValidationResult {
+        /** True iff the structure currently passes all multiblock checks. */
         public final boolean valid;
+        /** Human-readable reason for the most recent validation failure ({@code ""} on success). */
         public final String reason;
+        /** Interior air positions that form the inventory / fluid volume. */
         public final Set<BlockPos> interior;
+        /** Shell positions enclosing the interior. */
         public final Set<BlockPos> shell;
+        /** True iff the structure has no shell block above its interior. */
         public final boolean openTop;
+        /** Positions where the shell is breached; flashed to the player for debugging. */
         public final Set<BlockPos> holePositions;
 
         private ValidationResult(boolean valid, String reason, Set<BlockPos> interior,
@@ -948,8 +931,11 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             this.holePositions = holePositions;
         }
 
+        /** Interior block count, equal to fluid capacity in buckets. */
         public int capacityBuckets() { return interior.size(); }
+        /** Interior block count times 1000, the total fluid capacity in mB. */
         public int capacityMb()      { return interior.size() * 1000; }
+        /** Number of hole positions detected this pass. */
         public int holes()           { return holePositions.size(); }
 
         static ValidationResult valid(Set<BlockPos> interior, Set<BlockPos> shell,

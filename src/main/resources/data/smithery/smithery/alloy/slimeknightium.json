@@ -1,0 +1,9 @@
+{
+  "_comment": "Slimeknightium — a tribute alloy of red slime + iron. 4 red_slime (576 mB) + 4 iron (576 mB) → 1 slimeknightium ingot (144 mB). Requires 1700 °C (slimeknightium's own melt temp) so iron alone isn't hot enough — needs at least the heat that iron + the latent slime contribute. Override at the same data path to retune.",
+  "inputs": [
+    { "material": "smithery:red_slime", "mb": 576 },
+    { "material": "smithery:iron",      "mb": 576 }
+  ],
+  "result": { "material": "smithery:slimeknightium", "mb": 144 },
+  "min_temperature_c": 1700
+}

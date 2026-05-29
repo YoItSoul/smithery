@@ -22,15 +22,15 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 
 /**
- * The brain of the Forge multiblock. Exactly one is required per valid structure; the
- * BlockEntity attached to it stores temperature, fluid contents, and validation state,
- * and runs the per-tick logic.
- *
- * Right-clicking with an empty hand prints a one-line validation readout to chat — this is
- * our pre-GUI test affordance and will be replaced by an actual menu once the simulation
- * layer is in.
+ * Brain block of the Forge multiblock. Exactly one is required per valid structure;
+ * the attached {@link ForgeControllerBlockEntity} stores temperature, fluid contents,
+ * validation state, and runs the per-tick simulation. Right-clicking opens the
+ * controller menu and ships any pending leak-debug visualization to the player.
  */
 public class ForgeControllerBlock extends Block implements EntityBlock {
+    /**
+     * Constructs the forge controller with the given block properties.
+     */
     public ForgeControllerBlock(Properties properties) {
         super(properties);
     }
@@ -61,18 +61,12 @@ public class ForgeControllerBlock extends Block implements EntityBlock {
         if (!(level.getBlockEntity(pos) instanceof ForgeControllerBlockEntity fc)) return InteractionResult.PASS;
         if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
 
-        // Debug leak visualization: flash red wireframe boxes around hole positions.
         ForgeControllerBlockEntity.ValidationResult result = fc.lastValidation();
         if (!result.holePositions.isEmpty()) {
             PacketDistributor.sendToPlayer(sp,
                     new ForgeLeakDebugPayload(new ArrayList<>(result.holePositions), 60));
         }
 
-        // Capture the slot count NOW (on the server side) and ship it to the client
-        // so the client allocates the same number of forge slots in its menu copy.
-        // Reading be.slots().size() on the client is unreliable — the BE may not have
-        // received its update packet yet, so it would default to 0 and mismatch the
-        // server's ClientboundContainerSetContentPacket.
         final int forgeSlotCount = fc.slots().size();
         sp.openMenu(fc, buf -> {
             buf.writeBlockPos(pos);

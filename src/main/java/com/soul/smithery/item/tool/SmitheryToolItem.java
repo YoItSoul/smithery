@@ -57,72 +57,58 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
- * The single Item class for all Smithery tools (Sword, Pickaxe, future Spear, ...). The ToolType
- * is fixed per item instance; the per-stack composition lives in the TOOL_COMPOSITION data
- * component and drives all stats.
- *
- * At craft time, {@link #applyComposition} computes the derived stats and writes the vanilla
- * components (max_damage, attribute_modifiers, tool) so vanilla systems handle damage, mining,
- * and attack speed without any per-frame work on our part.
+ * Single item class for every smithery tool (sword, pickaxe, axe, shovel, hoe, spear).
+ * The ToolType is fixed per item instance; per-stack composition lives in the
+ * TOOL_COMPOSITION data component and drives all stats. {@link #applyComposition}
+ * stamps the derived stats onto vanilla components so vanilla systems handle damage,
+ * mining, and attack speed without per-frame work.
  */
 public class SmitheryToolItem extends Item {
     private final Identifier toolTypeId;
 
+    /**
+     * Constructs the tool item bound to the given smithery ToolType id.
+     */
     public SmitheryToolItem(Properties properties, Identifier toolTypeId) {
         super(properties);
         this.toolTypeId = toolTypeId;
     }
 
+    /** Returns the bound ToolType id (e.g. {@code smithery:sword}). */
     public Identifier toolTypeId() { return toolTypeId; }
+    /** Resolves the live {@link ToolType} for this tool item, or null if unregistered. */
     public ToolType toolType() { return SmitheryAPI.TOOL_TYPES.get(toolTypeId); }
 
+    /** Reads the {@link ToolComposition} from the given stack's data component (may be null). */
     public ToolComposition compositionOf(ItemStack stack) {
         return stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
     }
 
     /**
-     * Backwards-compat overload — no explicit registry access. Tries to resolve the current
-     * server's HolderLookup.Provider from {@link net.neoforged.neoforge.server.ServerLifecycleHooks};
-     * if no server is running (client-only init, creative tab preview, etc.) the lookup is null
-     * and any compose actions requiring it (notably {@code apply_enchantment}) silently no-op.
+     * Convenience overload that resolves the current server's HolderLookup.Provider
+     * implicitly. Compose actions needing registry access (such as enchantment writes)
+     * silently no-op when no server is running.
      */
     public static ItemStack applyComposition(ItemStack stack, ToolComposition comp) {
         net.minecraft.core.HolderLookup.Provider lookup = null;
         try {
             var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
             if (server != null) lookup = server.registryAccess();
-        } catch (Throwable ignored) { /* client / pre-server contexts */ }
+        } catch (Throwable ignored) { }
         return applyComposition(stack, comp, lookup);
     }
 
     /**
-     * Compute stats from {@code comp} (and any post-craft modifiers already on the stack)
-     * and write them onto {@code stack} as vanilla data components. Call at craft time AND
-     * any time post-craft modifiers change (e.g. after the anvil applies a new modifier) so
-     * the cached vanilla attribute modifiers / durability / tool rules stay in sync.
+     * Computes stats from {@code comp} plus any post-craft modifiers already on the
+     * stack, then writes them onto the vanilla data components. Clears any prior
+     * ENCHANTMENTS so smithery modifiers fully own enchantment state, then fires every
+     * {@link Modifier.OnCompose} hook on the effective effect list.
      *
-     * <h3>Enchantment handling</h3>
-     * This method <em>clears</em> the stack's {@code ENCHANTMENTS} component at entry, then
-     * invokes every {@link com.soul.smithery.api.modifier.Modifier.OnCompose} hook on the
-     * effective modifier list (composition material grants + applied modifiers + synergies).
-     * Compose actions can write fresh enchantments via the provided {@code HolderLookup.Provider}.
-     * Net effect: enchantments on smithery tools are <em>always</em> driven by the modifier
-     * system and recomputed on every (re)composition. Vanilla enchanting is blocked separately
-     * via {@link #getEnchantmentValue()} and the anvil handler.
-     *
-     * @param lookup registry access for compose actions that need it (enchantment registry,
-     *               attribute registry, etc.). Pass {@code null} only when no live registry
-     *               access is available — affected actions will skip with no error.
+     * @param lookup registry access for compose actions; pass null only when no live
+     *               registry is available, in which case affected actions skip silently
      */
     public static ItemStack applyComposition(ItemStack stack, ToolComposition comp,
                                               net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
-        // Clear any prior enchantments — built-in smithery modifiers EMULATE enchantment
-        // effects (e.g. golden_touch's bonus_drops mimics Fortune ore drops via BlockDropsEvent)
-        // rather than writing the vanilla ENCHANTMENTS component. Modders who explicitly want
-        // their modifier to ALSO write a vanilla enchantment (for compat with other mods that
-        // inspect ENCHANTMENTS directly) can use the smithery:apply_enchantment compose action,
-        // which writes here. Cleared at composition entry so any prior enchantment from a
-        // removed modifier doesn't linger.
         stack.remove(net.minecraft.core.component.DataComponents.ENCHANTMENTS);
 
         java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
@@ -130,13 +116,8 @@ public class SmitheryToolItem extends Item {
         ToolStats stats = ToolStats.compute(comp, applied);
         stack.set(SmitheryDataComponents.TOOL_COMPOSITION.get(), comp);
 
-        // Arrows are stackable consumables — vanilla rejects items that are both stackable AND
-        // damage-bearing, so the durability + attribute + mining/weapon-component block below
-        // is skipped for arrows. Each arrow's damage / shot-count meaning lives in the per-stack
-        // ToolComposition + ToolStats lookup at fire time (see SmitheryBowItem).
         boolean stackable = comp.toolType() != null && "arrow".equals(comp.toolType().id().getPath());
         if (stackable) {
-            // Still fire compose hooks so any onCompose modifier on an arrow part runs.
             fireComposeHooks(stack, stats, lookup);
             return stack;
         }
@@ -145,8 +126,6 @@ public class SmitheryToolItem extends Item {
         stack.set(DataComponents.MAX_STACK_SIZE, 1);
         stack.set(DataComponents.DAMAGE, 0);
 
-        // Attribute modifiers: attack damage + attack speed in the mainhand slot.
-        // (The −1 vanilla offset on attack damage matches Sword/Pickaxe behavior.)
         var attrs = ItemAttributeModifiers.builder()
                 .add(Attributes.ATTACK_DAMAGE,
                         new AttributeModifier(Item.BASE_ATTACK_DAMAGE_ID,
@@ -160,24 +139,15 @@ public class SmitheryToolItem extends Item {
                 .build();
         stack.set(DataComponents.ATTRIBUTE_MODIFIERS, attrs);
 
-        // Tool component (mining rules) — only set when the tool type actually mines anything.
-        // Pickaxe / axe / shovel / hoe → minable-with-X tag at computed speed, tier-gated by
-        // incorrect_for_<tier>. Sword → SWORD_EFFICIENT (cobweb / leaves / bamboo).
-        // Spear → no TOOL component (matches vanilla; spears don't mine).
         ToolType tt = comp.toolType();
         if (tt != null) {
             Tool tool = buildToolComponent(tt, stats);
             if (tool != null) stack.set(DataComponents.TOOL, tool);
 
-            // Swords & spears are weapons: 1 durability per attack and don't disable shields.
-            // Mining tools don't get this component (their attack damage comes from the tool component).
             String ttPath = tt.id().getPath();
             if ("sword".equals(ttPath) || "spear".equals(ttPath)) {
                 stack.set(DataComponents.WEAPON, new Weapon(1, 0.0f));
             }
-            // Spear: write the vanilla spear data-component bundle (kinetic/piercing/range/etc.)
-            // so charging, run-and-stab momentum damage, piercing, stab animation, and the spear
-            // damage type all route through the stock Item.use / Item.releaseUsing pipeline.
             if ("spear".equals(ttPath)) {
                 applySpearComponents(stack, comp, lookup);
             }
@@ -187,12 +157,6 @@ public class SmitheryToolItem extends Item {
         return stack;
     }
 
-    /**
-     * Fires every onCompose hook on the given stats list against {@code stack}. Extracted so
-     * the arrow path (which skips the durability / attribute / tool component writes) still
-     * triggers compose modifiers — e.g. an arrow_head material with an onCompose action would
-     * otherwise silently no-op on arrows.
-     */
     private static void fireComposeHooks(ItemStack stack, ToolStats stats,
                                           net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
         com.soul.smithery.api.modifier.Modifier.ComposeContext composeCtx =
@@ -210,23 +174,10 @@ public class SmitheryToolItem extends Item {
         }
     }
 
-    // ---- Vanilla enchanting blocked at two layers ----
-    //
-    // In 1.21+ enchantability is the {@code DataComponents.ENCHANTABLE} component (set via
-    // {@code Properties.enchantable(int)}). Smithery tools NEVER set it, so vanilla enchanting
-    // tables already refuse to enchant them. The anvil-book path is blocked separately by
-    // {@link com.soul.smithery.event.AnvilModifierHandler}, which sets the output to empty
-    // when an enchanted book sits in the right slot opposite a smithery tool. Together these
-    // ensure enchantments only land via the smithery modifier system's
-    // {@code smithery:apply_enchantment} on_compose action.
-
-    // ---- Modifier slot accounting ----
-    //
-    // Each part's material grants N slots for that part type (set in MaterialStats.modifierSlots).
-    // The tool's total slot count is the sum across all slots in the composition. Post-craft
-    // modifier application consumes one slot per modifier applied (stored in APPLIED_MODIFIERS).
-
-    /** Total modifier slots a fully-composed tool offers. Derives entirely from the composition. */
+    /**
+     * Returns the total modifier-slot count granted by every slot of {@code comp}; the
+     * tool's capacity for post-craft modifier application.
+     */
     public static int totalModifierSlots(ToolComposition comp) {
         ToolType tt = comp.toolType();
         if (tt == null) return 0;
@@ -242,9 +193,8 @@ public class SmitheryToolItem extends Item {
     }
 
     /**
-     * Modifier slots consumed by the post-craft modifier list on this stack. Each modifier
-     * entry counts as {@code level} slots — so a Haste II application uses 2 slots, Haste III
-     * uses 3, etc. Single-level modifiers (most) default to level 1 = 1 slot.
+     * Returns the modifier slots consumed by the stack's APPLIED_MODIFIERS list, where
+     * each entry counts as max(1, its level parameter).
      */
     public static int appliedModifierCount(ItemStack stack) {
         int total = 0;
@@ -256,15 +206,21 @@ public class SmitheryToolItem extends Item {
         return total;
     }
 
-    /** Standard Roman numeral formatter for tooltip level rendering. */
-    /** Indented gray bullet for the Stats block — shared with PartItem's per-tool sections. */
+    /**
+     * Indented gray bullet used by the tool and part tooltip stat lines. Shared with
+     * {@link PartItem}'s per-tool tooltip sections.
+     */
     public static net.minecraft.network.chat.MutableComponent statLine(Component body) {
         return Component.literal(" ▸ ").append(body).withStyle(ChatFormatting.DARK_GRAY);
     }
 
+    /**
+     * Formats {@code n} as Roman numerals for tooltip level rendering; falls back to a
+     * decimal string for non-positive or absurdly large values.
+     */
     public static String toRoman(int n) {
         if (n <= 0) return String.valueOf(n);
-        if (n >= 4000) return String.valueOf(n);    // not worth wrestling Romans for absurd numbers
+        if (n >= 4000) return String.valueOf(n);
         StringBuilder sb = new StringBuilder();
         int[] vals = {1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1};
         String[] syms = {"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"};
@@ -274,7 +230,7 @@ public class SmitheryToolItem extends Item {
         return sb.toString();
     }
 
-    /** Free modifier slots remaining on this stack (clamped to ≥ 0). */
+    /** Returns the modifier slots remaining on {@code stack}, clamped to non-negative. */
     public static int freeModifierSlots(ItemStack stack) {
         ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
         if (comp == null) return 0;
@@ -282,9 +238,6 @@ public class SmitheryToolItem extends Item {
     }
 
     private static float attackSpeedFor(ToolComposition comp) {
-        // Simple model: matches vanilla pacing — sword fastest, hoe medium-fast, pickaxe/shovel
-        // slower, axe slowest. Spear is computed from its kinetic attackDuration so it lines up
-        // with the SwingAnimation duration written by applySpearComponents.
         ToolType tt = comp.toolType();
         if (tt == null) return -2.4f;
         String path = tt.id().getPath();
@@ -299,7 +252,6 @@ public class SmitheryToolItem extends Item {
         };
     }
 
-    /** Primary-additive-slot harvest level (the spear head). Falls back to iron-tier (2). */
     private static int headHarvestLevel(ToolComposition comp) {
         ToolType tt = comp.toolType();
         if (tt == null) return 2;
@@ -313,48 +265,25 @@ public class SmitheryToolItem extends Item {
         return 2;
     }
 
-    /**
-     * Vanilla spear curve, parameterized by tier 0..4 (wooden..netherite):
-     *   t=0 → 0.65 (wooden), t=4 → 1.15 (netherite). Linear interpolation.
-     * Higher tiers swing faster (lower duration = higher attacks/sec) and pack more momentum
-     * damage. Smithery uses the head material's harvest level as the tier proxy.
-     */
     private static float spearAttackDuration(int harvestLevel) {
         float t = Mth.clamp(harvestLevel, 0, 4) / 4.0f;
         return 0.65f + t * 0.5f;
     }
 
-    /**
-     * Writes the vanilla spear data-component bundle onto {@code stack}. Constants are interpolated
-     * across the wooden→netherite range using the head material's harvest level as the tier proxy,
-     * matching {@code Item.Properties.spear(...)} from {@code Items.java}.
-     *
-     * Components written:
-     *   - KINETIC_WEAPON     — charge / dismount / knockback / damage thresholds
-     *   - PIERCING_WEAPON    — single thrust pierces multiple entities
-     *   - ATTACK_RANGE       — extended reach (2.0..4.5 player, 2.0..6.5 creative)
-     *   - MINIMUM_ATTACK_CHARGE — 1.0 (must fully charge)
-     *   - SWING_ANIMATION    — STAB anim, duration matched to attackDuration
-     *   - USE_EFFECTS        — sprint locked, slow-walk while charging
-     *   - DAMAGE_TYPE        — minecraft:spear (only if {@code lookup} is available)
-     *
-     * Sound profile is wood-flavored for harvest-level 0 (wooden tier), generic spear sounds
-     * otherwise — same split vanilla uses.
-     */
     private static void applySpearComponents(ItemStack stack, ToolComposition comp,
                                               net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
         int hl = headHarvestLevel(comp);
         float t = Mth.clamp(hl, 0, 4) / 4.0f;
 
         float attackDuration     = spearAttackDuration(hl);
-        float damageMultiplier   = 0.7f  + t * 0.5f;        // wooden 0.70 → netherite 1.20
-        float delay              = 0.75f - t * 0.35f;       // wooden 0.75 → netherite 0.40
-        float dismountTime       = 5.0f  - t * 2.5f;        // wooden 5.0  → netherite 2.5
-        float dismountThreshold  = 14.0f - t * 5.0f;        // wooden 14   → netherite 9
-        float knockbackTime      = 10.0f - t * 4.5f;        // wooden 10   → netherite 5.5
-        float knockbackThreshold = 5.1f;                    // vanilla constant across tiers
-        float damageTime         = 15.0f - t * 6.25f;       // wooden 15   → netherite 8.75
-        float damageThreshold    = 4.6f;                    // vanilla constant across tiers
+        float damageMultiplier   = 0.7f  + t * 0.5f;
+        float delay              = 0.75f - t * 0.35f;
+        float dismountTime       = 5.0f  - t * 2.5f;
+        float dismountThreshold  = 14.0f - t * 5.0f;
+        float knockbackTime      = 10.0f - t * 4.5f;
+        float knockbackThreshold = 5.1f;
+        float damageTime         = 15.0f - t * 6.25f;
+        float damageThreshold    = 4.6f;
 
         boolean wooden = (hl <= 0);
         Holder<SoundEvent> useSound    = wooden ? SoundEvents.SPEAR_WOOD_USE    : SoundEvents.SPEAR_USE;
@@ -382,16 +311,12 @@ public class SmitheryToolItem extends Item {
                 new SwingAnimation(SwingAnimationType.STAB, (int)(attackDuration * 20.0f)));
         stack.set(DataComponents.USE_EFFECTS, new UseEffects(true, false, 1.0f));
 
-        // DAMAGE_TYPE = minecraft:spear. Requires a HolderLookup.Provider — when called from a
-        // client-only preview path (creative tab icon before server start) the lookup is null,
-        // so we skip; the spear still functions, just falls back to generic player_attack on hit.
         if (lookup != null) {
             try {
                 Holder<DamageType> spearDamageType =
                         lookup.lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(DamageTypes.SPEAR);
                 stack.set(DataComponents.DAMAGE_TYPE, spearDamageType);
             } catch (Throwable t2) {
-                // Damage type registry not yet populated — non-fatal, log once and continue.
                 Smithery.LOGGER.debug("Spear DAMAGE_TYPE unset (registry unavailable): {}", t2.toString());
             }
         }
@@ -426,20 +351,13 @@ public class SmitheryToolItem extends Item {
                 rules.add(Tool.Rule.minesAndDrops(minable, stats.miningSpeed));
             }
             case "sword" -> {
-                // Cobweb / leaves / bamboo, at the tool's mining speed.
                 rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.SWORD_EFFICIENT), stats.miningSpeed));
             }
-            // "spear" and any other tool type with no mining rules: no TOOL component.
-            // Vanilla spears intentionally have no TOOL component — they don't mine blocks at all.
             default -> { return null; }
         }
         return new Tool(rules, 1.0f, 2, true);
     }
 
-    /**
-     * Blocks that are *too tough* for our harvest level: their incorrect_for_<tier> tag.
-     * Returns null if the level meets all vanilla requirements.
-     */
     private static HolderSet<Block> incorrectForTier(int harvestLevel) {
         TagKey<Block> tag = switch (harvestLevel) {
             case 0 -> BlockTags.INCORRECT_FOR_WOODEN_TOOL;
@@ -455,8 +373,6 @@ public class SmitheryToolItem extends Item {
         return BuiltInRegistries.BLOCK.getOrThrow(tag);
     }
 
-    // ---- Tooltip ----
-
     @Override
     public Component getName(ItemStack stack) {
         ToolComposition comp = compositionOf(stack);
@@ -464,7 +380,6 @@ public class SmitheryToolItem extends Item {
         if (comp == null || !comp.isValid() || tt == null) {
             return Component.translatable(PartItem.toolTypeTranslationKey(toolTypeId));
         }
-        // "<primary-additive-material> <tool>" — same shape as the part naming, e.g. "Iron Sword"
         Identifier primaryMat = primaryAdditiveMaterial(comp);
         Component matName = primaryMat != null
                 ? Component.translatable(PartItem.materialTranslationKey(primaryMat))
@@ -500,10 +415,33 @@ public class SmitheryToolItem extends Item {
         java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
                 stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
         ToolStats stats = ToolStats.compute(comp, applied);
+        com.soul.smithery.item.SmitheryTooltips.Tier tier = com.soul.smithery.item.SmitheryTooltips.currentTier();
 
-        // ---- Parts breakdown ----
-        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")
-                .withStyle(ChatFormatting.GRAY));
+        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".section.summary")
+                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+
+        if (tier == com.soul.smithery.item.SmitheryTooltips.Tier.BASIC) {
+            com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
+            super.appendHoverText(stack, context, display, tooltip, flag);
+            return;
+        }
+
+        // DETAIL and FULL ---------------------------------------------------
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+                Component.translatable("tooltip." + Smithery.MODID + ".tool.stats")));
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.durability", stats.maxDurability)));
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.attack_damage",
+                String.format("%.1f", stats.attackDamage))));
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.mining_speed",
+                String.format("%.1f", stats.miningSpeed))));
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".part.harvest_level", stats.harvestLevel)));
+
+        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+                Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")));
         List<ToolType.Slot> slots = tt.slots();
         for (int i = 0; i < slots.size(); i++) {
             ToolType.Slot slot = slots.get(i);
@@ -512,115 +450,122 @@ public class SmitheryToolItem extends Item {
             PartType pt = slot.partType();
             Component matName = Component.translatable(PartItem.materialTranslationKey(m.id()));
             Component partName = Component.translatable(PartItem.partTranslationKey(pt.id()));
-            tooltip.accept(Component.literal(" • ")
-                    .append(matName).append(Component.literal(" "))
-                    .append(partName)
-                    .withStyle(ChatFormatting.DARK_GRAY));
+            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.bullet(
+                    Component.empty().append(matName).append(Component.literal(" ")).append(partName)));
         }
 
-        // ---- Stats block ----
-        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.stats")
-                .withStyle(ChatFormatting.GRAY));
-        tooltip.accept(statLine(Component.translatable(
-                "tooltip." + Smithery.MODID + ".tool.durability", stats.maxDurability)));
-        tooltip.accept(statLine(Component.translatable(
-                "tooltip." + Smithery.MODID + ".tool.attack_damage",
-                String.format("%.1f", stats.attackDamage))));
-        tooltip.accept(statLine(Component.translatable(
-                "tooltip." + Smithery.MODID + ".tool.mining_speed",
-                String.format("%.1f", stats.miningSpeed))));
-        tooltip.accept(statLine(Component.translatable(
-                "tooltip." + Smithery.MODID + ".part.harvest_level", stats.harvestLevel)));
-
-        // ---- Modifier slots (post-craft application capacity) ----
         int totalSlots = totalModifierSlots(comp);
         int usedSlots = applied.size();
         int freeSlots = Math.max(0, totalSlots - usedSlots);
-        tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.modifier_slots",
-                freeSlots, totalSlots).withStyle(ChatFormatting.GRAY));
 
-        // ---- Modifiers (all of them — passive, active, and compose-only alike) ----
-        if (!stats.allEffects.isEmpty()) {
-            tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.modifiers")
-                    .withStyle(ChatFormatting.GRAY));
-            // Shift detection: static Screen.hasShiftDown() removed in 1.21+. Query the window
-            // directly via InputConstants. Safe client-side only — appendHoverText never runs
-            // server-side even though the Item class loads on both.
-            com.mojang.blaze3d.platform.Window win =
-                    net.minecraft.client.Minecraft.getInstance().getWindow();
-            boolean shiftDown = com.mojang.blaze3d.platform.InputConstants.isKeyDown(
-                            win, com.mojang.blaze3d.platform.InputConstants.KEY_LSHIFT)
-                    || com.mojang.blaze3d.platform.InputConstants.isKeyDown(
-                            win, com.mojang.blaze3d.platform.InputConstants.KEY_RSHIFT);
-            for (ToolStats.ResolvedEffect r : stats.allEffects) {
-                int level = r.effect().paramInt("level", 1);
-                MutableComponent line = Component.literal(" • ")
-                        .append(Component.translatable(PartItem.modifierTranslationKey(r.effect().modifierId()))
-                                .withStyle(ChatFormatting.AQUA));
-                // Render level as Roman numeral when > 1 (matches vanilla enchantment style).
-                if (level > 1) {
-                    line.append(Component.literal(" " + toRoman(level)).withStyle(ChatFormatting.AQUA));
-                }
-                tooltip.accept(line.withStyle(ChatFormatting.DARK_GRAY));
-                // Shift held → indented italic description line. Description lang key is
-                // "<modifier_key>.description". Missing keys are gracefully skipped via I18n.exists.
-                if (shiftDown) {
-                    String descKey = PartItem.modifierDescriptionKey(r.effect().modifierId());
-                    if (net.minecraft.client.resources.language.I18n.exists(descKey)) {
-                        tooltip.accept(Component.literal("     ")
-                                .append(Component.translatable(descKey))
-                                .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
-                    }
-                }
+        if (!stats.allEffects.isEmpty() || totalSlots > 0) {
+            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+                    Component.translatable("tooltip." + Smithery.MODID + ".section.modifiers_count",
+                            usedSlots, totalSlots)));
+        }
+        for (ToolStats.ResolvedEffect r : stats.allEffects) {
+            int level = r.effect().paramInt("level", 1);
+            MutableComponent line = Component.empty()
+                    .append(Component.translatable(PartItem.modifierTranslationKey(r.effect().modifierId()))
+                            .withStyle(ChatFormatting.AQUA));
+            if (level > 1) {
+                line.append(Component.literal(" " + toRoman(level)).withStyle(ChatFormatting.AQUA));
             }
-            if (!shiftDown) {
-                tooltip.accept(Component.translatable(
-                        "tooltip." + Smithery.MODID + ".tool.shift_for_descriptions")
-                        .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.bullet(line));
+
+            String descKey = PartItem.modifierDescriptionKey(r.effect().modifierId());
+            if (net.minecraft.client.resources.language.I18n.exists(descKey)) {
+                tooltip.accept(com.soul.smithery.item.SmitheryTooltips.subLine(
+                        com.soul.smithery.item.SmitheryTooltips.description(Component.translatable(descKey))));
+            }
+
+            if (tier == com.soul.smithery.item.SmitheryTooltips.Tier.FULL) {
+                appendModifierFullDetails(tooltip, r.effect(), r.modifier());
             }
         }
 
-        // ---- In-progress modifier accumulation (from partial anvil applications) ----
-        // Value is the raw count of source items contributed so far. We don't know the target
-        // threshold here without picking a "primary" source; show just the contributed count,
-        // which matches the anvil's actual consumption.
+        if (!stats.activeSynergies.isEmpty()) {
+            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+                    Component.translatable("tooltip." + Smithery.MODID + ".tool.synergies")));
+            for (SynergyDefinition s : stats.activeSynergies) {
+                tooltip.accept(com.soul.smithery.item.SmitheryTooltips.synergyBullet(
+                        Component.translatable(synergyTranslationKey(s.id()))
+                                .withStyle(ChatFormatting.LIGHT_PURPLE)));
+                if (tier == com.soul.smithery.item.SmitheryTooltips.Tier.FULL) {
+                    tooltip.accept(com.soul.smithery.item.SmitheryTooltips.subLine(
+                            com.soul.smithery.item.SmitheryTooltips.description(Component.literal(
+                                    materialName(s.materialA()) + " + " + materialName(s.materialB())))));
+                }
+            }
+        }
+
         java.util.Map<net.minecraft.resources.Identifier, Integer> progress =
                 stack.getOrDefault(SmitheryDataComponents.MODIFIER_PROGRESS.get(),
                         java.util.Map.<net.minecraft.resources.Identifier, Integer>of());
         if (!progress.isEmpty()) {
+            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+                    Component.translatable("tooltip." + Smithery.MODID + ".section.progress")));
             for (var entry : progress.entrySet()) {
-                tooltip.accept(Component.literal(" ⌛ ")
-                        .append(Component.translatable(PartItem.modifierTranslationKey(entry.getKey()))
-                                .withStyle(ChatFormatting.YELLOW))
-                        .append(Component.literal(": " + entry.getValue() + " contributed")
-                                .withStyle(ChatFormatting.GRAY))
-                        .withStyle(ChatFormatting.DARK_GRAY));
+                tooltip.accept(com.soul.smithery.item.SmitheryTooltips.bullet(
+                        Component.translatable("tooltip." + Smithery.MODID + ".progress.line",
+                                Component.translatable(PartItem.modifierTranslationKey(entry.getKey()))
+                                        .withStyle(ChatFormatting.YELLOW),
+                                entry.getValue())));
             }
         }
 
-        // ---- Synergies ----
-        if (!stats.activeSynergies.isEmpty()) {
-            tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.synergies")
-                    .withStyle(ChatFormatting.GRAY));
-            for (SynergyDefinition s : stats.activeSynergies) {
-                MutableComponent line = Component.literal(" ✦ ")
-                        .append(Component.translatable(synergyTranslationKey(s.id()))
-                                .withStyle(ChatFormatting.LIGHT_PURPLE));
-                tooltip.accept(line.withStyle(ChatFormatting.DARK_PURPLE));
-            }
-        }
-
+        com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
         super.appendHoverText(stack, context, display, tooltip, flag);
     }
 
-    // ---- Vanilla tool-type parity ----
-
     /**
-     * Smithery tools declare the same ItemAbilities as their vanilla counterparts so
-     * vanilla mechanics (sword sweep, etc.) route through them correctly. Pickaxe mining
-     * doesn't go through this path — it's driven by the minecraft:tool data component set
-     * in applyComposition().
+     * Appends the FULL-tier extra details for a modifier: every parameter as a {@code key = value}
+     * line, plus a level-info or single-use line, plus a durability multiplier line when the
+     * modifier's mult is not 1.0.
+     *
+     * <p>Only invoked when the player holds both Shift and Ctrl, so this is "advanced players
+     * who want the actual numbers" territory.
      */
+    private static void appendModifierFullDetails(Consumer<Component> tooltip,
+                                                  com.soul.smithery.api.modifier.ModifierEffect effect,
+                                                  Modifier modifier) {
+        if (!effect.params().isEmpty()) {
+            for (var p : effect.params().entrySet()) {
+                tooltip.accept(com.soul.smithery.item.SmitheryTooltips.subLine(
+                        Component.translatable("tooltip." + Smithery.MODID + ".modifier.param_line",
+                                p.getKey(), formatParamValue(p.getValue()))
+                                .withStyle(ChatFormatting.DARK_GRAY)));
+            }
+        }
+        if (modifier == null) return;
+        if (modifier.maxLevel() > 1) {
+            int currentLevel = effect.paramInt("level", 1);
+            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.subLine(
+                    Component.translatable("tooltip." + Smithery.MODID + ".modifier.level_info",
+                            currentLevel, modifier.maxLevel(),
+                            String.format("%.2f", modifier.levelCostScaling()))
+                            .withStyle(ChatFormatting.DARK_GRAY)));
+        }
+        if (Math.abs(modifier.durabilityMultiplier() - 1.0f) > 1e-3) {
+            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.subLine(
+                    Component.translatable("tooltip." + Smithery.MODID + ".modifier.dur_mult",
+                            String.format("%.2f", modifier.durabilityMultiplier()))
+                            .withStyle(ChatFormatting.DARK_GRAY)));
+        }
+    }
+
+    /** Format an effect-parameter value for FULL-tier display: floats to 2 decimals, others as-is. */
+    private static String formatParamValue(Object value) {
+        if (value instanceof Float f)  return String.format("%.2f", f);
+        if (value instanceof Double d) return String.format("%.2f", d);
+        return String.valueOf(value);
+    }
+
+    /** Local lookup of the material display name for the FULL-tier synergy expansion line. */
+    private static String materialName(Identifier materialId) {
+        return net.minecraft.client.resources.language.I18n.get(PartItem.materialTranslationKey(materialId));
+    }
+
     @Override
     public boolean canPerformAction(ItemInstance stack, ItemAbility ability) {
         ToolType tt = toolType();
@@ -644,31 +589,12 @@ public class SmitheryToolItem extends Item {
         return super.canPerformAction(stack, ability);
     }
 
-    // ---- Active modifier hooks ----
-
-    /**
-     * Fires onAttack modifier callbacks. Routed through {@code Item.hurtEnemy} (called per
-     * damaged entity, server-side) instead of {@code postHurtEnemy} so spears' charged stab
-     * attack — which goes through {@code LivingEntity.stabAttack} → {@code Item.hurtEnemy}
-     * and never touches {@code postHurtEnemy} — also fires its on-hit modifiers (corrosive,
-     * verdant, lunge, …).
-     *
-     * Path coverage:
-     *   LMB melee → {@code Player.attack} → {@code Player.itemAttackInteraction} → here.
-     *   Charged stab (right-click hold + STAB packet) → {@code PiercingWeapon.attack} →
-     *     {@code LivingEntity.stabAttack} → here, ONCE PER PIERCED ENTITY.
-     *
-     * Per-pierce semantics are correct for hit-driven effects (corrosive, verdant — each pierced
-     * entity rolls its own chance). Modifiers that want once-per-attack semantics (lunge in
-     * particular) gate themselves via a per-player cooldown — see {@code SmitheryModifiers.LUNGE}.
-     */
     @Override
     public void hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         ToolComposition comp = compositionOf(stack);
         if (comp == null) return;
         ToolStats stats = ToolStats.compute(comp);
         if (stats.activeEffects.isEmpty()) return;
-        // We don't know the exact damage dealt here cheaply; pass through 0f if unavailable.
         Modifier.AttackContext ctx = new Modifier.AttackContext(stack, attacker, target, 0f);
         for (ToolStats.ResolvedEffect r : stats.activeEffects) {
             if (r.modifier().onAttack() != null) {
@@ -677,7 +603,6 @@ public class SmitheryToolItem extends Item {
         }
     }
 
-    /** Vanilla calls this after a block is broken with this tool. Fires all active onBreak modifier callbacks. */
     @Override
     public boolean mineBlock(ItemStack stack, Level level, BlockState state, net.minecraft.core.BlockPos pos, LivingEntity owner) {
         boolean superResult = super.mineBlock(stack, level, state, pos, owner);
@@ -696,22 +621,20 @@ public class SmitheryToolItem extends Item {
         return superResult;
     }
 
+    /** Translation key shared by synergy display names. */
     public static String synergyTranslationKey(Identifier synergyId) {
         return Smithery.MODID + ".synergy." + synergyId.getNamespace() + "." + synergyId.getPath();
     }
 
-    /** Get the material color used for primary tinting (drives ToolPrimaryMaterialTintSource). */
+    /** Instance-bound convenience wrapper for {@link #primaryTintColorFor(ItemStack)}. */
     public int primaryTintColor(ItemStack stack) {
         return primaryTintColorFor(stack);
     }
 
     /**
-     * Static variant — derives the tool type from the {@link ToolComposition} itself rather
-     * than the calling Item instance, so it works for {@code SmitheryBowItem} and
-     * {@code SmitheryArrowItem} too (neither extends {@code SmitheryToolItem}).
-     *
-     * Returns opaque white when no composition is present, the composition is invalid, or
-     * the primary additive material has been removed from the registry.
+     * Returns the ARGB tint colour for {@code stack}'s primary additive material; opaque
+     * white when no composition is present or the material can't be resolved. Static so
+     * the bow and arrow items (which don't extend SmitheryToolItem) can share it.
      */
     public static int primaryTintColorFor(ItemStack stack) {
         ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
