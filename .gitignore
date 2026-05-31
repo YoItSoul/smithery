@@ -41,6 +41,8 @@ repo/
 
 ### Local tooling data (not part of the project) ###
 .claude/
+!.claude/settings.json
+!.claude/hooks/
 
 ### Regenerable / scratch assets ###
 # Reference texture exports — recreated locally as needed.
