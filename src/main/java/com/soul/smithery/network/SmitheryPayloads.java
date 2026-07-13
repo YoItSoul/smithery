@@ -53,11 +53,13 @@ public final class SmitheryPayloads {
             var player = context.player();
             if (player == null) return;
             var level = player.level();
+            // Distance-check before the block-entity lookup: getBlockEntity can force-load
+            // chunks, so an arbitrary far-away position must be rejected first.
+            double dx = payload.controllerPos().getX() + 0.5 - player.getX();
+            double dy = payload.controllerPos().getY() + 0.5 - player.getY();
+            double dz = payload.controllerPos().getZ() + 0.5 - player.getZ();
+            if (dx * dx + dy * dy + dz * dz > 64.0) return;
             if (level.getBlockEntity(payload.controllerPos()) instanceof ForgeControllerBlockEntity be) {
-                double dx = payload.controllerPos().getX() + 0.5 - player.getX();
-                double dy = payload.controllerPos().getY() + 0.5 - player.getY();
-                double dz = payload.controllerPos().getZ() + 0.5 - player.getZ();
-                if (dx * dx + dy * dy + dz * dz > 64.0) return;
                 Identifier id = payload.fluidId();
                 Identifier current = be.outputFluidId();
                 be.setOutputFluid(id.equals(current) ? null : id);
