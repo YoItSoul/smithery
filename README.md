@@ -16,12 +16,13 @@
 
 ## What is Smithery?
 
-Smithery is a modular, modder-friendly tool crafting mod centered on a multiblock **Forge**. Inspired by the spirit of Tinkers' Construct but rebuilt from the ground up for NeoForge 26.1.2 with a clean Java API, runtime asset generation, and full datapack override support.
+Smithery is a modular, modder-friendly tool crafting mod centered on a multiblock **Forge**. Inspired by the spirit of Tinkers' Construct but rebuilt from the ground up for NeoForge 26.1.2 with a clean Java API, runtime asset generation, and growing datapack override support (alloys and modifiers today; more to come).
 
 - **Mixed-material tools.** Every tool is assembled from interchangeable parts — blade, guard, handle, binder, head. Pair an iron blade with a gold handle, a copper binder, and the stats, modifiers, and visuals stack accordingly.
 - **Per-material, per-tool-type modifiers.** Iron sword swings sharper, iron pickaxe magnetizes drops, copper poisons, gold gilds XP. Materials carry different abilities depending on which tool they're used in.
 - **Material synergies.** Specific cross-material combinations unlock bonus modifiers — Galvanic (Iron + Copper), Gilded (Iron + Gold), Verdant Veil (Copper + Gold) — at no slot cost.
-- **Multiblock Forge.** Built from vanilla deepslate variants plus three Smithery blocks. Validates open-top or closed-top structures, tolerates partial builds, and allows walls without corner blocks.
+- **Multiblock Forge.** Built from Furnace Bricks plus the controller, fuel ports, drains, and item ports. Validates open-top or closed-top structures, tolerates partial builds, and allows walls without corner blocks. Melts items dropped inside (or fed through item ports), auto-alloys, scalds mobs into fluids, and drains into a fluid-pipe network.
+- **Sand casting & Part Press.** Shape molten metal on the Casting Table — impress a part into casting sand, pour, let it cool, brush it clean. Non-meltable materials (wood, flint, slime, coral) are cut on the redstone-driven Part Press instead.
 - **Designed for modders.** Register new materials, parts, tool types, modifiers, synergies, and alloys via a builder-style Java API. Models, item definitions, and tinted textures are generated at runtime from the live registry — no boilerplate JSON per material.
 
 ---
@@ -32,18 +33,25 @@ Smithery is in active development. The roadmap is documented in [`SMITHERY_DESIG
 
 | Phase | Status          |
 |---|-----------------|
-| Materials, parts, tools, modifiers, synergies | ✅ implemented   |
-| Crafting (shapeless tool assembly) | ✅ implemented   |
+| Materials (28 built-in), parts, tools, modifiers, synergies | ✅ implemented   |
+| Crafting (shapeless tool assembly at the crafting table) | ✅ implemented   |
 | Multiblock Forge validator (open / closed / partial / no-corner) | ✅ implemented   |
-| Debug leak visualization | ✅ implemented   |
-| Heat / fluid / alloy simulation | 🚧 in progress  |
-| Forge controller GUI | 🚧 experimental |
+| Heat / fuel / melting simulation (multi-fuel, temperature-gated melt rates) | ✅ implemented   |
+| Molten fluids (auto-registered per material, tinted, with buckets) | ✅ implemented   |
+| Alloying (data-driven recipes, in-forge auto-processing) | ✅ implemented   |
+| Forge controller GUI (slots, tank, temp, fuel, alloy toggle) | ✅ implemented   |
+| Forge drain (redstone pump → fluid pipe network) + fluid pipes | ✅ implemented   |
+| Sand casting (casting table: impress → pour → cool → brush) | ✅ implemented   |
+| Part Press (in-world part cutting for non-meltable materials) | ✅ implemented   |
+| Anvil-applied modifiers (partial progress, per-level costs) | ✅ implemented   |
+| Mob scalding → fluid drops in the Forge | ✅ implemented   |
+| JEI integration (melting, casting, press, assembly, modifiers) | ✅ implemented   |
+| Armor stats & parts (Core / Plates / Trim) | 🚧 in progress — no assembly recipe yet |
+| Datapack JSON override loaders | 🚧 partial — alloys & modifiers reload from data; materials/melting are code-registered |
+| In-game Field Guide book | 🚧 minimal single-entry draft |
+| Tool repair (sharpening stones) | ⏳ planned       |
 | RF heat coils (Tier 1 + Tier 2) | ⏳ planned       |
-| Casting basin + cast molds | ⏳ planned       |
-| Sharpening stones (repair) | ⏳ planned       |
-| Anvil-applied modifier items | ⏳ planned       |
-| Datapack JSON override loaders | ⏳ planned       |
-| In-game Field Guide book | 🚧 in progress  |
+| World gen (ores) | ⏳ not planned — materials melt from vanilla resources |
 
 ---
 
