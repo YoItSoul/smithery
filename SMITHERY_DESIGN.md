@@ -1,8 +1,26 @@
 # SMITHERY MOD — Project Design Document
 
-**Version:** 0.1 (Draft)  
+**Version:** 0.2  
 **Mod ID:** `smithery`  
-**Loader:** NeoForge 26.1.2 *(confirm which Minecraft version this targets)*
+**Loader:** NeoForge 26.1.2.61-beta · Minecraft 26.1.2
+
+---
+
+## Implementation Status (2026-07-13)
+
+This document is the original design spec. Most of it is now built — see `PLAN.md` for the live task list. Where the implementation **deliberately diverged** from this spec, the implementation wins:
+
+| Spec says | Implementation does |
+|---|---|
+| Casting Basin + reusable cast molds (§6.3) | **Casting Table** with sand casting: impress a part/template into casting sand (not consumed), pour, cool, brush. No mold items. |
+| Shell from vanilla deepslate variants (§3.1) | Shell is Smithery **Furnace Bricks** (+ controller / fuel ports / drains / item ports). Deepslate is a *meltable*, not a shell block. |
+| Lava-only fuel (§3.3) | Multi-fuel via `ForgeFuels` registry (lava 1650°C, molten blaze 3500°C); per-fluid vertical fuel-port stacks. |
+| `AlloyDefinition` registry (§9.1) | Data-driven `AlloyRecipe` JSONs (datapack-reloadable). The old `AlloyDefinition` API still exists but is unused. |
+| Full datapack override layer (§11) | Partial: alloys, modifiers, modifier sources, and part eligibility reload from data. Materials / melting / tool types / synergies are Java-registered only. |
+| RF heat coils (§4.5) | Not built yet. |
+| Sharpening Stone repair (§10) | Not built yet. |
+
+Built beyond this spec: Part Press (non-meltable part cutting), fluid pipes + drain pump network, mob scalding → fluid drops, item ports, spear/bow/arrow tool types, armor system (Core/Plates/Trim parts and stats; assembly recipes pending), JEI integration, 3-tier tooltips, Modonomicon field-guide scaffold.
 
 ---
 
