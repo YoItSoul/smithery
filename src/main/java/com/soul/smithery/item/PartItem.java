@@ -12,10 +12,12 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.component.TooltipDisplay;
+import net.minecraft.world.level.Level;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -68,12 +70,12 @@ public class PartItem extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display,
-                                Consumer<Component> tooltip, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> lines, TooltipFlag flag) {
+        Consumer<Component> tooltip = lines::add;
         Material mat = material();
         PartType pt = partType();
         if (mat == null || pt == null) {
-            super.appendHoverText(stack, context, display, tooltip, flag);
+            super.appendHoverText(stack, level, lines, flag);
             return;
         }
 
@@ -91,7 +93,7 @@ public class PartItem extends Item {
 
         if (tier == SmitheryTooltips.Tier.BASIC) {
             SmitheryTooltips.appendKeyHint(tooltip, tier);
-            super.appendHoverText(stack, context, display, tooltip, flag);
+            super.appendHoverText(stack, level, lines, flag);
             return;
         }
 
@@ -147,7 +149,7 @@ public class PartItem extends Item {
                 tooltip.accept(SmitheryTooltips.subLine(line));
 
                 String descKey = modifierDescriptionKey(effect.modifierId());
-                if (net.minecraft.client.resources.language.I18n.exists(descKey)) {
+                if (I18n.exists(descKey)) {
                     tooltip.accept(SmitheryTooltips.subLine(
                             SmitheryTooltips.description(Component.translatable(descKey))));
                 }
@@ -164,7 +166,7 @@ public class PartItem extends Item {
         }
 
         SmitheryTooltips.appendKeyHint(tooltip, tier);
-        super.appendHoverText(stack, context, display, tooltip, flag);
+        super.appendHoverText(stack, level, lines, flag);
     }
 
     /** Format an effect-parameter value for FULL-tier display: floats to 2 decimals, others as-is. */

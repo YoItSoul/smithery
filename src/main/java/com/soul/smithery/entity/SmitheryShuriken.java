@@ -1,13 +1,14 @@
 package com.soul.smithery.entity;
 
+import com.soul.smithery.item.tool.SmitheryToolData;
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolStats;
-import com.soul.smithery.item.tool.SmitheryToolData;
 import com.soul.smithery.registry.SmitheryEntityTypes;
+import com.soul.smithery.registry.SmitheryItems;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrowableItemProjectile;
+import net.minecraft.world.entity.projectile.ThrowableItemProjectile;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -26,12 +27,13 @@ public class SmitheryShuriken extends ThrowableItemProjectile {
     }
 
     public SmitheryShuriken(Level level, LivingEntity shooter, ItemStack stack) {
-        super(SmitheryEntityTypes.SHURIKEN.get(), shooter, level, stack);
+        super(SmitheryEntityTypes.SHURIKEN.get(), shooter, level);
+        setItem(stack);
     }
 
     @Override
     protected Item getDefaultItem() {
-        return com.soul.smithery.registry.SmitheryItems.SHURIKEN.get();
+        return SmitheryItems.SHURIKEN.get();
     }
 
     @Override

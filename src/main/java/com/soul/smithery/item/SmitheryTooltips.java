@@ -1,7 +1,6 @@
 package com.soul.smithery.item;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.mojang.blaze3d.platform.Window;
 import com.soul.smithery.Smithery;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -50,9 +49,9 @@ public final class SmitheryTooltips {
      *         if only Shift is held, otherwise {@link Tier#BASIC}
      */
     public static Tier currentTier() {
-        Window win;
+        long win;
         try {
-            win = Minecraft.getInstance().getWindow();
+            win = Minecraft.getInstance().getWindow().getWindow();
         } catch (Throwable ignored) {
             return Tier.BASIC;
         }
