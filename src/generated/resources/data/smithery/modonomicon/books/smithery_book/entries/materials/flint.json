@@ -1,0 +1,44 @@
+{
+  "background": {
+    "height": 26,
+    "sprite": "modonomicon:modonomicon/themes/default/node/entry_backgrounds/square_gray",
+    "width": 26
+  },
+  "category": "materials",
+  "description": "book.smithery.smithery_book.materials.flint.description",
+  "hide_while_locked": false,
+  "icon": {
+    "id": "minecraft:flint"
+  },
+  "name": "book.smithery.smithery_book.materials.flint.name",
+  "pages": [
+    {
+      "type": "modonomicon:spotlight",
+      "anchor": "",
+      "condition": {
+        "type": "modonomicon:none"
+      },
+      "item": {
+        "id": "minecraft:flint"
+      },
+      "text": "book.smithery.smithery_book.materials.flint.page0.text",
+      "title": "book.smithery.smithery_book.materials.flint.page0.title"
+    },
+    {
+      "type": "modonomicon:spotlight",
+      "anchor": "",
+      "condition": {
+        "type": "modonomicon:none"
+      },
+      "item": {
+        "id": "smithery:flint_pick_head"
+      },
+      "text": "book.smithery.smithery_book.materials.flint.page1.text",
+      "title": "book.smithery.smithery_book.materials.flint.page1.title"
+    }
+  ],
+  "show_when_any_parent_unlocked": false,
+  "sort_number": 20,
+  "x": 0,
+  "y": 0
+}

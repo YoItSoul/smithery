@@ -1,0 +1,12 @@
+{
+  "_comment": "Frost Walker as a pure-data modifier: writes the vanilla enchantment onto the piece at compose time via the smithery:apply_enchantment action, so vanilla's own frost-walking logic does the work. Applied at the anvil with blue ice (see modifier_source/frost_walker_blue_ice.json). Meaningful on boots; harmless elsewhere since vanilla only checks the feet slot.",
+  "max_level": 2,
+  "level_cost_scaling": 2.0,
+  "on_compose": [
+    {
+      "type": "smithery:apply_enchantment",
+      "enchantment": "minecraft:frost_walker",
+      "level": 1
+    }
+  ]
+}

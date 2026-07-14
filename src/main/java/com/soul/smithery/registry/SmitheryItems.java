@@ -4,14 +4,18 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.part.PartType;
-import com.soul.smithery.content.SmitheryToolTypes;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.item.tool.SmitheryArmorItem;
 import com.soul.smithery.item.tool.SmitheryArrowItem;
 import com.soul.smithery.item.tool.SmitheryBowItem;
 import com.soul.smithery.item.tool.SmitheryToolItem;
-import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.equipment.EquipmentAsset;
+import net.minecraft.world.item.equipment.EquipmentAssets;
+import net.minecraft.world.item.equipment.Equippable;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -33,64 +37,103 @@ public final class SmitheryItems {
 
     private static final Map<String, DeferredItem<PartItem>> BUILT_IN_PART_ITEMS = new LinkedHashMap<>();
 
+    /** Shared equipment asset for all smithery armor: grayscale layers dyed by core material. */
+    private static final ResourceKey<EquipmentAsset> ARMOR_ASSET =
+            ResourceKey.create(EquipmentAssets.ROOT_ID, id("armor"));
+
+    private static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(Smithery.MODID, path);
+    }
+
+    /**
+     * Registers a non-stacking {@link SmitheryToolItem} whose item name doubles as its
+     * ToolType path — the invariant the assembly recipe's item lookup relies on.
+     */
+    private static DeferredItem<SmitheryToolItem> registerTool(String name) {
+        return ITEMS.registerItem(name,
+                props -> new SmitheryToolItem(props, id(name)),
+                p -> p.stacksTo(1));
+    }
+
+    /**
+     * Registers a {@link SmitheryArmorItem} bound to the shared {@link #ARMOR_ASSET} so the
+     * worn model renders; per-material color arrives via the stack's DYED_COLOR component,
+     * written at compose time.
+     */
+    private static DeferredItem<SmitheryArmorItem> registerArmor(String name, EquipmentSlot slot) {
+        return ITEMS.registerItem(name,
+                props -> new SmitheryArmorItem(props, id(name)),
+                p -> p.stacksTo(1).component(DataComponents.EQUIPPABLE,
+                        Equippable.builder(slot).setAsset(ARMOR_ASSET).build()));
+    }
+
     /** Smithery sword tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> SWORD = ITEMS.registerItem("sword",
-            props -> new SmitheryToolItem(props, SmitheryToolTypes.SWORD.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
-
+    public static final DeferredItem<SmitheryToolItem> SWORD = registerTool("sword");
     /** Smithery pickaxe tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> PICKAXE = ITEMS.registerItem("pickaxe",
-            props -> new SmitheryToolItem(props, SmitheryToolTypes.PICKAXE.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
-
+    public static final DeferredItem<SmitheryToolItem> PICKAXE = registerTool("pickaxe");
     /** Smithery axe tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> AXE = ITEMS.registerItem("axe",
-            props -> new SmitheryToolItem(props, SmitheryToolTypes.AXE.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
-
+    public static final DeferredItem<SmitheryToolItem> AXE = registerTool("axe");
     /** Smithery shovel tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> SHOVEL = ITEMS.registerItem("shovel",
-            props -> new SmitheryToolItem(props, SmitheryToolTypes.SHOVEL.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
-
+    public static final DeferredItem<SmitheryToolItem> SHOVEL = registerTool("shovel");
     /** Smithery hoe tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> HOE = ITEMS.registerItem("hoe",
-            props -> new SmitheryToolItem(props, SmitheryToolTypes.HOE.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
-
+    public static final DeferredItem<SmitheryToolItem> HOE = registerTool("hoe");
     /** Smithery spear tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> SPEAR = ITEMS.registerItem("spear",
-            props -> new SmitheryToolItem(props, SmitheryToolTypes.SPEAR.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
+    public static final DeferredItem<SmitheryToolItem> SPEAR = registerTool("spear");
+    /** Smithery broadsword; heavy two-hand blade — slow swing, big hits. */
+    public static final DeferredItem<SmitheryToolItem> BROADSWORD = registerTool("broadsword");
+    /** Smithery rapier; fast thrusts that partially bypass the target's armor. */
+    public static final DeferredItem<SmitheryToolItem> RAPIER = registerTool("rapier");
+    /** Smithery paxel; pickaxe + axe + shovel + hoe in one head assembly. */
+    public static final DeferredItem<SmitheryToolItem> PAXEL = registerTool("paxel");
+    /** Smithery mining hammer; breaks a 3x3 face of stone at once. */
+    public static final DeferredItem<SmitheryToolItem> MINING_HAMMER = registerTool("mining_hammer");
 
     /** Smithery bow tool item; uses a {@link SmitheryBowItem} for draw-frame model swaps. */
     public static final DeferredItem<SmitheryBowItem> BOW = ITEMS.registerItem("bow",
-            props -> new SmitheryBowItem(props, SmitheryToolTypes.BOW.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1)));
+            props -> new SmitheryBowItem(props, id("bow")),
+            p -> p.stacksTo(1));
+
+    /** Smithery kama; shears abilities plus 3x3 double-yield crop harvesting. */
+    public static final DeferredItem<SmitheryToolItem> KAMA = registerTool("kama");
+    /** Smithery cleaver; slow, massive hits with an innate chance to behead. */
+    public static final DeferredItem<SmitheryToolItem> CLEAVER = registerTool("cleaver");
+    /** Smithery lumberaxe; fells the whole connected tree from one log. */
+    public static final DeferredItem<SmitheryToolItem> LUMBERAXE = registerTool("lumberaxe");
+    /** Smithery excavator; digs a 3x3 face of shovel material at once. */
+    public static final DeferredItem<SmitheryToolItem> EXCAVATOR = registerTool("excavator");
+
+    /** Smithery shuriken; stackable thrown weapon assembled from four blades. */
+    public static final DeferredItem<com.soul.smithery.item.tool.SmitheryShurikenItem> SHURIKEN =
+            ITEMS.registerItem("shuriken",
+                    props -> new com.soul.smithery.item.tool.SmitheryShurikenItem(props, id("shuriken")));
+
+    /** Smithery battlesign; a melee weapon that partially blocks while raised. */
+    public static final DeferredItem<SmitheryToolItem> BATTLESIGN = registerTool("battlesign");
+
+    /** Smithery trident; vanilla charge/throw pipeline, composition-driven melee stats. */
+    public static final DeferredItem<com.soul.smithery.item.tool.SmitheryTridentItem> TRIDENT =
+            ITEMS.registerItem("trident",
+                    props -> new com.soul.smithery.item.tool.SmitheryTridentItem(props, id("trident")),
+                    p -> p.stacksTo(1));
+
+    /** Smithery crossbow; vanilla charge/store/fire pipeline with smithery arrow scaling. */
+    public static final DeferredItem<com.soul.smithery.item.tool.SmitheryCrossbowItem> CROSSBOW =
+            ITEMS.registerItem("crossbow",
+                    props -> new com.soul.smithery.item.tool.SmitheryCrossbowItem(props, id("crossbow")),
+                    p -> p.stacksTo(1));
 
     /** Smithery arrow tool item; stays stackable (default 64) since vanilla forbids stackables from carrying DAMAGE. */
     public static final DeferredItem<SmitheryArrowItem> ARROW = ITEMS.registerItem("arrow",
-            props -> new SmitheryArrowItem(props, SmitheryToolTypes.ARROW.id()));
+            props -> new SmitheryArrowItem(props, id("arrow")));
 
     /** Smithery helmet; HEAD-slot armor item, composition writes per-stack defense/toughness. */
-    public static final DeferredItem<SmitheryArmorItem> HELMET = ITEMS.registerItem("helmet",
-            props -> new SmitheryArmorItem(props, SmitheryToolTypes.HELMET.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1).equippable(EquipmentSlot.HEAD)));
-
+    public static final DeferredItem<SmitheryArmorItem> HELMET = registerArmor("helmet", EquipmentSlot.HEAD);
     /** Smithery chestplate; CHEST-slot armor item. */
-    public static final DeferredItem<SmitheryArmorItem> CHESTPLATE = ITEMS.registerItem("chestplate",
-            props -> new SmitheryArmorItem(props, SmitheryToolTypes.CHESTPLATE.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1).equippable(EquipmentSlot.CHEST)));
-
+    public static final DeferredItem<SmitheryArmorItem> CHESTPLATE = registerArmor("chestplate", EquipmentSlot.CHEST);
     /** Smithery leggings; LEGS-slot armor item. */
-    public static final DeferredItem<SmitheryArmorItem> LEGGINGS = ITEMS.registerItem("leggings",
-            props -> new SmitheryArmorItem(props, SmitheryToolTypes.LEGGINGS.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1).equippable(EquipmentSlot.LEGS)));
-
+    public static final DeferredItem<SmitheryArmorItem> LEGGINGS = registerArmor("leggings", EquipmentSlot.LEGS);
     /** Smithery boots; FEET-slot armor item. */
-    public static final DeferredItem<SmitheryArmorItem> BOOTS = ITEMS.registerItem("boots",
-            props -> new SmitheryArmorItem(props, SmitheryToolTypes.BOOTS.id()),
-            (java.util.function.UnaryOperator<net.minecraft.world.item.Item.Properties>) (p -> p.stacksTo(1).equippable(EquipmentSlot.FEET)));
+    public static final DeferredItem<SmitheryArmorItem> BOOTS = registerArmor("boots", EquipmentSlot.FEET);
 
     /** Flame-string crafting item; part-press input that produces flamestring material parts. */
     public static final DeferredItem<net.minecraft.world.item.Item> FLAMESTRING =

@@ -1,0 +1,13 @@
+{
+  "_comment": "Knockback as a pure-data modifier via the vanilla enchantment; the effect's level param raises the enchant level with each anvil application.",
+  "max_level": 2,
+  "level_cost_scaling": 2.0,
+  "applies_to": "tools",
+  "on_compose": [
+    {
+      "type": "smithery:apply_enchantment",
+      "enchantment": "minecraft:knockback",
+      "level": 1
+    }
+  ]
+}

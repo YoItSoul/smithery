@@ -16,6 +16,7 @@ import com.soul.smithery.content.SmitheryMaterials;
 import com.soul.smithery.content.SmitheryPartTypes;
 import com.soul.smithery.item.tool.SmitheryToolItem;
 import com.soul.smithery.item.tool.ToolComposition;
+import com.soul.smithery.item.tool.ToolCompositions;
 import com.soul.smithery.registry.SmitheryBlocks;
 import com.soul.smithery.registry.SmitheryFluids;
 import com.soul.smithery.registry.SmitheryItems;
@@ -300,7 +301,7 @@ public final class SmitheryJeiRecipes {
                 ToolComposition comp = new ToolComposition(
                         toolType.id(),
                         toolType.slots().stream().map(s -> material.id()).toList());
-                ItemStack tool = SmitheryToolItem.applyComposition(new ItemStack(toolItem), comp);
+                ItemStack tool = ToolCompositions.apply(new ItemStack(toolItem), comp);
 
                 for (int i = 0; i < slotParts.size(); i++) {
                     partsBySlot.get(i).add(slotParts.get(i));

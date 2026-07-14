@@ -5,13 +5,13 @@
   "background_texture_zoom_multiplier": 1.0,
   "background_width": 512,
   "description": "",
-  "display_mode": "node",
+  "display_mode": "index",
   "icon": {
-    "id": "minecraft:paper"
+    "id": "minecraft:writable_book"
   },
   "max_scroll_x": 512,
   "max_scroll_y": 512,
-  "name": "book.smithery.smithery_book.leaflet.name",
+  "name": "book.smithery.smithery_book.getting_started.name",
   "show_category_button": true,
   "sort_number": 0
 }

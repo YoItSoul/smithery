@@ -1,0 +1,8 @@
+{
+  "_comment": "Blue ice, placed in the right anvil slot opposite smithery armor, applies the frost_walker modifier.",
+  "source_item": "minecraft:blue_ice",
+  "modifier": "smithery:frost_walker",
+  "params": {
+    "level": 1
+  }
+}

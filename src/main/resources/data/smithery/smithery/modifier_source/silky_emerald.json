@@ -1,0 +1,6 @@
+{
+  "_comment": "An emerald, placed in the right anvil slot opposite a smithery tool, applies the silky (Silk Touch) modifier.",
+  "source_item": "minecraft:emerald",
+  "modifier": "smithery:silky",
+  "params": {}
+}

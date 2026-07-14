@@ -1,0 +1,28 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "smithery:armor",
+        "dyeable": {
+          "color_when_undyed": 16777215
+        }
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "smithery:armor",
+        "dyeable": {
+          "color_when_undyed": 16777215
+        }
+      }
+    ],
+    "humanoid_baby": [
+      {
+        "texture": "smithery:armor",
+        "dyeable": {
+          "color_when_undyed": 16777215
+        }
+      }
+    ]
+  }
+}

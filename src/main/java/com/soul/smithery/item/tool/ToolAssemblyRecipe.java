@@ -104,7 +104,7 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
         if (resultItem == null) return ItemStack.EMPTY;
 
         ToolComposition comp = new ToolComposition(toolTypeId, materials);
-        return SmitheryToolItem.applyComposition(new ItemStack(resultItem), comp);
+        return ToolCompositions.apply(new ItemStack(resultItem), comp);
     }
 
     @Override

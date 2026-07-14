@@ -1,13 +1,8 @@
 package com.soul.smithery.event;
 
 import com.soul.smithery.Smithery;
-import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.modifier.Modifier;
-import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.item.tool.SmitheryToolItem;
-import com.soul.smithery.item.tool.ToolComposition;
-import com.soul.smithery.item.tool.ToolStats;
-import com.soul.smithery.registry.SmitheryDataComponents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -22,8 +17,6 @@ import net.neoforged.neoforge.event.entity.living.LivingExperienceDropEvent;
 import net.neoforged.neoforge.event.level.BlockDropsEvent;
 import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
 
-import java.util.List;
-
 /**
  * Central dispatcher that fans vanilla / NeoForge gameplay events out to the active-modifier
  * callbacks on each registered {@link Modifier}.
@@ -32,12 +25,48 @@ import java.util.List;
  * smithery tool. Attack dispatch lives in {@link SmitheryToolItem} so that the spear's pierce
  * burst routes once per pierced entity, with once-per-attack modifiers gating themselves.
  *
- * <p>Stats are recomputed per event via {@link ToolStats#compute}; the path is allocation-light
- * so caching is unnecessary at typical attack frequencies.
+ * <p>Effect resolution (and its efficiency notes) lives in {@link ModifierDispatch}, shared
+ * with {@link ArmorModifierEventRouter}.
  */
 @EventBusSubscriber(modid = Smithery.MODID)
 public final class ToolModifierEventRouter {
     private ToolModifierEventRouter() {}
+
+    /**
+     * Routes attacker-side incoming-damage events to every {@code onDealDamage} callback on the
+     * attacker's main-hand smithery tool. Fires before the damage lands, so callbacks can scale
+     * it (Jagged-style wear bonuses, conditional damage).
+     */
+    @SubscribeEvent
+    public static void onDealDamage(net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
+        if (!(event.getSource().getEntity() instanceof LivingEntity attacker)) return;
+        if (attacker.level().isClientSide()) return;
+        ItemStack tool = attacker.getMainHandItem();
+        if (!(tool.getItem() instanceof SmitheryToolItem toolItem)) return;
+
+        // Rapier identity: thrusts recover a share of the damage the target's armor would
+        // absorb (+4% per armor point). Tool-type innate, not a modifier — every rapier has it.
+        if ("rapier".equals(toolItem.toolTypeId().getPath())) {
+            event.setAmount(event.getAmount() * (1.0f + 0.04f * event.getEntity().getArmorValue()));
+        }
+
+
+        Modifier.FloatAccessor amount = new Modifier.FloatAccessor() {
+            @Override public float get() { return event.getAmount(); }
+            @Override public void set(float v) { event.setAmount(Math.max(0f, v)); }
+        };
+        Modifier.DealDamageContext ctx = new Modifier.DealDamageContext(
+                tool, attacker, event.getEntity(), amount);
+        for (ModifierDispatch.ResolvedEffect r
+                : ModifierDispatch.effectsFor(tool, m -> m.onDealDamage() != null)) {
+            try {
+                r.modifier().onDealDamage().onDealDamage(r.effect(), ctx);
+            } catch (Throwable t) {
+                Smithery.LOGGER.error("Modifier {} onDealDamage failed: {}",
+                        r.modifier().id(), t.toString());
+            }
+        }
+    }
 
     /**
      * Routes block-break events to every {@code onBreak} callback on the player's main-hand
@@ -56,17 +85,14 @@ public final class ToolModifierEventRouter {
         ItemStack tool = player.getMainHandItem();
         if (!(tool.getItem() instanceof SmitheryToolItem)) return;
 
-        List<ResolvedEffect> effects = activeEffectsFor(tool);
-        if (effects.isEmpty()) return;
-
         Modifier.BlockBreakContext ctx = new Modifier.BlockBreakContext(tool, player, level, pos, state);
-        for (ResolvedEffect r : effects) {
-            if (r.modifier.onBreak() == null) continue;
+        for (ModifierDispatch.ResolvedEffect r
+                : ModifierDispatch.effectsFor(tool, m -> m.onBreak() != null)) {
             try {
-                r.modifier.onBreak().onBreak(r.effect, ctx);
+                r.modifier().onBreak().onBreak(r.effect(), ctx);
             } catch (Throwable t) {
                 Smithery.LOGGER.error("Modifier {} onBreak failed: {}",
-                        r.modifier.id(), t.toString());
+                        r.modifier().id(), t.toString());
             }
         }
     }
@@ -74,7 +100,8 @@ public final class ToolModifierEventRouter {
     /**
      * Routes block-drop events to every {@code onBlockDrops} callback on the player's main-hand
      * smithery tool. Fires after drops have been spawned, which is the correct point for drop
-     * inspection / multiplication / XP adjustment.
+     * inspection / multiplication / XP adjustment. Also applies the kama's harvest identity:
+     * crops broken by a kama yield double drops.
      *
      * @param event NeoForge's block-drops event
      */
@@ -83,10 +110,16 @@ public final class ToolModifierEventRouter {
         if (!(event.getBreaker() instanceof Player player)) return;
         if (player.level().isClientSide()) return;
         ItemStack tool = player.getMainHandItem();
-        if (!(tool.getItem() instanceof SmitheryToolItem)) return;
+        if (!(tool.getItem() instanceof SmitheryToolItem toolItem)) return;
 
-        List<ResolvedEffect> effects = activeEffectsFor(tool);
-        if (effects.isEmpty()) return;
+        if ("kama".equals(toolItem.toolTypeId().getPath())
+                && event.getState().is(net.minecraft.tags.BlockTags.CROPS)) {
+            for (var drop : event.getDrops()) {
+                var stack2x = drop.getItem().copy();
+                stack2x.setCount(Math.min(stack2x.getMaxStackSize(), stack2x.getCount() * 2));
+                drop.setItem(stack2x);
+            }
+        }
 
         Modifier.XpAccessor xp = new Modifier.XpAccessor() {
             @Override public int get() { return event.getDroppedExperience(); }
@@ -95,13 +128,13 @@ public final class ToolModifierEventRouter {
         Modifier.BlockDropsContext ctx = new Modifier.BlockDropsContext(
                 tool, player, event.getLevel(), event.getPos(), event.getState(),
                 event.getDrops(), xp);
-        for (ResolvedEffect r : effects) {
-            if (r.modifier.onBlockDrops() == null) continue;
+        for (ModifierDispatch.ResolvedEffect r
+                : ModifierDispatch.effectsFor(tool, m -> m.onBlockDrops() != null)) {
             try {
-                r.modifier.onBlockDrops().onDrops(r.effect, ctx);
+                r.modifier().onBlockDrops().onDrops(r.effect(), ctx);
             } catch (Throwable t) {
                 Smithery.LOGGER.error("Modifier {} onBlockDrops failed: {}",
-                        r.modifier.id(), t.toString());
+                        r.modifier().id(), t.toString());
             }
         }
     }
@@ -120,20 +153,47 @@ public final class ToolModifierEventRouter {
         ItemStack tool = player.getMainHandItem();
         if (!(tool.getItem() instanceof SmitheryToolItem)) return;
 
-        List<ResolvedEffect> effects = activeEffectsFor(tool);
-        if (effects.isEmpty()) return;
+        // Cleaver identity: 10% innate chance the victim's head joins the drops.
+        if (tool.getItem() instanceof SmitheryToolItem cleaverItem
+                && "cleaver".equals(cleaverItem.toolTypeId().getPath())
+                && player.getRandom().nextFloat() < 0.10f) {
+            ItemStack head = headFor(event.getEntity());
+            if (!head.isEmpty()) {
+                event.getDrops().add(new net.minecraft.world.entity.item.ItemEntity(
+                        player.level(), event.getEntity().getX(), event.getEntity().getY(),
+                        event.getEntity().getZ(), head));
+            }
+        }
 
         Modifier.MobDropsContext ctx = new Modifier.MobDropsContext(
                 tool, player, event.getEntity(), event.getDrops());
-        for (ResolvedEffect r : effects) {
-            if (r.modifier.onMobDrops() == null) continue;
+        for (ModifierDispatch.ResolvedEffect r
+                : ModifierDispatch.effectsFor(tool, m -> m.onMobDrops() != null)) {
             try {
-                r.modifier.onMobDrops().onDrops(r.effect, ctx);
+                r.modifier().onMobDrops().onDrops(r.effect(), ctx);
             } catch (Throwable t) {
                 Smithery.LOGGER.error("Modifier {} onMobDrops failed: {}",
-                        r.modifier.id(), t.toString());
+                        r.modifier().id(), t.toString());
             }
         }
+    }
+
+    /** Maps beheadable victims to their vanilla head item; empty stack for everything else. */
+    private static ItemStack headFor(LivingEntity victim) {
+        var type = victim.getType();
+        if (type == net.minecraft.world.entity.EntityType.ZOMBIE)
+            return new ItemStack(net.minecraft.world.item.Items.ZOMBIE_HEAD);
+        if (type == net.minecraft.world.entity.EntityType.SKELETON)
+            return new ItemStack(net.minecraft.world.item.Items.SKELETON_SKULL);
+        if (type == net.minecraft.world.entity.EntityType.WITHER_SKELETON)
+            return new ItemStack(net.minecraft.world.item.Items.WITHER_SKELETON_SKULL);
+        if (type == net.minecraft.world.entity.EntityType.CREEPER)
+            return new ItemStack(net.minecraft.world.item.Items.CREEPER_HEAD);
+        if (type == net.minecraft.world.entity.EntityType.PIGLIN)
+            return new ItemStack(net.minecraft.world.item.Items.PIGLIN_HEAD);
+        if (victim instanceof Player)
+            return new ItemStack(net.minecraft.world.item.Items.PLAYER_HEAD);
+        return ItemStack.EMPTY;
     }
 
     /**
@@ -149,43 +209,19 @@ public final class ToolModifierEventRouter {
         ItemStack tool = killer.getMainHandItem();
         if (!(tool.getItem() instanceof SmitheryToolItem)) return;
 
-        List<ResolvedEffect> effects = activeEffectsFor(tool);
-        if (effects.isEmpty()) return;
-
         Modifier.XpAccessor xp = new Modifier.XpAccessor() {
             @Override public int get() { return event.getDroppedExperience(); }
             @Override public void set(int v) { event.setDroppedExperience(v); }
         };
         Modifier.KillContext ctx = new Modifier.KillContext(tool, killer, event.getEntity(), xp);
-        for (ResolvedEffect r : effects) {
-            if (r.modifier.onKill() == null) continue;
+        for (ModifierDispatch.ResolvedEffect r
+                : ModifierDispatch.effectsFor(tool, m -> m.onKill() != null)) {
             try {
-                r.modifier.onKill().onKill(r.effect, ctx);
+                r.modifier().onKill().onKill(r.effect(), ctx);
             } catch (Throwable t) {
                 Smithery.LOGGER.error("Modifier {} onKill failed: {}",
-                        r.modifier.id(), t.toString());
+                        r.modifier().id(), t.toString());
             }
         }
-    }
-
-    private record ResolvedEffect(Modifier modifier, ModifierEffect effect) {}
-
-    private static List<ResolvedEffect> activeEffectsFor(ItemStack tool) {
-        ToolComposition comp = tool.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
-        if (comp == null || !comp.isValid()) return List.of();
-        List<ModifierEffect> applied = tool.getOrDefault(
-                SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.of());
-        ToolStats stats = ToolStats.compute(comp, applied);
-
-        List<ResolvedEffect> out = new java.util.ArrayList<>(stats.activeEffects.size());
-        for (ToolStats.ResolvedEffect r : stats.activeEffects) {
-            Modifier mod = SmitheryAPI.MODIFIERS.get(r.effect().modifierId());
-            if (mod == null) continue;
-            if (mod.onAttack() == null && mod.onBreak() == null
-                    && mod.onBlockDrops() == null && mod.onKill() == null
-                    && mod.onMobDrops() == null) continue;
-            out.add(new ResolvedEffect(mod, r.effect()));
-        }
-        return out;
     }
 }

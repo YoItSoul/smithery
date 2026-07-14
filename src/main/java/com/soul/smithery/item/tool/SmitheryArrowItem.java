@@ -131,13 +131,13 @@ public class SmitheryArrowItem extends ArrowItem {
     }
 
     /**
-     * Routes through {@link SmitheryToolItem#applyComposition} so freshly-crafted arrow
+     * Routes through {@link ToolCompositions#apply} so freshly-crafted arrow
      * stacks pick up TOOL_COMPOSITION, MAX_DAMAGE, and attribute modifiers via the same
      * path every other smithery tool uses. Exists for code paths that build arrows
      * outside the assembly recipe (commands, loot tables, etc.).
      */
     public static ItemStack craftArrowStack(ItemStack stack, ToolComposition comp) {
-        return SmitheryToolItem.applyComposition(stack, comp);
+        return ToolCompositions.apply(stack, comp);
     }
 
     private static Identifier primaryAdditiveMaterial(ToolType tt, ToolComposition comp) {

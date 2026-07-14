@@ -1,0 +1,44 @@
+{
+  "background": {
+    "height": 26,
+    "sprite": "modonomicon:modonomicon/themes/default/node/entry_backgrounds/square_gray",
+    "width": 26
+  },
+  "category": "materials",
+  "description": "book.smithery.smithery_book.materials.amethyst.description",
+  "hide_while_locked": false,
+  "icon": {
+    "id": "minecraft:amethyst_cluster"
+  },
+  "name": "book.smithery.smithery_book.materials.amethyst.name",
+  "pages": [
+    {
+      "type": "modonomicon:spotlight",
+      "anchor": "",
+      "condition": {
+        "type": "modonomicon:none"
+      },
+      "item": {
+        "id": "minecraft:amethyst_cluster"
+      },
+      "text": "book.smithery.smithery_book.materials.amethyst.page0.text",
+      "title": "book.smithery.smithery_book.materials.amethyst.page0.title"
+    },
+    {
+      "type": "modonomicon:spotlight",
+      "anchor": "",
+      "condition": {
+        "type": "modonomicon:none"
+      },
+      "item": {
+        "id": "smithery:amethyst_pick_head"
+      },
+      "text": "book.smithery.smithery_book.materials.amethyst.page1.text",
+      "title": "book.smithery.smithery_book.materials.amethyst.page1.title"
+    }
+  ],
+  "show_when_any_parent_unlocked": false,
+  "sort_number": 10,
+  "x": 0,
+  "y": 0
+}

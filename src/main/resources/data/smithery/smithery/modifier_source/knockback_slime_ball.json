@@ -1,0 +1,8 @@
+{
+  "_comment": "A slime ball, placed in the right anvil slot opposite a smithery tool, applies the knockback modifier.",
+  "source_item": "minecraft:slime_ball",
+  "modifier": "smithery:knockback",
+  "params": {
+    "level": 1
+  }
+}

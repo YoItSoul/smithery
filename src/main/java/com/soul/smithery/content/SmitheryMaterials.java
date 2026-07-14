@@ -3,7 +3,9 @@ package com.soul.smithery.content;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.MaterialStats;
+import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.part.PartType;
+import com.soul.smithery.api.tool.ToolType;
 import net.minecraft.resources.Identifier;
 
 import java.util.Map;
@@ -97,6 +99,8 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFF8B5A2B)
                 .partColor(0xFF8B5A2B)
                 .binderMultiplier(1.0f), 1)
+                .addModifier(ModifierEffect.of(SmitheryModifiers.ECOLOGICAL,
+                        Map.of("interval_ticks", 2400)), armorPieces())
                 .armor(35f, 1f, 5f, 0.85f, 0f, 3f)
                 .build());
 
@@ -114,6 +118,8 @@ public final class SmitheryMaterials {
                         Map.of("chance", 0.15f, "duration_ticks", 60))
                 .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.CORROSIVE,
                         Map.of("chance", 0.25f, "duration_ticks", 100, "amplifier", 1))
+                .addModifier(ModifierEffect.of(SmitheryModifiers.CONDUCTIVE,
+                        Map.of("pct", 0.9f)), armorPieces())
                 .armor(210f, 11f, 50f, 1.0f, 0f, 14f)
                 .build());
 
@@ -133,6 +139,8 @@ public final class SmitheryMaterials {
                         Map.of("xp_multiplier", 1.25f))
                 .addModifier(SmitheryToolTypes.PICKAXE,
                         Identifier.fromNamespaceAndPath(Smithery.MODID, "golden_touch"))
+                .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.ALLURING,
+                        Map.of("radius", 6.0f))
                 .armor(32f, 7f, 10f, 0.7f, 0f, 5f)
                 .build());
 
@@ -148,6 +156,8 @@ public final class SmitheryMaterials {
                 .binderMultiplier(0.85f), 2)
                 .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.MAGNETIZED,
                         Map.of("radius", 5.0f))
+                .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.MAGNETIZED,
+                        Map.of("radius", 4.0f))
                 .armor(204f, 15f, 50f, 1.0f, 0f, 15f)
                 .build());
 
@@ -161,6 +171,10 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFFAAAAAA)
                 .partColor(0xFF7E7E7E)
                 .binderMultiplier(0.5f), 1)
+                .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.STALWART,
+                        Map.of("amount", 0.05f))
+                .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.STONEBOUND,
+                        Map.of("speed_bonus", 4.0f, "damage_penalty", 2.0f))
                 .armor(120f, 5f, 20f, 0.95f, 0f, 8f)
                 .build());
 
@@ -174,6 +188,8 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFF2030C0)
                 .partColor(0xFF345DD0)
                 .binderMultiplier(0.8f), 2)
+                .addModifier(ModifierEffect.of(SmitheryModifiers.WARDED,
+                        Map.of("pct", 0.15f)), armorPieces())
                 .armor(150f, 6f, 25f, 0.85f, 0f, 10f)
                 .build());
 
@@ -187,6 +203,8 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFFFF0000)
                 .partColor(0xFFAA0000)
                 .binderMultiplier(0.7f), 1)
+                .addModifier(SmitheryToolTypes.LEGGINGS, SmitheryModifiers.ENERGIZED,
+                        Map.of("pct", 0.02f))
                 .armor(150f, 5f, 25f, 0.8f, 0f, 10f)
                 .build());
 
@@ -200,6 +218,8 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFF5FA3A3)
                 .partColor(0xFF7CB3A8)
                 .binderMultiplier(0.6f), 2)
+                .addModifier(ModifierEffect.of(SmitheryModifiers.AQUADYNAMIC,
+                        Map.of("amount", 0.15f)), armorPieces())
                 .armor(430f, 14f, 60f, 1.0f, 1f, 20f)
                 .build());
 
@@ -213,6 +233,11 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFFFF7700)
                 .partColor(0xFFFFAA00)
                 .binderMultiplier(1.0f), 2)
+                .addModifier(ModifierEffect.of(SmitheryModifiers.FIREWARD,
+                        Map.of("pct", 0.3f)), armorPieces())
+                .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.AUTOSMELT)
+                .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.FIERY,
+                        Map.of("level", 1))
                 .armor(550f, 12f, 60f, 1.0f, 1f, 20f)
                 .build());
 
@@ -226,6 +251,10 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFFB070F0)
                 .partColor(0xFFA85FE6)
                 .binderMultiplier(0.9f), 2)
+                .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.CRYSTALLINE,
+                        Map.of("pct", 0.02f))
+                .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.MOMENTUM,
+                        Map.of("max_amplifier", 2))
                 .armor(200f, 8f, 30f, 0.9f, 0f, 12f)
                 .build());
 
@@ -278,6 +307,8 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFF402F2D)
                 .partColor(0xFF4D4946)
                 .binderMultiplier(1.2f), 4)
+                .addModifier(ModifierEffect.of(SmitheryModifiers.STALWART,
+                        Map.of("amount", 0.1f)), armorPieces())
                 .armor(820f, 20f, 100f, 1.2f, 3f, 40f)
                 .build());
 
@@ -291,6 +322,10 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFF1A1A1A)
                 .partColor(0xFF333333)
                 .binderMultiplier(2.0f), 5)
+                .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.STALWART,
+                        Map.of("amount", 0.25f))
+                .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.IMMOVABLE,
+                        Map.of("pct", 0.1f))
                 .armor(1500f, 25f, 200f, 1.5f, 5f, 80f)
                 .build());
 
@@ -304,6 +339,7 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFF992233)
                 .partColor(0xFFCC2233)
                 .binderMultiplier(0.5f), 3)
+                .addModifier(SmitheryToolTypes.BOOTS, SmitheryModifiers.BOUNCY)
                 .armor(850f, 17f, 90f, 1.1f, 2f, 35f)
                 .build());
 
@@ -317,6 +353,8 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFF8B0000)
                 .partColor(0xFF7A0E1A)
                 .binderMultiplier(0.5f), 3)
+                .addModifier(SmitheryToolTypes.BOOTS, SmitheryModifiers.NIMBLE,
+                        Map.of("pct", 0.5f))
                 .armor(820f, 18f, 100f, 1.15f, 3f, 35f)
                 .build());
 
@@ -351,6 +389,10 @@ public final class SmitheryMaterials {
                 .meltingTemp(0f)
                 .partColor(0xFF5A5A5A)
                 .binderMultiplier(0.6f), 1)
+                .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.SPINY,
+                        Map.of("chance", 0.25f, "damage", 1.0f))
+                .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.JAGGED,
+                        Map.of("pct", 0.5f))
                 .armor(150f, 3f, 15f, 0.85f, 0f, 8f)
                 .build());
 
@@ -363,6 +405,7 @@ public final class SmitheryMaterials {
                 .meltingTemp(0f)
                 .partColor(0xFF7FCD33)
                 .binderMultiplier(0.7f), 3)
+                .addModifier(SmitheryToolTypes.BOOTS, SmitheryModifiers.BOUNCY)
                 .armor(1000f, 5f, 30f, 0.9f, 0f, 30f)
                 .build());
 
@@ -375,6 +418,8 @@ public final class SmitheryMaterials {
                 .meltingTemp(0f)
                 .partColor(0xFFFF8C00)
                 .binderMultiplier(1.1f), 2)
+                .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.STICKY,
+                        Map.of("duration_ticks", 60, "amplifier", 1))
                 .armor(150f, 6f, 20f, 0.95f, 0f, 12f)
                 .build());
 
@@ -387,6 +432,8 @@ public final class SmitheryMaterials {
                 .meltingTemp(0f)
                 .partColor(0xFFE0E0E0)
                 .binderMultiplier(0.9f), 1)
+                .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.SPINY,
+                        Map.of("chance", 0.5f, "damage", 2.0f))
                 .armor(120f, 4f, 15f, 0.9f, 0f, 8f)
                 .build());
 
@@ -430,6 +477,7 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFFCC2233)
                 .partColor(0xFFCC2233)
                 .binderMultiplier(1.3f), 3)
+                .addModifier(SmitheryToolTypes.BOOTS, SmitheryModifiers.BOUNCY)
                 .armor(780f, 4f, 25f, 0.9f, 0f, 25f)
                 .build());
 
@@ -457,8 +505,20 @@ public final class SmitheryMaterials {
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(KELP_STRING,  bowstringId);
     }
 
+    /**
+     * Grants {@code count} modifier slots on the material's binder AND armor-plates parts —
+     * the two multiplier-role parts. The binder carries a tool's modifier capacity; plates are
+     * the armor analog, so a piece's anvil capacity comes from its plates material.
+     */
     private static MaterialStats.Builder binderSlots(MaterialStats.Builder b, int count) {
-        return b.modifierSlots(SmitheryPartTypes.BINDER, count);
+        return b.modifierSlots(SmitheryPartTypes.BINDER, count)
+                .modifierSlots(SmitheryPartTypes.ARMOR_PLATES, count);
+    }
+
+    /** The four armor tool types, for granting one trait across a whole set. */
+    private static ToolType[] armorPieces() {
+        return new ToolType[]{ SmitheryToolTypes.HELMET, SmitheryToolTypes.CHESTPLATE,
+                SmitheryToolTypes.LEGGINGS, SmitheryToolTypes.BOOTS };
     }
 
     private static Identifier id(String path) {

@@ -226,13 +226,16 @@ public class SmitheryGeneratedPack implements PackResources {
             }
         }
 
+        // List every part template this pack can synthesize — membership is defined by the
+        // resolver itself so new synthesized parts can't silently miss the atlas scan again.
         if (Smithery.MODID.equals(namespace)) {
-            String[] synthParts = { "bow_limb", "bowstring", "arrow_shaft", "fletching" };
-            for (String partName : synthParts) {
+            for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
+                if (!pt.id().getNamespace().equals(Smithery.MODID)) continue;
+                String partName = pt.id().getPath();
+                if (resolveSynthesizedPartTemplate(partName) == null) continue;
                 String pngPath = PART_TEMPLATE_TEX_PREFIX + partName + PNG_SUFFIX;
-                final String captured = partName;
                 emitIfMatches(namespace, pngPath, prefix,
-                        () -> resolveSynthesizedPartTemplate(captured), output);
+                        () -> resolveSynthesizedPartTemplate(partName), output);
             }
         }
 
@@ -712,6 +715,13 @@ public class SmitheryGeneratedPack implements PackResources {
             case "boots_core"      -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_boots"));
             case "armor_plates"    -> () -> emitPng(synthesizeArmorPlatesTemplate());
             case "armor_trim"      -> () -> emitPng(synthesizeArmorTrimTemplate());
+            case "sharpening_stone" -> () -> emitPng(synthesizeNormalizedTemplate("item/flint"));
+            case "polishing_stone"  -> () -> emitPng(synthesizeNormalizedTemplate("item/brick"));
+            case "large_blade"      -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_sword"));
+            case "hammer_head"      -> () -> emitPng(synthesizeNormalizedTemplate("block/iron_block"));
+            case "large_plate"      -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_ingot"));
+            case "kama_head"        -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_hoe"));
+            case "shuriken_blade"   -> () -> emitPng(synthesizeNormalizedTemplate("item/nether_star"));
             default                -> null;
         };
     }
@@ -784,6 +794,35 @@ public class SmitheryGeneratedPack implements PackResources {
      */
     private static BufferedImage synthesizeArmorTrimTemplate() throws IOException {
         return synthesizeArmorPartTemplate("item/iron_nugget");
+    }
+
+    /**
+     * Like {@link #synthesizeArmorPartTemplate} but rescales so the brightest opaque pixel lands
+     * at 230 — needed for naturally dark vanilla sources (flint, brick) where a plain desaturate
+     * would multiply every material tint toward black.
+     */
+    private static BufferedImage synthesizeNormalizedTemplate(String vanillaPath) throws IOException {
+        BufferedImage out = synthesizeArmorPartTemplate(vanillaPath);
+        int W = out.getWidth(), H = out.getHeight();
+        int peak = 0;
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                int argb = out.getRGB(x, y);
+                if (((argb >>> 24) & 0xFF) == 0) continue;
+                peak = Math.max(peak, argb & 0xFF);
+            }
+        }
+        if (peak == 0) return out;
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                int argb = out.getRGB(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                if (a == 0) continue;
+                int luma = Math.min(255, (argb & 0xFF) * 230 / peak);
+                out.setRGB(x, y, (a << 24) | (luma << 16) | (luma << 8) | luma);
+            }
+        }
+        return out;
     }
 
     private static InputStream emitPng(BufferedImage img) throws IOException {
@@ -893,7 +932,24 @@ public class SmitheryGeneratedPack implements PackResources {
     private static BufferedImage synthesizeToolSlotTextureFrame(String toolPath, int slotIndex,
                                                                  @Nullable String frameSuffix) throws IOException {
         Identifier sourceId = switch (toolPath) {
-            case "sword"   -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_sword");
+            case "sword", "broadsword", "rapier"
+                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_sword");
+            case "paxel", "mining_hammer"
+                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_pickaxe");
+            case "crossbow"
+                           -> Identifier.fromNamespaceAndPath("minecraft", "item/crossbow_standby");
+            case "kama"    -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_hoe");
+            case "cleaver" -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_axe");
+            case "lumberaxe"
+                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_axe");
+            case "excavator"
+                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_shovel");
+            case "shuriken"
+                           -> Identifier.fromNamespaceAndPath("minecraft", "item/nether_star");
+            case "trident"
+                           -> Identifier.fromNamespaceAndPath("minecraft", "item/trident");
+            case "battlesign"
+                           -> Identifier.fromNamespaceAndPath("minecraft", "item/oak_sign");
             case "pickaxe" -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_pickaxe");
             case "axe"     -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_axe");
             case "shovel"  -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_shovel");
@@ -904,6 +960,8 @@ public class SmitheryGeneratedPack implements PackResources {
                 yield Identifier.fromNamespaceAndPath("minecraft", path);
             }
             case "arrow"   -> Identifier.fromNamespaceAndPath("minecraft", "item/arrow");
+            case "helmet", "chestplate", "leggings", "boots"
+                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_" + toolPath);
             default        -> null;
         };
         if (sourceId == null) {
@@ -968,7 +1026,100 @@ public class SmitheryGeneratedPack implements PackResources {
     private static boolean[][] computeSlotMask(String toolPath, int slotIndex,
                                                 PixelKind[][] kind, int W, int H) {
         switch (toolPath) {
-            case "sword" -> {
+            // Placeholder layer split for the multi-part tools: primary metal mass on slot 0,
+            // accent discs for the extra heads/plates, handle halves for the rods. Crude but
+            // tintable; real per-slot art can replace the source silhouettes later.
+            case "paxel" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1, 2, 3 -> headCenteredDisc(kind, W, H, 4 - slotIndex);
+                    case 4 -> handleHalf(kind, W, H, true);
+                    case 5 -> handleHalf(kind, W, H, false);
+                    case 6 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+            case "kama" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.HANDLE);
+                    case 2 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+            // Cleaver (blade/plate/handle/handle/binder), lumberaxe and excavator
+            // (head/head/plate/handle/binder): primary mass + accent discs + handles.
+            case "cleaver", "lumberaxe", "excavator" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1 -> headCenteredDisc(kind, W, H, 4);
+                    case 2 -> "cleaver".equals(toolPath)
+                            ? handleHalf(kind, W, H, true)
+                            : headCenteredDisc(kind, W, H, 3);
+                    case 3 -> handleHalf(kind, W, H, "cleaver".equals(toolPath) ? false : true);
+                    case 4 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+            case "shuriken" -> {
+                // Four blades = four quadrants of the star silhouette.
+                int cx = W / 2, cy = H / 2;
+                java.util.function.BiPredicate<Integer, Integer> opaque =
+                        (x, y) -> kind[x][y] != PixelKind.TRANSPARENT;
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> opaque.test(x, y) && x <  cx && y <  cy);
+                    case 1 -> maskWhere(W, H, (x, y) -> opaque.test(x, y) && x >= cx && y <  cy);
+                    case 2 -> maskWhere(W, H, (x, y) -> opaque.test(x, y) && x <  cx && y >= cy);
+                    case 3 -> maskWhere(W, H, (x, y) -> opaque.test(x, y) && x >= cx && y >= cy);
+                    default -> new boolean[W][H];
+                };
+            }
+            case "trident" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1 -> headCenteredDisc(kind, W, H, 4);
+                    case 2 -> headCenteredDisc(kind, W, H, 3);
+                    case 3 -> handleHalf(kind, W, H, true);
+                    case 4 -> handleHalf(kind, W, H, false);
+                    case 5 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+            case "battlesign" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.HANDLE);
+                    case 2 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+            case "crossbow" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.HANDLE);
+                    case 2 -> binder;
+                    case 3 -> opaqueOutline(kind, W, H);
+                    default -> new boolean[W][H];
+                };
+            }
+            case "mining_hammer" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1 -> headCenteredDisc(kind, W, H, 4);
+                    case 2 -> headCenteredDisc(kind, W, H, 3);
+                    case 3 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.HANDLE);
+                    case 4 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+            case "broadsword", "rapier", "sword" -> {
                 int span = (W - 1) + (H - 1);
                 java.util.function.BiPredicate<Integer, Integer> inBladeHalf =
                         (x, y) -> (x + (H - 1 - y)) * 100 >= 30 * span;
@@ -1019,8 +1170,38 @@ public class SmitheryGeneratedPack implements PackResources {
                     default -> new boolean[W][H];
                 };
             }
+            // Armor slots: 0=core (the body), 1=plates (outer rim), 2=trim (center accent) —
+            // mirrors how the piece is assembled, so each part's material tint reads clearly.
+            case "helmet", "chestplate", "leggings", "boots" -> {
+                boolean[][] opaque = maskWhere(W, H, (x, y) -> kind[x][y] != PixelKind.TRANSPARENT);
+                boolean[][] rim = opaqueOutline(kind, W, H);
+                boolean[][] trim = centeredDisc(opaque, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> opaque[x][y] && !rim[x][y] && !trim[x][y]);
+                    case 1 -> rim;
+                    case 2 -> maskWhere(W, H, (x, y) -> trim[x][y] && opaque[x][y]);
+                    default -> new boolean[W][H];
+                };
+            }
         }
         return new boolean[W][H];
+    }
+
+    /** Opaque pixels touching transparency or the image border — the piece's outline. */
+    private static boolean[][] opaqueOutline(PixelKind[][] kind, int W, int H) {
+        boolean[][] m = new boolean[W][H];
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
+                if (kind[x][y] == PixelKind.TRANSPARENT) continue;
+                boolean edge = x == 0 || y == 0 || x == W - 1 || y == H - 1
+                        || kind[x - 1][y] == PixelKind.TRANSPARENT
+                        || kind[x + 1][y] == PixelKind.TRANSPARENT
+                        || kind[x][y - 1] == PixelKind.TRANSPARENT
+                        || kind[x][y + 1] == PixelKind.TRANSPARENT;
+                if (edge) m[x][y] = true;
+            }
+        }
+        return m;
     }
 
     private static boolean[][] unionMasks(int W, int H, boolean[][] a, boolean[][] b) {

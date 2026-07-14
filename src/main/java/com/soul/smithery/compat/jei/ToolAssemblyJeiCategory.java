@@ -2,8 +2,8 @@ package com.soul.smithery.compat.jei;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.item.PartItem;
-import com.soul.smithery.item.tool.SmitheryToolItem;
 import com.soul.smithery.item.tool.ToolComposition;
+import com.soul.smithery.item.tool.ToolCompositions;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.builder.IRecipeSlotBuilder;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
@@ -128,7 +128,7 @@ public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiR
         if (toolItem == null) return;
 
         ToolComposition comp = new ToolComposition(recipe.toolType().id(), matIds);
-        ItemStack tool = SmitheryToolItem.applyComposition(new ItemStack(toolItem), comp);
+        ItemStack tool = ToolCompositions.apply(new ItemStack(toolItem), comp);
 
         output.clearDisplayOverrides();
         output.createDisplayOverrides().add(tool);
