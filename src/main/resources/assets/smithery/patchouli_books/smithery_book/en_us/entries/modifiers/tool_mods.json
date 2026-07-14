@@ -1,0 +1,80 @@
+{
+  "name": "Tool Modifiers",
+  "icon": "minecraft:nether_star",
+  "category": "smithery:modifiers",
+  "sortnum": 1,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:quartz",
+      "text": "Adds bonus attack damage on hit.$(br2)$(l)Apply with:$() Quartz at an anvil.",
+      "title": "Sharp"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:redstone",
+      "text": "Each level adds +1.5 mining and attack speed.$(br2)$(l)Apply with:$() Redstone at an anvil.",
+      "title": "Haste"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:lapis_lazuli",
+      "text": "Each level boosts ore drops and mob drops, scaling like Fortune and Looting.$(br2)$(l)Apply with:$() Lapis Lazuli at an anvil.",
+      "title": "Lapis Blessing"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:emerald",
+      "text": "Harvests blocks intact.$(br2)$(l)Apply with:$() Emerald at an anvil.",
+      "title": "Silky"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:slime_ball",
+      "text": "Hits send targets flying.$(br2)$(l)Apply with:$() Slime Ball at an anvil.",
+      "title": "Knockback"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:blaze_powder",
+      "text": "Sets targets on fire.$(br2)$(l)Apply with:$() Blaze Powder at an anvil.",
+      "title": "Fiery"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:obsidian",
+      "text": "Increases durability per level.$(br2)$(l)Apply with:$() Obsidian at an anvil.",
+      "title": "Reinforced"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:sticky_piston",
+      "text": "Widens the mining hammer's break area.$(br2)$(l)Apply with:$() Sticky Piston at an anvil.",
+      "title": "Excavating"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:nether_star",
+      "text": "Adds significant bonus attack damage.$(br2)$(l)Apply with:$() Nether Star at an anvil.",
+      "title": "Nether Sharpened"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:phantom_membrane",
+      "text": "Spear attack hurls you forward; consumes hunger. Requires food ≥ 7, on solid ground, out of water..$(br2)$(l)Apply with:$() Phantom Membrane at an anvil.",
+      "title": "Lunge"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:ender_pearl",
+      "text": "Chance to teleport your target a short distance on hit.$(br2)$(l)Apply with:$() Ender Pearl at an anvil.",
+      "title": "Ender Affinity"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:totem_of_undying",
+      "text": "Stays with you through death.$(br2)$(l)Apply with:$() Totem Of Undying at an anvil.",
+      "title": "Soulbound"
+    }
+  ]
+}

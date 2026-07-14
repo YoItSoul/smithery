@@ -1,0 +1,20 @@
+{
+  "name": "Flamestring",
+  "icon": "smithery:flamestring_bowstring",
+  "category": "smithery:materials",
+  "sortnum": 25,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:flamestring_bowstring",
+      "text": "- Harvest level: $(l)0$()$(br)- Mining speed: $(l)1.0$()$(br)- Attack: $(l)1.0$()$(br)- Durability: $(l)120$() per ingot$(br)- Does not melt — cut it on the $(l)Part Press$()$(br)",
+      "title": "Flamestring"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:flamestring_bowstring",
+      "text": "No innate traits — this material is carried by its raw stats.",
+      "title": "Traits"
+    }
+  ]
+}

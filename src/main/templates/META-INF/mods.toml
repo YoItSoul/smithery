@@ -72,3 +72,27 @@ Example mod description.
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
+
+# Geckolib animates the Part Press; the block entity implements its API, so it is required.
+[[dependencies.${mod_id}]]
+    modId="geckolib"
+    mandatory=true
+    versionRange="[4.8,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# Patchouli hosts the in-game field guide; the mod runs without it, minus the book.
+[[dependencies.${mod_id}]]
+    modId="patchouli"
+    mandatory=false
+    versionRange="[1.20.1-80,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# JEI recipe integration; entirely optional.
+[[dependencies.${mod_id}]]
+    modId="jei"
+    mandatory=false
+    versionRange="[15.0,)"
+    ordering="AFTER"
+    side="BOTH"

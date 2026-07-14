@@ -1,0 +1,20 @@
+{
+  "name": "Breezestring",
+  "icon": "smithery:breezestring_bowstring",
+  "category": "smithery:materials",
+  "sortnum": 26,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:breezestring_bowstring",
+      "text": "- Harvest level: $(l)0$()$(br)- Mining speed: $(l)1.0$()$(br)- Attack: $(l)0.5$()$(br)- Durability: $(l)140$() per ingot$(br)- Does not melt — cut it on the $(l)Part Press$()$(br)",
+      "title": "Breezestring"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:breezestring_bowstring",
+      "text": "No innate traits — this material is carried by its raw stats.",
+      "title": "Traits"
+    }
+  ]
+}

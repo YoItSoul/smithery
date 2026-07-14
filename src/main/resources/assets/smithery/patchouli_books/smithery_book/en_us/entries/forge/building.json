@@ -1,0 +1,44 @@
+{
+  "name": "Building the Forge",
+  "icon": "smithery:forge_controller",
+  "category": "smithery:forge",
+  "sortnum": 0,
+  "pages": [
+    {
+      "type": "patchouli:multiblock",
+      "name": "Smallest Forge",
+      "multiblock": {
+        "pattern": [
+          [
+            "###",
+            "# #",
+            "###"
+          ],
+          [
+            "#F#",
+            "#0#",
+            "#C#"
+          ],
+          [
+            "###",
+            "#D#",
+            "###"
+          ]
+        ],
+        "mapping": {
+          "#": "smithery:furnace_bricks",
+          "C": "smithery:forge_controller",
+          "D": "smithery:forge_drain",
+          "F": "smithery:forge_fuel_port"
+        }
+      },
+      "enable_visualize": true,
+      "text": "The smallest legal forge: a hollow shell of $(l)Furnace Bricks$() around one interior air block, with a $(l)Controller$(), a $(l)Fuel Port$() and a $(l)Drain$() in the walls.$(br2)Use the anchor button to project this ghost into your world and build along it."
+    },
+    {
+      "type": "patchouli:text",
+      "text": "The shell can be almost any shape:$(br2)- Corners are $(l)optional$()$(br)- The top can be $(l)open or closed$() — closed heats 20% faster$(br)- Partial structures still run at reduced effectiveness$(br2)Every interior air block adds one working slot and $(l)1,000 mB$() of molten storage. Right-click the controller to see everything at once.",
+      "title": "Scaling Up"
+    }
+  ]
+}

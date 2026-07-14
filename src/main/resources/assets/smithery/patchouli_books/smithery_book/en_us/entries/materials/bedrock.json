@@ -1,0 +1,20 @@
+{
+  "name": "Bedrock",
+  "icon": "minecraft:bedrock",
+  "category": "smithery:materials",
+  "sortnum": 15,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:bedrock",
+      "text": "- Harvest level: $(l)5$()$(br)- Mining speed: $(l)12.0$()$(br)- Attack: $(l)10.0$()$(br)- Durability: $(l)1500$() per ingot$(br)- Melts at $(l)11000°C$()$(br)",
+      "title": "Bedrock"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:bedrock_pick_head",
+      "text": "- $(l)Chestplate$(): Stalwart, Immovable",
+      "title": "Traits"
+    }
+  ]
+}

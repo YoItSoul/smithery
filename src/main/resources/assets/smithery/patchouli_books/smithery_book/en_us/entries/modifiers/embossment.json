@@ -1,0 +1,18 @@
+{
+  "name": "Embossment",
+  "icon": "minecraft:gold_ingot",
+  "category": "smithery:modifiers",
+  "sortnum": 4,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "Place $(l)any smithery part$() in an anvil with a finished tool or armor piece to emboss it: the part's material grants its *traits* to the gear without changing any stats. The part is consumed.",
+      "title": "Borrowed Traits"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "Re-embossing with a new part $(l)replaces$() the old donor, so grafted traits grow with your progression — emboss iron today, netherite next month.$(br2)Embossed traits never override anything the gear already has; they only fill gaps.",
+      "title": "Endlessly Replaceable"
+    }
+  ]
+}

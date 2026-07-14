@@ -1,0 +1,20 @@
+{
+  "name": "Kelp String",
+  "icon": "minecraft:kelp",
+  "category": "smithery:materials",
+  "sortnum": 28,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:kelp",
+      "text": "- Harvest level: $(l)0$()$(br)- Mining speed: $(l)1.0$()$(br)- Attack: $(l)0.5$()$(br)- Durability: $(l)160$() per ingot$(br)- Does not melt — cut it on the $(l)Part Press$()$(br)",
+      "title": "Kelp String"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:kelp_string_bowstring",
+      "text": "No innate traits — this material is carried by its raw stats.",
+      "title": "Traits"
+    }
+  ]
+}

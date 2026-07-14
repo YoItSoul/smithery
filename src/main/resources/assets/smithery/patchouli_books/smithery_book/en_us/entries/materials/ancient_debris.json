@@ -1,0 +1,20 @@
+{
+  "name": "Ancient Debris",
+  "icon": "minecraft:ancient_debris",
+  "category": "smithery:materials",
+  "sortnum": 13,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:ancient_debris",
+      "text": "- Harvest level: $(l)3$()$(br)- Mining speed: $(l)7.0$()$(br)- Attack: $(l)2.5$()$(br)- Durability: $(l)180$() per ingot$(br)- Melts at $(l)1800°C$()$(br)- *Cast-only intermediate*$(br)",
+      "title": "Ancient Debris"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:paper",
+      "text": "No innate traits — this material is carried by its raw stats.",
+      "title": "Traits"
+    }
+  ]
+}

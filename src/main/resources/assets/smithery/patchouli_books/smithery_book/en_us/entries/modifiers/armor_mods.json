@@ -1,0 +1,80 @@
+{
+  "name": "Armor Modifiers",
+  "icon": "minecraft:turtle_scute",
+  "category": "smithery:modifiers",
+  "sortnum": 2,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:amethyst_shard",
+      "text": "Reduces all damage taken per level, per piece.$(br2)$(l)Apply with:$() Amethyst Shard at an anvil.",
+      "title": "Resistant"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:magma_cream",
+      "text": "Reduces fire damage taken per level, per piece.$(br2)$(l)Apply with:$() Magma Cream at an anvil.",
+      "title": "Fire Resistant"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:tnt",
+      "text": "Reduces explosion damage taken per level, per piece.$(br2)$(l)Apply with:$() Tnt at an anvil.",
+      "title": "Blast Resistant"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:turtle_scute",
+      "text": "Reduces projectile damage taken per level, per piece.$(br2)$(l)Apply with:$() Turtle Scute at an anvil.",
+      "title": "Projectile Resistant"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:sugar",
+      "text": "Increases movement speed per level while worn.$(br2)$(l)Apply with:$() Sugar at an anvil.",
+      "title": "Speedy"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:piston",
+      "text": "Step up full blocks without jumping.$(br2)$(l)Apply with:$() Piston at an anvil.",
+      "title": "High Stride"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:prismarine_crystals",
+      "text": "Air lasts longer underwater.$(br2)$(l)Apply with:$() Prismarine Crystals at an anvil.",
+      "title": "Amphibious"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:moss_block",
+      "text": "Slowly repairs itself using your experience.$(br2)$(l)Apply with:$() Moss Block at an anvil.",
+      "title": "Restoring"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:blue_ice",
+      "text": "Freezes water beneath your steps.$(br2)$(l)Apply with:$() Blue Ice at an anvil.",
+      "title": "Frost Walker"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:blaze_rod",
+      "text": "Hit harder while worn.$(br2)$(l)Apply with:$() Blaze Rod at an anvil.",
+      "title": "Powerful"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:feather",
+      "text": "Swing faster while worn.$(br2)$(l)Apply with:$() Feather at an anvil.",
+      "title": "Dexterous"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:end_rod",
+      "text": "Reach farther while worn.$(br2)$(l)Apply with:$() End Rod at an anvil.",
+      "title": "Telekinetic"
+    }
+  ]
+}

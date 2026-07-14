@@ -1,0 +1,20 @@
+{
+  "name": "Fox Blood",
+  "icon": "minecraft:paper",
+  "category": "smithery:materials",
+  "sortnum": 19,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:paper",
+      "text": "- Harvest level: $(l)0$()$(br)- Mining speed: $(l)0.0$()$(br)- Attack: $(l)0.0$()$(br)- Durability: $(l)0$() per ingot$(br)- Melts at $(l)50°C$()$(br)- *Cast-only intermediate*$(br)",
+      "title": "Fox Blood"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:paper",
+      "text": "No innate traits — this material is carried by its raw stats.",
+      "title": "Traits"
+    }
+  ]
+}

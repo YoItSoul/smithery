@@ -1,0 +1,20 @@
+{
+  "name": "Diamond",
+  "icon": "minecraft:diamond",
+  "category": "smithery:materials",
+  "sortnum": 11,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:diamond",
+      "text": "- Harvest level: $(l)3$()$(br)- Mining speed: $(l)8.0$()$(br)- Attack: $(l)5.0$()$(br)- Durability: $(l)500$() per ingot$(br)- Melts at $(l)1800°C$()$(br)",
+      "title": "Diamond"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:diamond_pick_head",
+      "text": "No innate traits — this material is carried by its raw stats.",
+      "title": "Traits"
+    }
+  ]
+}

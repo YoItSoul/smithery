@@ -1,0 +1,18 @@
+{
+  "name": "Repair",
+  "icon": "minecraft:flint",
+  "category": "smithery:modifiers",
+  "sortnum": 3,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "Cast a $(l)Sharpening Stone$() (1 ingot) for tools or a $(l)Polishing Stone$() (2 ingots) for armor, then combine with your gear at an anvil.$(br2)Each stone restores a quarter of max durability; the anvil only consumes what the damage needs.",
+      "title": "Stones"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "A stone only works gear at or below its material's harvest level — wood cannot hold an edge on netherite.$(br2)Broken armor $(l)never shatters$(): it stays equipped, granting nothing, until you repair it back to life.",
+      "title": "Tier Matters"
+    }
+  ]
+}

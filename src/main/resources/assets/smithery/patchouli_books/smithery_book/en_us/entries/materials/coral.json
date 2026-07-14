@@ -1,0 +1,20 @@
+{
+  "name": "Coral",
+  "icon": "minecraft:brain_coral_block",
+  "category": "smithery:materials",
+  "sortnum": 23,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:brain_coral_block",
+      "text": "- Harvest level: $(l)1$()$(br)- Mining speed: $(l)4.0$()$(br)- Attack: $(l)3.0$()$(br)- Durability: $(l)120$() per ingot$(br)- Does not melt — cut it on the $(l)Part Press$()$(br)",
+      "title": "Coral"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:coral_pick_head",
+      "text": "- $(l)Chestplate$(): Spiny",
+      "title": "Traits"
+    }
+  ]
+}

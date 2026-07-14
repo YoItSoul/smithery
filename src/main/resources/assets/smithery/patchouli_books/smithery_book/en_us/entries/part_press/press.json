@@ -1,0 +1,19 @@
+{
+  "name": "The Part Press",
+  "icon": "smithery:part_press",
+  "category": "smithery:part_press",
+  "sortnum": 0,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:part_press",
+      "text": "Wood, flint, slime, resin and coral never melt — they get $(l)cut$().$(br2)Right-click the press with your input (logs, flint, slime balls, resin clumps, coral blocks), and right-click the frame to cycle which part shape it cuts.",
+      "title": "Parts Without Melting"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "A $(l)redstone pulse$() drives the press down and cuts the input into the selected part. Hoppers feed inputs and collect outputs while the press is open — a redstone clock turns it into a part factory.$(br2)Early game this is your only source of handles and binders: wood first, metal later.",
+      "title": "Automation"
+    }
+  ]
+}

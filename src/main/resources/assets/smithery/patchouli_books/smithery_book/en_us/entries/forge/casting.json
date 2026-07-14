@@ -1,0 +1,24 @@
+{
+  "name": "Sand Casting",
+  "icon": "smithery:casting_table",
+  "category": "smithery:forge",
+  "sortnum": 5,
+  "pages": [
+    {
+      "type": "patchouli:crafting",
+      "recipe": "smithery:casting_sand",
+      "text": "$(l)Casting Sand$() — the consumable half of sand casting. Eight sand around a clay ball makes eight."
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:casting_table",
+      "text": "Place Casting Sand on a $(l)Casting Table$(), then press any existing part into the sand to impress its shape. Templates are never consumed.$(br2)No part yet? A vanilla $(l)ingot$() impresses the ingot shape, $(l)flint$() a sharpening stone, a $(l)brick$() a polishing stone.",
+      "title": "Impress a Shape"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "Pour molten metal onto the impressed sand — bucket or pipe, from above. It fills, then cools from glowing to solid.$(br2)Sweep the sand away with a $(l)brush$() and take your part, or let a hopper collect it underneath.",
+      "title": "Pour, Cool, Brush"
+    }
+  ]
+}

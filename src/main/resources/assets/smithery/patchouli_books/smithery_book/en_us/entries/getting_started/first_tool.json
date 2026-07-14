@@ -1,0 +1,19 @@
+{
+  "name": "Your First Tool",
+  "icon": "minecraft:crafting_table",
+  "category": "smithery:getting_started",
+  "sortnum": 1,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:part_press",
+      "text": "Before you can melt anything, the $(l)Part Press$() cuts parts from wood and flint. Press a pick head, two handles, and a binder from logs, then drop all four parts into a crafting grid together.$(br2)The parts sort themselves — $(l)no shape to memorize$().",
+      "title": "No Forge Required"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "Hover any smithery tool:$(br2)- Hold $(l)Shift$() for stats, parts, modifiers and synergies$(br)- Hold $(l)Shift + Ctrl$() for every parameter$(br2)Durability, mining speed and damage all come from the parts you chose. There is no such thing as a plain iron pickaxe — only *your* pickaxe.",
+      "title": "Reading a Tool"
+    }
+  ]
+}
