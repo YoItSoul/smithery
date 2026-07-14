@@ -5,7 +5,7 @@ import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolStats;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -27,7 +27,7 @@ final class ModifierDispatch {
 
     /** Cheap component-presence check for early-outs before {@link #effectsFor}. */
     static boolean hasComposition(ItemStack stack) {
-        return stack.has(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        return SmitheryToolData.hasComposition(stack);
     }
 
     /**
@@ -36,10 +36,9 @@ final class ModifierDispatch {
      * Returns an empty list for stacks without a valid composition.
      */
     static List<ResolvedEffect> effectsFor(ItemStack stack, Predicate<Modifier> hookFilter) {
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         if (comp == null || !comp.isValid()) return List.of();
-        List<ModifierEffect> applied = stack.getOrDefault(
-                SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.of());
+        List<ModifierEffect> applied = SmitheryToolData.getAppliedModifiers(stack);
         ToolStats stats = ToolStats.compute(comp, applied);
 
         List<ResolvedEffect> out = new ArrayList<>(stats.activeEffects.size());

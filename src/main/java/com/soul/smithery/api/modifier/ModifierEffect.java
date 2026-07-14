@@ -2,9 +2,6 @@ package com.soul.smithery.api.modifier;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import io.netty.buffer.ByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Collections;
@@ -79,19 +76,15 @@ public final class ModifierEffect {
         return out;
     }
 
-    /** Codec used for persistence (data components) and JSON serialization. Params encode as a string-to-float map. */
+    /**
+     * Codec used for stack NBT persistence and JSON serialization. Params encode as a
+     * string-to-float map. Stack NBT is synchronized to the client by vanilla, so no separate
+     * network codec is needed.
+     */
     public static final Codec<ModifierEffect> CODEC = RecordCodecBuilder.create(i -> i.group(
             ResourceLocation.CODEC.fieldOf("id").forGetter(ModifierEffect::modifierId),
             Codec.unboundedMap(Codec.STRING, Codec.FLOAT)
                     .optionalFieldOf("params", Map.of())
                     .forGetter(e -> objectMapToFloatMap(e.params()))
     ).apply(i, (id, params) -> new ModifierEffect(id, floatMapToObjectMap(params))));
-
-    /** Stream codec used for network sync. */
-    public static final StreamCodec<ByteBuf, ModifierEffect> STREAM_CODEC = StreamCodec.composite(
-            ResourceLocation.STREAM_CODEC,                                  ModifierEffect::modifierId,
-            ByteBufCodecs.map(java.util.HashMap::new,
-                    ByteBufCodecs.STRING_UTF8, ByteBufCodecs.FLOAT),  e -> objectMapToFloatMap(e.params()),
-            (id, params) -> new ModifierEffect(id, floatMapToObjectMap(params))
-    );
 }

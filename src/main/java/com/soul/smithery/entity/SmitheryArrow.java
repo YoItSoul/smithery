@@ -6,7 +6,7 @@ import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolStats;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import com.soul.smithery.registry.SmitheryEntityTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -15,7 +15,7 @@ import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.EntityHitResult;
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Smithery arrow projectile. Extends vanilla {@link Arrow} so all stock behaviour
@@ -71,14 +71,13 @@ public class SmitheryArrow extends Arrow {
         if (!(hitResult.getEntity() instanceof LivingEntity target)) return;
 
         ItemStack pickup = this.getPickupItemStackOrigin();
-        ToolComposition comp = pickup.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(pickup);
         if (comp == null || !comp.isValid()) return;
 
         Entity ownerEntity = this.getOwner();
         LivingEntity attacker = ownerEntity instanceof LivingEntity le ? le : target;
 
-        java.util.List<ModifierEffect> applied = pickup.getOrDefault(
-                SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
+        java.util.List<ModifierEffect> applied = SmitheryToolData.getAppliedModifiers(pickup);
         ToolStats stats = ToolStats.compute(comp, applied);
         if (stats.activeEffects.isEmpty()) return;
 

@@ -6,7 +6,7 @@ import com.soul.smithery.content.SmitheryPartTypes;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolCompositions;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -38,7 +38,7 @@ public final class EmbossmentHandler {
         if (part.partTypeId().equals(SmitheryPartTypes.SHARPENING_STONE.id())
                 || part.partTypeId().equals(SmitheryPartTypes.POLISHING_STONE.id())) return;
 
-        ToolComposition comp = gear.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(gear);
         if (comp == null || !comp.isValid()) return;
         if (SmitheryAPI.MATERIALS.get(part.materialId()) == null) return;
         if (comp.embossedMaterial().map(part.materialId()::equals).orElse(false)) return;

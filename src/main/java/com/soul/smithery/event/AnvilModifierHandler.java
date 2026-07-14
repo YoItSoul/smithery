@@ -8,7 +8,7 @@ import com.soul.smithery.api.modifier.ModifierSources;
 import com.soul.smithery.item.tool.SmitheryToolItem;
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolCompositions;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -61,13 +61,12 @@ public final class AnvilModifierHandler {
         ModifierSources.Entry sourceEntry = ModifierSources.resolve(source);
         if (sourceEntry == null) return;
 
-        ToolComposition comp = tool.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(tool);
         if (comp == null || !comp.isValid()) return;
 
         if (SmitheryToolItem.freeModifierSlots(tool) <= 0) return;
 
-        List<ModifierEffect> existing = tool.getOrDefault(
-                SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.of());
+        List<ModifierEffect> existing = SmitheryToolData.getAppliedModifiers(tool);
         ResourceLocation modifierId = sourceEntry.effect().modifierId();
         int existingIndex = -1;
         int currentLevel = 0;
@@ -91,8 +90,7 @@ public final class AnvilModifierHandler {
         int levelCost = mod != null ? mod.levelCostFor(currentLevel) : 1;
         int unitValue = Math.max(1, sourceEntry.unitValue());
 
-        Map<ResourceLocation, Integer> progressMap = tool.getOrDefault(
-                SmitheryDataComponents.MODIFIER_PROGRESS.get(), Map.of());
+        Map<ResourceLocation, Integer> progressMap = SmitheryToolData.getModifierProgress(tool);
         int currentUnits = Math.max(0, progressMap.getOrDefault(modifierId, 0));
 
         int neededUnits = Math.max(1, levelCost - currentUnits);
@@ -114,13 +112,13 @@ public final class AnvilModifierHandler {
             List<ModifierEffect> updated = new ArrayList<>(existing);
             if (existingIndex >= 0) updated.set(existingIndex, newEffect);
             else updated.add(newEffect);
-            output.set(SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.copyOf(updated));
+            SmitheryToolData.setAppliedModifiers(output, List.copyOf(updated));
 
             newProgressMap.remove(modifierId);
             if (newProgressMap.isEmpty()) {
-                output.remove(SmitheryDataComponents.MODIFIER_PROGRESS.get());
+                SmitheryToolData.setModifierProgress(output, Map.of());
             } else {
-                output.set(SmitheryDataComponents.MODIFIER_PROGRESS.get(), newProgressMap);
+                SmitheryToolData.setModifierProgress(output, newProgressMap);
             }
 
             net.minecraft.core.HolderLookup.Provider lookup = event.getPlayer() != null
@@ -128,7 +126,7 @@ public final class AnvilModifierHandler {
             ToolCompositions.apply(output, comp, lookup);
         } else {
             newProgressMap.put(modifierId, newUnits);
-            output.set(SmitheryDataComponents.MODIFIER_PROGRESS.get(), newProgressMap);
+            SmitheryToolData.setModifierProgress(output, newProgressMap);
         }
 
         event.setOutput(output);

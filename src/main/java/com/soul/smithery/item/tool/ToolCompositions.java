@@ -6,7 +6,7 @@ import com.soul.smithery.api.modifier.Modifier;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.server.ServerLifecycleHooks;
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Single entry point for stamping a {@link ToolComposition} onto a stack. Dispatches to

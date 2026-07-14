@@ -9,7 +9,7 @@ import com.soul.smithery.api.synergy.SynergyDefinition;
 import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.item.SmitheryTooltips;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -58,7 +58,7 @@ public class SmitheryArmorItem extends Item {
 
     /** Reads the {@link ToolComposition} from the given stack's data component (may be null). */
     public ToolComposition compositionOf(ItemStack stack) {
-        return stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        return SmitheryToolData.getComposition(stack);
     }
 
     /**
@@ -111,14 +111,14 @@ public class SmitheryArmorItem extends Item {
      *               registry is available, in which case affected actions skip silently
      */
     public static ItemStack applyComposition(ItemStack stack, ToolComposition comp,
-                                             net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
+                                             net.minecraft.core.HolderLookup.@org.jetbrains.annotations.Nullable Provider lookup) {
         stack.remove(DataComponents.ENCHANTMENTS);
 
         List<ModifierEffect> applied =
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.of());
+                SmitheryToolData.getAppliedModifiers(stack);
         ToolStats stats = ToolStats.compute(comp, applied);
 
-        stack.set(SmitheryDataComponents.TOOL_COMPOSITION.get(), comp);
+        SmitheryToolData.setComposition(stack, comp);
         int priorDamage = stack.getOrDefault(DataComponents.DAMAGE, 0);
         stack.set(DataComponents.MAX_DAMAGE, stats.maxDurability);
         stack.set(DataComponents.MAX_STACK_SIZE, 1);
@@ -200,7 +200,7 @@ public class SmitheryArmorItem extends Item {
         }
 
         List<ModifierEffect> applied =
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.of());
+                SmitheryToolData.getAppliedModifiers(stack);
         ToolStats stats = ToolStats.compute(comp, applied);
         SmitheryTooltips.Tier tier = SmitheryTooltips.currentTier();
 

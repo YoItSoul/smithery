@@ -1,7 +1,7 @@
 package com.soul.smithery.api.forge;
 
 import net.minecraft.world.level.material.Fluid;
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

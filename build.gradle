@@ -192,6 +192,9 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+    // Report every diagnostic instead of javac's 100-error default; with generated
+    // registration code a single root cause can fan out past the cap and hide itself.
+    options.compilerArgs.addAll(['-Xmaxerrs', '10000'])
 }
 
 /**

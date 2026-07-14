@@ -9,7 +9,7 @@ import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.synergy.SynergyDefinition;
 import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.item.PartItem;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -81,7 +81,7 @@ public class SmitheryToolItem extends Item {
 
     /** Reads the {@link ToolComposition} from the given stack's data component (may be null). */
     public ToolComposition compositionOf(ItemStack stack) {
-        return stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        return SmitheryToolData.getComposition(stack);
     }
 
     /**
@@ -97,16 +97,16 @@ public class SmitheryToolItem extends Item {
      *               registry is available, in which case affected actions skip silently
      */
     public static ItemStack applyComposition(ItemStack stack, ToolComposition comp,
-                                              net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
+                                              net.minecraft.core.HolderLookup.@org.jetbrains.annotations.Nullable Provider lookup) {
         stack.remove(net.minecraft.core.component.DataComponents.ENCHANTMENTS);
 
         java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
+                SmitheryToolData.getAppliedModifiers(stack);
         int wearDamage = stack.getOrDefault(DataComponents.DAMAGE, 0);
         int wearMax = stack.getOrDefault(DataComponents.MAX_DAMAGE, 0);
         float missing = wearMax > 0 ? (float) wearDamage / wearMax : 0f;
         ToolStats stats = ToolStats.compute(comp, applied, missing);
-        stack.set(SmitheryDataComponents.TOOL_COMPOSITION.get(), comp);
+        SmitheryToolData.setComposition(stack, comp);
 
         String composePath = comp.toolType() != null ? comp.toolType().id().getPath() : "";
         boolean stackable = "arrow".equals(composePath) || "shuriken".equals(composePath);
@@ -172,7 +172,7 @@ public class SmitheryToolItem extends Item {
      * (creative-tab previews) the block simply has no bypass list until a real recompose.
      */
     private static void applyBlockingComponents(ItemStack stack,
-                                                net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
+                                                net.minecraft.core.HolderLookup.@org.jetbrains.annotations.Nullable Provider lookup) {
         java.util.Optional<HolderSet<net.minecraft.world.damagesource.DamageType>> bypassedBy =
                 java.util.Optional.empty();
         if (lookup != null) {
@@ -201,10 +201,10 @@ public class SmitheryToolItem extends Item {
     @Override
     public void setDamage(ItemStack stack, int damage) {
         super.setDamage(stack, damage);
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         if (comp == null || !comp.isValid()) return;
         java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
+                SmitheryToolData.getAppliedModifiers(stack);
         if (!ToolStats.compute(comp, applied).hasDurabilityScaled) return;
         ToolCompositions.apply(stack, comp);
     }
@@ -234,8 +234,7 @@ public class SmitheryToolItem extends Item {
     public static int appliedModifierCount(ItemStack stack) {
         int total = 0;
         for (com.soul.smithery.api.modifier.ModifierEffect e :
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(),
-                        java.util.List.<com.soul.smithery.api.modifier.ModifierEffect>of())) {
+                SmitheryToolData.getAppliedModifiers(stack)) {
             total += Math.max(1, e.paramInt("level", 1));
         }
         return total;
@@ -267,7 +266,7 @@ public class SmitheryToolItem extends Item {
 
     /** Returns the modifier slots remaining on {@code stack}, clamped to non-negative. */
     public static int freeModifierSlots(ItemStack stack) {
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         if (comp == null) return 0;
         return Math.max(0, totalModifierSlots(comp) - appliedModifierCount(stack));
     }
@@ -334,7 +333,7 @@ public class SmitheryToolItem extends Item {
     }
 
     private static void applySpearComponents(ItemStack stack, ToolComposition comp,
-                                              net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
+                                              net.minecraft.core.HolderLookup.@org.jetbrains.annotations.Nullable Provider lookup) {
         int hl = headHarvestLevel(comp);
         float t = Mth.clamp(hl, 0, 4) / 4.0f;
 
@@ -385,7 +384,7 @@ public class SmitheryToolItem extends Item {
         }
     }
 
-    private static @org.jspecify.annotations.Nullable Tool buildToolComponent(ToolType tt, ToolStats stats) {
+    private static @org.jetbrains.annotations.Nullable Tool buildToolComponent(ToolType tt, ToolStats stats) {
         List<Tool.Rule> rules = new ArrayList<>();
         String path = tt.id().getPath();
         switch (path) {
@@ -512,7 +511,7 @@ public class SmitheryToolItem extends Item {
         }
 
         java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
+                SmitheryToolData.getAppliedModifiers(stack);
         ToolStats stats = ToolStats.compute(comp, applied);
         com.soul.smithery.item.SmitheryTooltips.Tier tier = com.soul.smithery.item.SmitheryTooltips.currentTier();
 
@@ -604,8 +603,7 @@ public class SmitheryToolItem extends Item {
         }
 
         java.util.Map<net.minecraft.resources.ResourceLocation, Integer> progress =
-                stack.getOrDefault(SmitheryDataComponents.MODIFIER_PROGRESS.get(),
-                        java.util.Map.<net.minecraft.resources.ResourceLocation, Integer>of());
+                SmitheryToolData.getModifierProgress(stack);
         if (!progress.isEmpty()) {
             tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
                     Component.translatable("tooltip." + Smithery.MODID + ".section.progress")));
@@ -756,7 +754,7 @@ public class SmitheryToolItem extends Item {
      * the bow and arrow items (which don't extend SmitheryToolItem) can share it.
      */
     public static int primaryTintColorFor(ItemStack stack) {
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         if (comp == null) return 0xFFFFFFFF;
         ToolType tt = comp.toolType();
         if (tt == null) return 0xFFFFFFFF;

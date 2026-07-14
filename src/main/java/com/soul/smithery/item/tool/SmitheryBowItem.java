@@ -8,7 +8,7 @@ import com.soul.smithery.api.tool.DurabilityRole;
 import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.entity.SmitheryArrow;
 import com.soul.smithery.item.PartItem;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -22,7 +22,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.level.Level;
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -68,7 +68,7 @@ public class SmitheryBowItem extends BowItem {
 
     /** Shared with {@link SmitheryCrossbowItem}: scales arrow base damage by arrow + weapon stats. */
     static void applySmitheryArrowDamage(AbstractArrow arrow, ItemStack projectile, ItemStack weapon) {
-        ToolComposition arrowComp = projectile.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition arrowComp = SmitheryToolData.getComposition(projectile);
         if (arrowComp == null || !arrowComp.isValid()) return;
         ToolStats arrowStats = ToolStats.compute(arrowComp);
 
@@ -81,7 +81,7 @@ public class SmitheryBowItem extends BowItem {
     }
 
     private static float bowDamageScalar(ItemStack weapon) {
-        ToolComposition bowComp = weapon.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition bowComp = SmitheryToolData.getComposition(weapon);
         if (bowComp == null || !bowComp.isValid()) return 1.0f;
         ToolStats bowStats = ToolStats.compute(bowComp);
         return Math.max(0.5f, bowStats.attackDamage / 2.0f);
@@ -89,7 +89,7 @@ public class SmitheryBowItem extends BowItem {
 
     @Override
     public Component getName(ItemStack stack) {
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         ToolType tt = toolType();
         if (comp == null || !comp.isValid() || tt == null) {
             return Component.translatable(PartItem.toolTypeTranslationKey(toolTypeId));
@@ -106,7 +106,7 @@ public class SmitheryBowItem extends BowItem {
     @Override
     public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display,
                                 Consumer<Component> tooltip, TooltipFlag flag) {
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         ToolType tt = toolType();
         if (comp == null || tt == null || !comp.isValid()) {
             tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.uncomposed")
@@ -116,8 +116,7 @@ public class SmitheryBowItem extends BowItem {
         }
 
         java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(),
-                        java.util.List.<com.soul.smithery.api.modifier.ModifierEffect>of());
+                SmitheryToolData.getAppliedModifiers(stack);
         ToolStats stats = ToolStats.compute(comp, applied);
         com.soul.smithery.item.SmitheryTooltips.Tier tier = com.soul.smithery.item.SmitheryTooltips.currentTier();
 

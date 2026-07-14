@@ -5,9 +5,6 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.tool.ToolType;
-import io.netty.buffer.ByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
@@ -48,20 +45,15 @@ public record ToolComposition(ResourceLocation toolTypeId, List<ResourceLocation
         return new ToolComposition(toolTypeId, slotMaterials, Optional.of(donorMaterial));
     }
 
-    /** Codec for persistence into ItemStack data components. */
+    /**
+     * Codec for persistence into stack NBT (see {@link SmitheryToolData}); stack NBT is
+     * synchronized to the client by vanilla, so this codec also covers network sync.
+     */
     public static final Codec<ToolComposition> CODEC = RecordCodecBuilder.create(i -> i.group(
             ResourceLocation.CODEC.fieldOf("tool_type").forGetter(ToolComposition::toolTypeId),
             ResourceLocation.CODEC.listOf().fieldOf("slot_materials").forGetter(ToolComposition::slotMaterials),
             ResourceLocation.CODEC.optionalFieldOf("embossed").forGetter(ToolComposition::embossedMaterial)
     ).apply(i, ToolComposition::new));
-
-    /** Stream codec for network sync. */
-    public static final StreamCodec<ByteBuf, ToolComposition> STREAM_CODEC = StreamCodec.composite(
-            ResourceLocation.STREAM_CODEC, ToolComposition::toolTypeId,
-            ResourceLocation.STREAM_CODEC.apply(ByteBufCodecs.list()), ToolComposition::slotMaterials,
-            ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC), ToolComposition::embossedMaterial,
-            ToolComposition::new
-    );
 
     /** Resolves the live {@link ToolType}, or null if the id is unregistered. */
     public ToolType toolType() {

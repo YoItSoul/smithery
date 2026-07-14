@@ -380,7 +380,7 @@ public final class Modifier {
      */
     public record ComposeContext(
             net.minecraft.world.item.ItemStack stack,
-            net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup
+            net.minecraft.core.HolderLookup.@org.jetbrains.annotations.Nullable Provider lookup
     ) {}
 
     /**
