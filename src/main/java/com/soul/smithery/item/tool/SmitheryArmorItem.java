@@ -34,8 +34,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -169,6 +171,18 @@ public class SmitheryArmorItem extends ArmorItem implements DyeableLeatherItem {
                     new AttributeModifier(uuid, "Armor toughness",
                             stats.armorToughness, AttributeModifier.Operation.ADDITION));
         }
+
+        // Modifier-granted bonuses (speedy, high stride, ...) ride their own NBT channel and
+        // stack on top of the composed base attributes.
+        for (SmitheryToolData.ExtraAttribute extra : SmitheryToolData.getExtraAttributes(stack)) {
+            if (extra.slot() != slot) continue;
+            Attribute attribute = ForgeRegistries.ATTRIBUTES.getValue(extra.attributeId());
+            if (attribute == null) continue;
+            UUID extraUuid = UUID.nameUUIDFromBytes(
+                    (Smithery.MODID + ":extra:" + extra.name()).getBytes(StandardCharsets.UTF_8));
+            builder.put(attribute, new AttributeModifier(
+                    extraUuid, extra.name(), extra.amount(), extra.operation()));
+        }
         return builder.build();
     }
 
@@ -187,6 +201,7 @@ public class SmitheryArmorItem extends ArmorItem implements DyeableLeatherItem {
     public static ItemStack applyComposition(ItemStack stack, ToolComposition comp,
                                              HolderLookup.@Nullable Provider lookup) {
         stack.removeTagKey("Enchantments");
+        SmitheryToolData.clearExtraAttributes(stack);
 
         List<ModifierEffect> applied = SmitheryToolData.getAppliedModifiers(stack);
         ToolStats stats = ToolStats.compute(comp, applied);

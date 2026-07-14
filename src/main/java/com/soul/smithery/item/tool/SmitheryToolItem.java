@@ -94,6 +94,7 @@ public class SmitheryToolItem extends Item {
     public static ItemStack applyComposition(ItemStack stack, ToolComposition comp,
                                              HolderLookup.@Nullable Provider lookup) {
         stack.removeTagKey("Enchantments");
+        SmitheryToolData.clearExtraAttributes(stack);
 
         List<ModifierEffect> applied = SmitheryToolData.getAppliedModifiers(stack);
         int wearDamage = stack.getDamageValue();

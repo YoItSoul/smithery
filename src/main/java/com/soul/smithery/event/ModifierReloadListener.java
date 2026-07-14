@@ -1,12 +1,14 @@
 package com.soul.smithery.event;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.modifier.ModifierAction;
-import net.minecraft.resources.FileToIdConverter;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -34,8 +36,7 @@ import java.util.Set;
  * action types fail to parse with a logged warning and are skipped.
  */
 @Mod.EventBusSubscriber(modid = Smithery.MODID)
-public final class ModifierReloadListener
-        extends SimpleJsonResourceReloadListener<ModifierReloadListener.ModifierJson> {
+public final class ModifierReloadListener extends SimpleJsonResourceReloadListener {
 
     /**
      * Parsed representation of one modifier JSON file.
@@ -196,20 +197,27 @@ public final class ModifierReloadListener
 
     private static final Set<ResourceLocation> DATA_LOADED_IDS = new HashSet<>();
 
+    private static final Gson GSON = new Gson();
+
     private ModifierReloadListener() {
-        super(ModifierJson.CODEC, FileToIdConverter.json("smithery/modifier"));
+        super(GSON, "smithery/modifier");
     }
 
     @Override
-    protected void apply(Map<ResourceLocation, ModifierJson> entries,
-                          ResourceManager manager, ProfilerFiller profiler) {
+    protected void apply(Map<ResourceLocation, JsonElement> files,
+                         ResourceManager manager, ProfilerFiller profiler) {
         for (ResourceLocation id : DATA_LOADED_IDS) SmitheryAPI.MODIFIERS.remove(id);
         DATA_LOADED_IDS.clear();
 
         int registered = 0;
-        for (Map.Entry<ResourceLocation, ModifierJson> e : entries.entrySet()) {
+        for (Map.Entry<ResourceLocation, JsonElement> e : files.entrySet()) {
             ResourceLocation id = e.getKey();
-            ModifierJson parsed = e.getValue();
+            ModifierJson parsed = ModifierJson.CODEC
+                    .parse(JsonOps.INSTANCE, e.getValue())
+                    .resultOrPartial(err -> Smithery.LOGGER.warn(
+                            "smithery:modifier file {} failed to parse: {}", id, err))
+                    .orElse(null);
+            if (parsed == null) continue;
             Modifier mod = parsed.toModifier(id);
             SmitheryAPI.registerModifier(mod);
             DATA_LOADED_IDS.add(id);
@@ -219,15 +227,12 @@ public final class ModifierReloadListener
     }
 
     /**
-     * Registers this listener with the server reload pipeline under the {@code smithery:modifiers}
-     * id.
+     * Registers this listener with the server reload pipeline.
      *
-     * @param event the NeoForge add-reload-listeners event
+     * @param event Forge's add-reload-listener event
      */
     @SubscribeEvent
     public static void onAddReloadListeners(AddReloadListenerEvent event) {
-        event.addListener(
-                new ResourceLocation(Smithery.MODID, "modifiers"),
-                new ModifierReloadListener());
+        event.addListener(new ModifierReloadListener());
     }
 }

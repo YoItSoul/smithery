@@ -6,29 +6,30 @@ import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.modifier.ModifierSources;
 import com.soul.smithery.item.tool.SmitheryArmorItem;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import com.soul.smithery.item.tool.SmitheryToolItem;
-import net.minecraft.core.Holder;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.common.ForgeMod;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.function.Supplier;
 
 /**
  * Built-in modifier registrations plus their canonical anvil source mappings.
@@ -259,15 +260,18 @@ public final class SmitheryModifiers {
 
                     if (!creative) player.causeFoodExhaustion(exhaustion);
 
-                    ctx.tool().hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
+                    ctx.tool().hurtAndBreak(1, player,
+                            p -> p.broadcastBreakEvent(EquipmentSlot.MAINHAND));
 
-                    Holder<SoundEvent> sound = switch (player.getRandom().nextInt(3)) {
-                        case 0  -> SoundEvents.LUNGE_1;
-                        case 1  -> SoundEvents.LUNGE_2;
-                        default -> SoundEvents.LUNGE_3;
+                    // 1.20.1 has no dedicated lunge sounds; the riptide whooshes are the
+                    // closest dash cue.
+                    SoundEvent sound = switch (player.getRandom().nextInt(3)) {
+                        case 0  -> SoundEvents.TRIDENT_RIPTIDE_1;
+                        case 1  -> SoundEvents.TRIDENT_RIPTIDE_2;
+                        default -> SoundEvents.TRIDENT_RIPTIDE_3;
                     };
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                            sound.value(), player.getSoundSource(), 1.0f, 1.0f);
+                            sound, player.getSoundSource(), 1.0f, 1.0f);
                 })
                 .build());
 
@@ -305,8 +309,8 @@ public final class SmitheryModifiers {
                 .appliesTo(Modifier.AppliesTo.ARMOR)
                 .maxLevel(5)
                 .levelCostScaling(1.5f)
-                .onCompose(composeArmorAttribute("speedy", Attributes.MOVEMENT_SPEED,
-                        "pct", 0.01f, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL))
+                .onCompose(composeArmorAttribute("speedy", () -> Attributes.MOVEMENT_SPEED,
+                        "pct", 0.01f, AttributeModifier.Operation.MULTIPLY_TOTAL))
                 .build());
 
         RESISTANT = registerResistance("resistant", null);
@@ -328,8 +332,8 @@ public final class SmitheryModifiers {
         ENERGIZED = id("energized");
         SmitheryAPI.registerModifier(Modifier.builder(ENERGIZED)
                 .category(Modifier.ModifierCategory.PASSIVE)
-                .onCompose(composeArmorAttribute("energized", Attributes.MOVEMENT_SPEED,
-                        "pct", 0.02f, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL))
+                .onCompose(composeArmorAttribute("energized", () -> Attributes.MOVEMENT_SPEED,
+                        "pct", 0.02f, AttributeModifier.Operation.MULTIPLY_TOTAL))
                 .build());
 
         RESTORING = id("restoring");
@@ -354,18 +358,28 @@ public final class SmitheryModifiers {
                 .appliesTo(Modifier.AppliesTo.ARMOR)
                 .maxLevel(2)
                 .levelCostScaling(2.0f)
-                .onCompose(composeArmorAttribute("high_stride", Attributes.STEP_HEIGHT,
-                        "amount", 0.5f, AttributeModifier.Operation.ADD_VALUE))
+                .onCompose(composeArmorAttribute("high_stride", () -> ForgeMod.STEP_HEIGHT_ADDITION.get(),
+                        "amount", 0.5f, AttributeModifier.Operation.ADDITION))
                 .build());
 
         AMPHIBIOUS = id("amphibious");
+        // 1.20.1 has no oxygen-bonus attribute; the same "drown slower" identity is
+        // reconstructed by replenishing air while submerged, scaled by level.
         SmitheryAPI.registerModifier(Modifier.builder(AMPHIBIOUS)
-                .category(Modifier.ModifierCategory.PASSIVE)
+                .category(Modifier.ModifierCategory.ACTIVE)
                 .appliesTo(Modifier.AppliesTo.ARMOR)
                 .maxLevel(3)
                 .levelCostScaling(1.5f)
-                .onCompose(composeArmorAttribute("amphibious", Attributes.OXYGEN_BONUS,
-                        "amount", 1.0f, AttributeModifier.Operation.ADD_VALUE))
+                .onArmorTick((effect, ctx) -> {
+                    Player wearer = ctx.wearer();
+                    if (!wearer.isUnderWater()) return;
+                    int level = Math.max(1, effect.paramInt("level", 1));
+                    // Air drains 1/tick; refunding on a level-scaled cadence stretches
+                    // breath time by ~(1 + level/2).
+                    if (wearer.tickCount % Math.max(1, 4 - level) != 0) return;
+                    wearer.setAirSupply(Math.min(wearer.getMaxAirSupply(),
+                            wearer.getAirSupply() + 1));
+                })
                 .build());
 
         POWERFUL = id("powerful");
@@ -374,8 +388,8 @@ public final class SmitheryModifiers {
                 .appliesTo(Modifier.AppliesTo.ARMOR)
                 .maxLevel(3)
                 .levelCostScaling(2.0f)
-                .onCompose(composeArmorAttribute("powerful", Attributes.ATTACK_DAMAGE,
-                        "pct", 0.05f, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL))
+                .onCompose(composeArmorAttribute("powerful", () -> Attributes.ATTACK_DAMAGE,
+                        "pct", 0.05f, AttributeModifier.Operation.MULTIPLY_TOTAL))
                 .build());
 
         DEXTEROUS = id("dexterous");
@@ -384,17 +398,17 @@ public final class SmitheryModifiers {
                 .appliesTo(Modifier.AppliesTo.ARMOR)
                 .maxLevel(3)
                 .levelCostScaling(2.0f)
-                .onCompose(composeArmorAttribute("dexterous", Attributes.ATTACK_SPEED,
-                        "pct", 0.05f, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL))
+                .onCompose(composeArmorAttribute("dexterous", () -> Attributes.ATTACK_SPEED,
+                        "pct", 0.05f, AttributeModifier.Operation.MULTIPLY_TOTAL))
                 .build());
 
         TELEKINETIC = id("telekinetic");
         Modifier.OnCompose entityReach = composeArmorAttribute("telekinetic_entity",
-                Attributes.ENTITY_INTERACTION_RANGE, "amount", 1.0f,
-                AttributeModifier.Operation.ADD_VALUE);
+                () -> ForgeMod.ENTITY_REACH.get(), "amount", 1.0f,
+                AttributeModifier.Operation.ADDITION);
         Modifier.OnCompose blockReach = composeArmorAttribute("telekinetic_block",
-                Attributes.BLOCK_INTERACTION_RANGE, "amount", 1.0f,
-                AttributeModifier.Operation.ADD_VALUE);
+                () -> ForgeMod.BLOCK_REACH.get(), "amount", 1.0f,
+                AttributeModifier.Operation.ADDITION);
         SmitheryAPI.registerModifier(Modifier.builder(TELEKINETIC)
                 .category(Modifier.ModifierCategory.PASSIVE)
                 .appliesTo(Modifier.AppliesTo.ARMOR)
@@ -457,8 +471,8 @@ public final class SmitheryModifiers {
         STALWART = id("stalwart");
         SmitheryAPI.registerModifier(Modifier.builder(STALWART)
                 .category(Modifier.ModifierCategory.PASSIVE)
-                .onCompose(composeArmorAttribute("stalwart", Attributes.KNOCKBACK_RESISTANCE,
-                        "amount", 0.05f, AttributeModifier.Operation.ADD_VALUE))
+                .onCompose(composeArmorAttribute("stalwart", () -> Attributes.KNOCKBACK_RESISTANCE,
+                        "amount", 0.05f, AttributeModifier.Operation.ADDITION))
                 .build());
 
         WARDED = id("warded");
@@ -475,8 +489,8 @@ public final class SmitheryModifiers {
         SmitheryAPI.registerModifier(Modifier.builder(AQUADYNAMIC)
                 .category(Modifier.ModifierCategory.PASSIVE)
                 .onCompose(composeArmorAttribute("aquadynamic",
-                        net.neoforged.neoforge.common.NeoForgeMod.SWIM_SPEED,
-                        "amount", 0.15f, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL))
+                () -> ForgeMod.SWIM_SPEED.get(),
+                        "amount", 0.15f, AttributeModifier.Operation.MULTIPLY_TOTAL))
                 .build());
 
         NIMBLE = id("nimble");
@@ -497,7 +511,7 @@ public final class SmitheryModifiers {
                     int duration = effect.paramInt("duration_ticks", 60);
                     int amp = effect.paramInt("amplifier", 1);
                     attacker.addEffect(new MobEffectInstance(
-                            MobEffects.SLOWNESS, duration, amp));
+                            MobEffects.MOVEMENT_SLOWDOWN, duration, amp));
                 })
                 .build());
 
@@ -507,10 +521,10 @@ public final class SmitheryModifiers {
                 .appliesTo(Modifier.AppliesTo.TOOLS)
                 .onBlockBreak((effect, ctx) -> {
                     int cap = effect.paramInt("max_amplifier", 2);
-                    var current = ctx.player().getEffect(MobEffects.HASTE);
+                    var current = ctx.player().getEffect(MobEffects.DIG_SPEED);
                     int nextAmp = current == null ? 0 : Math.min(cap, current.getAmplifier() + 1);
                     ctx.player().addEffect(new MobEffectInstance(
-                            MobEffects.HASTE, 60, nextAmp, true, false));
+                            MobEffects.DIG_SPEED, 60, nextAmp, true, false));
                 })
                 .build());
 
@@ -547,12 +561,12 @@ public final class SmitheryModifiers {
                 .onBlockDrops((effect, ctx) -> {
                     var level = ctx.level();
                     for (ItemEntity drop : ctx.drops()) {
-                        var input = new net.minecraft.world.item.crafting.SingleRecipeInput(drop.getItem());
-                        level.recipeAccess().getRecipeFor(
-                                        net.minecraft.world.item.crafting.RecipeType.SMELTING, input, level)
-                                .ifPresent(holder -> {
+                        var container = new net.minecraft.world.SimpleContainer(drop.getItem());
+                        level.getRecipeManager().getRecipeFor(
+                                        net.minecraft.world.item.crafting.RecipeType.SMELTING, container, level)
+                                .ifPresent(recipe -> {
                                     net.minecraft.world.item.ItemStack smelted =
-                                            holder.value().assemble(input).copy();
+                                            recipe.assemble(container, level.registryAccess()).copy();
                                     if (smelted.isEmpty()) return;
                                     smelted.setCount(smelted.getCount() * drop.getItem().getCount());
                                     drop.setItem(smelted);
@@ -569,7 +583,7 @@ public final class SmitheryModifiers {
                 .levelCostScaling(2.0f)
                 .onAttackEntity((effect, ctx) -> {
                     int level = Math.max(1, effect.paramInt("level", 1));
-                    ctx.target().igniteForSeconds(2.0f * level);
+                    ctx.target().setSecondsOnFire(2 * level);
                 })
                 .build());
 
@@ -587,7 +601,7 @@ public final class SmitheryModifiers {
                 ModifierEffect.of(FIRE_RESISTANT, Map.of("level", 1, "pct", 0.04f)));
         ModifierSources.register(Items.TNT,
                 ModifierEffect.of(BLAST_RESISTANT, Map.of("level", 1, "pct", 0.04f)));
-        ModifierSources.register(Items.TURTLE_SCUTE,
+        ModifierSources.register(Items.SCUTE,
                 ModifierEffect.of(PROJECTILE_RESISTANT, Map.of("level", 1, "pct", 0.04f)));
         ModifierSources.register(Items.TOTEM_OF_UNDYING,
                 ModifierEffect.of(SOULBOUND, Map.of()));
@@ -620,24 +634,26 @@ public final class SmitheryModifiers {
 
     /**
      * Builds a compose hook that appends one attribute modifier to an armor stack, scaled by
-     * the effect's {@code level} (default 1) × the {@code amountParam} value. The attribute id
+     * the effect's {@code level} (default 1) × the {@code amountParam} value. The entry name
      * embeds the slot name so pieces of a set never collide. No-ops on non-armor stacks.
+     *
+     * <p>Bonuses ride the stack's extra-attribute NBT (see
+     * {@link SmitheryToolData#putExtraAttribute}) and are merged into the armor's live
+     * attribute map on top of the composed base defense.
      */
     private static Modifier.OnCompose composeArmorAttribute(
-            String name, Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute,
+            String name, Supplier<Attribute> attribute,
             String amountParam, float defaultAmount, AttributeModifier.Operation operation) {
         return (effect, ctx) -> {
             var stack = ctx.stack();
             if (!(stack.getItem() instanceof SmitheryArmorItem armorItem)) return;
+            ResourceLocation attributeId = ForgeRegistries.ATTRIBUTES.getKey(attribute.get());
+            if (attributeId == null) return;
             int level = Math.max(1, effect.paramInt("level", 1));
             double amount = effect.paramFloat(amountParam, defaultAmount) * (double) level;
             EquipmentSlot slot = SmitheryArmorItem.slotForToolTypeId(armorItem.toolTypeId());
-            var attrs = stack.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS,
-                    ItemAttributeModifiers.EMPTY);
-            stack.set(DataComponents.ATTRIBUTE_MODIFIERS, attrs.withModifierAdded(
-                    attribute,
-                    new AttributeModifier(id(name + "." + slot.getName()), amount, operation),
-                    EquipmentSlotGroup.bySlot(slot)));
+            SmitheryToolData.putExtraAttribute(stack, new SmitheryToolData.ExtraAttribute(
+                    name + "." + slot.getName(), attributeId, amount, operation, slot));
         };
     }
 

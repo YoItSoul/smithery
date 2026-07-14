@@ -138,12 +138,12 @@ public class PartItem extends Item {
             }
 
             for (ModifierEffect effect : mat.stats().modifiersFor(tt)) {
-                int level = effect.paramInt("level", 1);
+                int effectLevel = effect.paramInt("level", 1);
                 MutableComponent line = Component.empty()
                         .append(Component.translatable(modifierTranslationKey(effect.modifierId()))
                                 .withStyle(ChatFormatting.AQUA));
-                if (level > 1) {
-                    line.append(Component.literal(" " + SmitheryToolItem.toRoman(level))
+                if (effectLevel > 1) {
+                    line.append(Component.literal(" " + SmitheryToolItem.toRoman(effectLevel))
                             .withStyle(ChatFormatting.AQUA));
                 }
                 tooltip.accept(SmitheryTooltips.subLine(line));

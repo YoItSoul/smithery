@@ -1,14 +1,18 @@
 package com.soul.smithery.item.tool;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +43,7 @@ public final class SmitheryToolData {
     private static final String KEY_APPLIED_MODIFIERS = Smithery.MODID + ":applied_modifiers";
     private static final String KEY_MODIFIER_PROGRESS = Smithery.MODID + ":modifier_progress";
     private static final String KEY_MAX_DURABILITY    = Smithery.MODID + ":max_durability";
+    private static final String KEY_EXTRA_ATTRIBUTES  = Smithery.MODID + ":extra_attributes";
 
     private static final Codec<List<ModifierEffect>> APPLIED_MODIFIERS_CODEC =
             ModifierEffect.CODEC.listOf();
@@ -97,6 +102,54 @@ public final class SmitheryToolData {
     /** Writes the stack's partial modifier-application progress. */
     public static void setModifierProgress(ItemStack stack, Map<ResourceLocation, Integer> progress) {
         write(stack, KEY_MODIFIER_PROGRESS, MODIFIER_PROGRESS_CODEC, progress);
+    }
+
+    /**
+     * One modifier-granted attribute bonus riding the stack, applied on top of the composed
+     * base attributes by the item's {@code getAttributeModifiers} override. Named entries are
+     * unique per stack — recomposition clears and re-adds them, so compose hooks stay
+     * idempotent.
+     *
+     * @param name        unique entry name; also seeds the attribute modifier's stable UUID
+     * @param attributeId registry id of the attribute to modify
+     * @param amount      modifier amount
+     * @param operation   modifier operation
+     * @param slot        equipment slot the bonus applies in
+     */
+    public record ExtraAttribute(String name, ResourceLocation attributeId, double amount,
+                                 AttributeModifier.Operation operation, EquipmentSlot slot) {
+
+        /** Codec for the extra-attribute NBT list. */
+        public static final Codec<ExtraAttribute> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.STRING.fieldOf("name").forGetter(ExtraAttribute::name),
+                ResourceLocation.CODEC.fieldOf("attribute").forGetter(ExtraAttribute::attributeId),
+                Codec.DOUBLE.fieldOf("amount").forGetter(ExtraAttribute::amount),
+                Codec.INT.xmap(AttributeModifier.Operation::fromValue, AttributeModifier.Operation::toValue)
+                        .fieldOf("operation").forGetter(ExtraAttribute::operation),
+                Codec.STRING.xmap(EquipmentSlot::byName, EquipmentSlot::getName)
+                        .fieldOf("slot").forGetter(ExtraAttribute::slot)
+        ).apply(i, ExtraAttribute::new));
+    }
+
+    private static final Codec<List<ExtraAttribute>> EXTRA_ATTRIBUTES_CODEC =
+            ExtraAttribute.CODEC.listOf();
+
+    /** The stack's modifier-granted attribute bonuses; empty when absent or unreadable. */
+    public static List<ExtraAttribute> getExtraAttributes(ItemStack stack) {
+        return read(stack, KEY_EXTRA_ATTRIBUTES, EXTRA_ATTRIBUTES_CODEC, List.of());
+    }
+
+    /** Adds (or replaces, by name) one modifier-granted attribute bonus on the stack. */
+    public static void putExtraAttribute(ItemStack stack, ExtraAttribute attribute) {
+        List<ExtraAttribute> current = new ArrayList<>(getExtraAttributes(stack));
+        current.removeIf(e -> e.name().equals(attribute.name()));
+        current.add(attribute);
+        write(stack, KEY_EXTRA_ATTRIBUTES, EXTRA_ATTRIBUTES_CODEC, current);
+    }
+
+    /** Clears all modifier-granted attribute bonuses; called before compose hooks re-add them. */
+    public static void clearExtraAttributes(ItemStack stack) {
+        stack.removeTagKey(KEY_EXTRA_ATTRIBUTES);
     }
 
     private static <T> T read(ItemStack stack, String key, Codec<T> codec, T fallback) {
