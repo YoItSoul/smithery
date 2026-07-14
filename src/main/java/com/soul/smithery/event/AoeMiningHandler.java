@@ -1,5 +1,6 @@
 package com.soul.smithery.event;
 
+import com.soul.smithery.item.tool.SmitheryToolData;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.item.tool.SmitheryToolItem;
 import net.minecraft.core.BlockPos;
@@ -83,9 +84,7 @@ public final class AoeMiningHandler {
         // Mining hammer / excavator: base 3x3 (radius 1); Excavating widens by one ring per level.
         // Read directly from APPLIED_MODIFIERS — Excavating is a hookless marker like soulbound.
         int radius = 1;
-        for (com.soul.smithery.api.modifier.ModifierEffect e : tool.getOrDefault(
-                com.soul.smithery.registry.SmitheryDataComponents.APPLIED_MODIFIERS.get(),
-                java.util.List.<com.soul.smithery.api.modifier.ModifierEffect>of())) {
+        for (com.soul.smithery.api.modifier.ModifierEffect e : SmitheryToolData.getAppliedModifiers(tool)) {
             if (e.modifierId().equals(com.soul.smithery.content.SmitheryModifiers.EXCAVATING)) {
                 radius += Math.max(1, e.paramInt("level", 1));
             }

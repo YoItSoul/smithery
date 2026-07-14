@@ -72,7 +72,7 @@ public final class ToolStats {
      * @return three-element float array {@code [durability, defense, toughness]}, or null when
      *         the tool isn't an armor piece
      */
-    public static float @org.jspecify.annotations.Nullable [] armorSlotMultipliers(String toolPath) {
+    public static float @org.jetbrains.annotations.Nullable [] armorSlotMultipliers(String toolPath) {
         return switch (toolPath) {
             case "helmet"     -> new float[]{ 0.70f, 0.16f, 1.0f };
             case "chestplate" -> new float[]{ 1.00f, 0.40f, 1.0f };

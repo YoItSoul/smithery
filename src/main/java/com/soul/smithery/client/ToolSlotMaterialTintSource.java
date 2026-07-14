@@ -6,13 +6,13 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.item.tool.ToolComposition;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.client.color.item.ItemTintSource;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Item tint source that returns the part colour of the material in one specific slot of a
@@ -35,7 +35,7 @@ public record ToolSlotMaterialTintSource(int slot) implements ItemTintSource {
 
     @Override
     public int calculate(ItemStack stack, @Nullable ClientLevel level, @Nullable LivingEntity owner) {
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         if (comp == null) return 0xFFFFFFFF;
         if (slot < 0 || slot >= comp.slotMaterials().size()) return 0xFFFFFFFF;
         ResourceLocation matId = comp.slotMaterials().get(slot);

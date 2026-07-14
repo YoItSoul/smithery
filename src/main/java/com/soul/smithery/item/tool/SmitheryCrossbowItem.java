@@ -8,7 +8,7 @@ import com.soul.smithery.api.tool.DurabilityRole;
 import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.item.SmitheryTooltips;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -72,7 +72,7 @@ public class SmitheryCrossbowItem extends CrossbowItem {
 
     @Override
     public Component getName(ItemStack stack) {
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         ToolType tt = toolType();
         if (comp == null || !comp.isValid() || tt == null) {
             return Component.translatable(PartItem.toolTypeTranslationKey(toolTypeId));
@@ -89,7 +89,7 @@ public class SmitheryCrossbowItem extends CrossbowItem {
     @Override
     public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display,
                                 Consumer<Component> tooltip, TooltipFlag flag) {
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         ToolType tt = toolType();
         if (comp == null || tt == null || !comp.isValid()) {
             tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.uncomposed")
@@ -99,7 +99,7 @@ public class SmitheryCrossbowItem extends CrossbowItem {
         }
 
         List<com.soul.smithery.api.modifier.ModifierEffect> applied =
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.of());
+                SmitheryToolData.getAppliedModifiers(stack);
         ToolStats stats = ToolStats.compute(comp, applied);
         SmitheryTooltips.Tier tier = SmitheryTooltips.currentTier();
 

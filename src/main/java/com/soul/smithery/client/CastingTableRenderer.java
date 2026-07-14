@@ -44,7 +44,7 @@ public class CastingTableRenderer
         public State castState = State.EMPTY;
         public final ItemStackRenderState sand = new ItemStackRenderState();
         public boolean hasPart;
-        public net.minecraft.resources.@org.jspecify.annotations.Nullable ResourceLocation partTextureLoc;
+        public net.minecraft.resources.@org.jetbrains.annotations.Nullable ResourceLocation partTextureLoc;
         public int partTintArgb;
     }
 

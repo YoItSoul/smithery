@@ -2,7 +2,7 @@ package com.soul.smithery.entity;
 
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolStats;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import com.soul.smithery.registry.SmitheryEntityTypes;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -39,7 +39,7 @@ public class SmitheryShuriken extends ThrowableItemProjectile {
         super.onHitEntity(result);
         if (level().isClientSide()) return;
         float damage = 2.0f;
-        ToolComposition comp = getItem().get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(getItem());
         if (comp != null && comp.isValid()) {
             damage = Math.max(1.0f, ToolStats.compute(comp).attackDamage);
         }

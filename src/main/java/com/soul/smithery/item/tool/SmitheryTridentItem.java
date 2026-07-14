@@ -5,7 +5,7 @@ import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.tool.DurabilityRole;
 import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.item.PartItem;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -36,7 +36,7 @@ public class SmitheryTridentItem extends TridentItem {
 
     @Override
     public Component getName(ItemStack stack) {
-        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
         ToolType tt = toolType();
         if (comp == null || !comp.isValid() || tt == null) {
             return Component.translatable(PartItem.toolTypeTranslationKey(toolTypeId));

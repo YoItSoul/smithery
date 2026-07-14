@@ -9,7 +9,7 @@ import com.soul.smithery.item.tool.SmitheryArmorItem;
 import com.soul.smithery.item.tool.SmitheryToolItem;
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolStats;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -70,7 +70,7 @@ public final class RepairHandler {
     private static boolean stoneTierCovers(PartItem stone, ItemStack gear) {
         Material stoneMaterial = SmitheryAPI.MATERIALS.get(stone.materialId());
         if (stoneMaterial == null) return false;
-        ToolComposition comp = gear.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        ToolComposition comp = SmitheryToolData.getComposition(gear);
         if (comp == null || !comp.isValid()) return false;
         return stoneMaterial.stats().harvestLevel() >= ToolStats.compute(comp).harvestLevel;
     }

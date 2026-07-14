@@ -4,7 +4,7 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.content.SmitheryModifiers;
 import com.soul.smithery.registry.SmitheryAttachments;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -63,8 +63,7 @@ public final class SoulboundHandler {
     }
 
     private static boolean isSoulbound(ItemStack stack) {
-        for (ModifierEffect e : stack.getOrDefault(
-                SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.<ModifierEffect>of())) {
+        for (ModifierEffect e : SmitheryToolData.getAppliedModifiers(stack)) {
             if (e.modifierId().equals(SmitheryModifiers.SOULBOUND)) return true;
         }
         return false;
