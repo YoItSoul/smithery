@@ -92,7 +92,7 @@ public final class SmitheryAPI {
     /** Convenience overload that constructs a {@link MeltingRecipe} from string ids and mB. */
     public static MeltingRecipe registerMeltingRecipe(String inputItem, String material, int mb) {
         return registerMeltingRecipe(new MeltingRecipe(
-                new ResourceLocation(inputItem), new ResourceLocation(material), mb));
+                ResourceLocation.parse(inputItem), ResourceLocation.parse(material), mb));
     }
 
     /** Creates and registers a {@link Material} with the given id and stats. */
@@ -102,7 +102,7 @@ public final class SmitheryAPI {
 
     /** String-id overload of {@link #registerMaterial(ResourceLocation, MaterialStats)}. */
     public static Material registerMaterial(String id, MaterialStats stats) {
-        return registerMaterial(new ResourceLocation(id), stats);
+        return registerMaterial(ResourceLocation.parse(id), stats);
     }
 
     /**

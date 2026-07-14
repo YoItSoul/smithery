@@ -41,7 +41,7 @@ public final class SmitheryItems {
     private static final Map<String, RegistryObject<PartItem>> BUILT_IN_PART_ITEMS = new LinkedHashMap<>();
 
     private static ResourceLocation id(String path) {
-        return new ResourceLocation(Smithery.MODID, path);
+        return ResourceLocation.fromNamespaceAndPath(Smithery.MODID, path);
     }
 
     /**

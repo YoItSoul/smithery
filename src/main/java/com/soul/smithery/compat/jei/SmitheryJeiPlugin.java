@@ -30,7 +30,7 @@ import java.util.List;
  */
 @JeiPlugin
 public class SmitheryJeiPlugin implements IModPlugin {
-    private static final ResourceLocation UID = new ResourceLocation(Smithery.MODID, "jei");
+    private static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "jei");
 
     @Override
     public ResourceLocation getPluginUid() {

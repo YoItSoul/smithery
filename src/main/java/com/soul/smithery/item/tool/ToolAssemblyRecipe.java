@@ -152,7 +152,7 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
     private static final class Serializer implements RecipeSerializer<ToolAssemblyRecipe> {
         @Override
         public ToolAssemblyRecipe fromJson(ResourceLocation recipeId, JsonObject json) {
-            ResourceLocation toolTypeId = new ResourceLocation(GsonHelper.getAsString(json, "tool_type"));
+            ResourceLocation toolTypeId = ResourceLocation.parse(GsonHelper.getAsString(json, "tool_type"));
             String group = GsonHelper.getAsString(json, "group", "");
             return new ToolAssemblyRecipe(recipeId, toolTypeId, group);
         }
@@ -173,6 +173,6 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
 
     /** Returns the fixed {@code smithery:tool_assembly} serializer id. */
     public static ResourceLocation serializerId() {
-        return new ResourceLocation(Smithery.MODID, "tool_assembly");
+        return ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "tool_assembly");
     }
 }

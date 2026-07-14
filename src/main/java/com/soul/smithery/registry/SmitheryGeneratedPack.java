@@ -65,8 +65,8 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static final java.util.Map<String, SimpleItem> SIMPLE_ITEMS;
     static {
-        ResourceLocation vanillaString    = new ResourceLocation("minecraft", "item/string");
-        ResourceLocation vanillaSlimeBall = new ResourceLocation("minecraft", "item/slime_ball");
+        ResourceLocation vanillaString    = ResourceLocation.fromNamespaceAndPath("minecraft", "item/string");
+        ResourceLocation vanillaSlimeBall = ResourceLocation.fromNamespaceAndPath("minecraft", "item/slime_ball");
         SIMPLE_ITEMS = java.util.Map.of(
                 "flamestring",              new SimpleItem(vanillaString,    0xFFFF6622),
                 "breezestring",             new SimpleItem(vanillaString,    0xFFB0E2FF),
@@ -287,7 +287,7 @@ public class SmitheryGeneratedPack implements PackResources {
         if (!fullPath.startsWith(requestedPrefix)) return;
         IoSupplier<InputStream> content = contentSupplier.get();
         if (content == null) return;
-        output.accept(new ResourceLocation(namespace, fullPath), content);
+        output.accept(ResourceLocation.fromNamespaceAndPath(namespace, fullPath), content);
     }
 
     private void emitToolLayerTexture(String namespace, String texName, String requestedPrefix,
@@ -572,7 +572,7 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     private static BufferedImage readTemplateTexture(ResourceLocation tmplId) throws IOException {
-        ResourceLocation resourceLoc = new ResourceLocation(
+        ResourceLocation resourceLoc = ResourceLocation.fromNamespaceAndPath(
                 tmplId.getNamespace(), "textures/" + tmplId.getPath() + ".png");
         net.minecraft.server.packs.resources.ResourceManager rm =
                 net.minecraft.client.Minecraft.getInstance().getResourceManager();
@@ -652,12 +652,12 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     private static BufferedImage synthesizeBowstringTemplate() throws IOException {
-        return readTemplateTexture(new ResourceLocation("minecraft", "item/string"));
+        return readTemplateTexture(ResourceLocation.fromNamespaceAndPath("minecraft", "item/string"));
     }
 
     private static BufferedImage synthesizeBowLimbTemplate() throws IOException {
         BufferedImage src = readTemplateTexture(
-                new ResourceLocation(Smithery.MODID, "item/part/pick_head"));
+                ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "item/part/pick_head"));
         BufferedImage rotated = rotateAroundCenter(src, -45.0);
         clearLowerHalf(rotated);
         return rotated;
@@ -665,13 +665,13 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static BufferedImage synthesizeArrowShaftTemplate() throws IOException {
         BufferedImage src = readTemplateTexture(
-                new ResourceLocation(Smithery.MODID, "item/part/handle"));
+                ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "item/part/handle"));
         return centeredUpperHalf(src);
     }
 
     private static BufferedImage synthesizeFletchingTemplate() throws IOException {
         BufferedImage src = readTemplateTexture(
-                new ResourceLocation("minecraft", "item/feather"));
+                ResourceLocation.fromNamespaceAndPath("minecraft", "item/feather"));
         return centeredUpperHalf(src);
     }
 
@@ -686,7 +686,7 @@ public class SmitheryGeneratedPack implements PackResources {
      */
     private static BufferedImage synthesizeArmorPartTemplate(String vanillaPath) throws IOException {
         BufferedImage src = readTemplateTexture(
-                new ResourceLocation("minecraft", vanillaPath));
+                ResourceLocation.fromNamespaceAndPath("minecraft", vanillaPath));
         int W = src.getWidth(), H = src.getHeight();
         BufferedImage out = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < H; y++) {
@@ -782,7 +782,7 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static BufferedImage synthesizeRedSlimeTexture() throws IOException {
         BufferedImage src = readTemplateTexture(
-                new ResourceLocation("minecraft", "block/slime_block"));
+                ResourceLocation.fromNamespaceAndPath("minecraft", "block/slime_block"));
         int W = src.getWidth(), H = src.getHeight();
         BufferedImage out = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < H; y++) {
@@ -847,35 +847,35 @@ public class SmitheryGeneratedPack implements PackResources {
                                                                  @Nullable String frameSuffix) throws IOException {
         ResourceLocation sourceId = switch (toolPath) {
             case "sword", "broadsword", "rapier"
-                           -> new ResourceLocation("minecraft", "item/iron_sword");
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_sword");
             case "paxel", "mining_hammer"
-                           -> new ResourceLocation("minecraft", "item/iron_pickaxe");
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_pickaxe");
             case "crossbow"
-                           -> new ResourceLocation("minecraft", "item/crossbow_standby");
-            case "kama"    -> new ResourceLocation("minecraft", "item/iron_hoe");
-            case "cleaver" -> new ResourceLocation("minecraft", "item/iron_axe");
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/crossbow_standby");
+            case "kama"    -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_hoe");
+            case "cleaver" -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_axe");
             case "lumberaxe"
-                           -> new ResourceLocation("minecraft", "item/iron_axe");
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_axe");
             case "excavator"
-                           -> new ResourceLocation("minecraft", "item/iron_shovel");
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_shovel");
             case "shuriken"
-                           -> new ResourceLocation("minecraft", "item/nether_star");
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/nether_star");
             case "trident"
-                           -> new ResourceLocation("minecraft", "item/trident");
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/trident");
             case "battlesign"
-                           -> new ResourceLocation("minecraft", "item/oak_sign");
-            case "pickaxe" -> new ResourceLocation("minecraft", "item/iron_pickaxe");
-            case "axe"     -> new ResourceLocation("minecraft", "item/iron_axe");
-            case "shovel"  -> new ResourceLocation("minecraft", "item/iron_shovel");
-            case "hoe"     -> new ResourceLocation("minecraft", "item/iron_hoe");
-            case "spear"   -> new ResourceLocation("minecraft", "item/iron_spear");
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/oak_sign");
+            case "pickaxe" -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_pickaxe");
+            case "axe"     -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_axe");
+            case "shovel"  -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_shovel");
+            case "hoe"     -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_hoe");
+            case "spear"   -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_spear");
             case "bow"     -> {
                 String path = "item/bow" + (frameSuffix == null ? "" : "_" + frameSuffix);
-                yield new ResourceLocation("minecraft", path);
+                yield ResourceLocation.fromNamespaceAndPath("minecraft", path);
             }
-            case "arrow"   -> new ResourceLocation("minecraft", "item/arrow");
+            case "arrow"   -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/arrow");
             case "helmet", "chestplate", "leggings", "boots"
-                           -> new ResourceLocation("minecraft", "item/iron_" + toolPath);
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_" + toolPath);
             default        -> null;
         };
         if (sourceId == null) {

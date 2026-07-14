@@ -27,7 +27,7 @@ public final class SmitheryPayloads {
 
     /** Smithery's single game channel. */
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation(Smithery.MODID, "main"),
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "main"),
             () -> PROTOCOL_VERSION,
             PROTOCOL_VERSION::equals,
             PROTOCOL_VERSION::equals);

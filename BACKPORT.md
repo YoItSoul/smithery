@@ -2,31 +2,47 @@
 
 This branch backports Smithery from NeoForge 26.1.2 to **MinecraftForge 47.4.10 / Minecraft 1.20.1**.
 
-## Toolchain status (done)
+## Toolchain (done)
 
 - ForgeGradle `[6.0,6.2)` replaces ModDevGradle (Gradle wrapper downgraded 9.2.1 → 8.8; configuration cache disabled — FG6 does not support it).
 - Java toolchain 17 (what 1.20.1 ships to players).
 - `META-INF/mods.toml` template replaces `neoforge.mods.toml`; `pack.mcmeta` added (`pack_format` 15, required again on 1.20.1).
-- Dependencies re-pinned to their 1.20.1 lines and wrapped in `fg.deobf` (versions match the target modpack):
-  - **Patchouli `1.20.1-85-FORGE` replaces Modonomicon** on this branch — the book becomes JSON under `assets/smithery/patchouli_books/` instead of Java datagen providers
-  - Geckolib `4.8.4` (`software.bernie.geckolib:geckolib-forge-1.20.1` — note the group change from `com.geckolib`)
+- Dependencies pinned to the target modpack's 1.20.1 lines, wrapped in `fg.deobf`:
+  - **Patchouli `1.20.1-85-FORGE` replaces Modonomicon** — the field guide is hand-authorable JSON under `patchouli_books/smithery_book/` (converted from the old generated book)
+  - Geckolib `4.8.4` (`software.bernie.geckolib:geckolib-forge-1.20.1`)
   - JEI `15.20.0.134` (`jei-1.20.1-common-api` / `-forge-api` / `-forge`)
 
-## Code port status (not started)
+## Code port (done — `./gradlew build` green)
 
-The Java sources are still the NeoForge 26.1 code and will not compile yet. Major migration areas, roughly in dependency order:
+How each 26.1 system landed on 1.20.1:
 
-1. **Packages / bootstrap** — `net.neoforged.*` → `net.minecraftforge.*`; Forge has a split event bus (mod bus via `FMLJavaModLoadingContext`, game bus via `MinecraftForge.EVENT_BUS`) instead of NeoForge's unified bus.
-2. **Language level** — source must compile on Java 17; any Java 18+ features (record patterns in switch, unnamed variables, etc.) need rewriting.
-3. **Data components → NBT** — 1.20.1 has no data component system. Tool/armor composition storage (`ToolCompositions`, material parts, dye colors, soulbound flag) moves to item NBT with explicit (de)serialization.
-4. **Attachments → capabilities** — NeoForge data attachments (e.g. the soulbound player attachment) become Forge capabilities; Forge 1.20.1 *does* have `PlayerEvent.Clone` for death persistence.
-5. **Networking** — custom payloads/`StreamCodec` → Forge `SimpleChannel` with hand-written `FriendlyByteBuf` encode/decode (the forge packet handler hardening from `b0f8a94` needs re-verifying under SimpleChannel semantics).
-6. **Capabilities on block entities** — forge multiblock item/fluid handlers switch to `getCapability`/`invalidateCaps` overrides instead of NeoForge's capability registration events.
-7. **Recipes** — 1.20.1 recipe serializers have no codec support; `fromJson`/`fromNetwork` must be hand-written for forge melting / press recipes.
-8. **Attributes & tiers** — `ItemAttributeModifiers`-style component data → `getAttributeModifiers` multimap; tool tiers/armor materials use the 1.20.1 `Tier`/`ArmorMaterial` interfaces.
-9. **Client rendering** — no equipment-asset system in 1.20.1: dyed armor rendering goes through `HumanoidArmorLayer`/`IClientItemExtensions.getGenericArmorModel` + layered textures; fluid rendering uses `IClientFluidTypeExtensions`; check every `GuiGraphics` call against the 1.20.1 signatures (the fluid-atlas vs GUI blit split still applies).
-10. **Third-party APIs** — Geckolib 5 → 4 (different package roots and animation controller API), Modonomicon → Patchouli (delete `book/*` Java providers, author the book as Patchouli JSON), JEI 29 → 15 (`IRecipeCategory` and ingredient API differences).
-11. **Datagen** — 1.20.1 providers take `PackOutput` + lookup providers with different signatures; regenerate `src/generated/resources` on this branch rather than hand-editing.
-12. **Gametests** — `forge.enabledGameTestNamespaces` + `@GameTestHolder`/`@PrefixGameTestTemplate` replace the NeoForge gametest registration.
+1. **Bootstrap / registries** — no-arg `@Mod` constructor with `FMLJavaModLoadingContext`; plain `DeferredRegister` + `RegistryObject`.
+2. **Per-stack state** — data components became codec-backed stack NBT (`SmitheryToolData`): composition, applied modifiers, modifier progress, composed max durability, and an extra-attribute channel for modifier-granted bonuses. Vanilla syncs stack NBT, so no custom component networking exists.
+3. **Items** — stats served live through stack-sensitive overrides (`getAttributeModifiers`, `getDestroySpeed`, `isCorrectToolForDrops` via `TierSortingRegistry`, `getMaxDamage`). Armor extends `ArmorItem` with a zeroed placeholder material + `DyeableLeatherItem` worn tint.
+4. **Soulbound** — a serializable Forge capability copied across `PlayerEvent.Clone`.
+5. **Networking** — one `SimpleChannel` (`smithery:main`); the distance-check-before-`getBlockEntity` hardening is preserved.
+6. **Block entities** — `IItemHandler`/`IFluidHandler` behind `getCapability` + `LazyOptional`; `CompoundTag` persistence.
+7. **Recipes** — `ToolAssemblyRecipe` carries a recipe id and a hand-written `fromJson`/`fromNetwork` serializer.
+8. **Client** — direct `BlockEntityRenderer.render` implementations; item tints via `RegisterColorHandlersEvent.Item` (tint index = composition slot); fluids via `FluidType.initializeClient`; Geckolib 4 `GeoBlockRenderer` for the part press.
+9. **JEI 15** — `RecipeType` + slot-builder API; tool assembly cycles materials in lockstep through a focus link.
+10. **Datagen** — removed; its only provider was the Modonomicon book, now static Patchouli JSON.
 
-Keep gameplay/balance identical to `main` — this branch changes platform code only. Fixes that aren't 1.20.1-specific should land on `main` first and be cherry-picked here.
+## Gameplay approximations (1.20.1 has no equivalent API)
+
+Behavior-visible differences from `main`, each the closest 1.20.1 reconstruction:
+
+- **Spear** — no vanilla spear mechanics; the thrust identity is +1.5 entity reach (`ForgeMod.ENTITY_REACH`) plus the composed attack-speed curve. Kinetic/piercing charge mechanics do not exist here.
+- **Battlesign** — blocks via the shield pipeline (`SHIELD_BLOCK` tool action); `ShieldBlockEvent` scales blocked damage to 60%.
+- **Block-drop modifiers** — no block-drops event on 1.20.1: XP-side hooks run at `BlockEvent.BreakEvent` (XP still writable); drop-side hooks run per spawned drop by correlating same-tick `ItemEntity` spawns near the break. Hooks see either an empty drop list with live XP or a one-drop list with inert XP.
+- **Amphibious** — no oxygen attribute; reimplemented as level-scaled air replenishment while submerged.
+- **Resin** — no resin item exists in 1.20.1; the material keeps its registration but has no press input (unobtainable without a datapack recipe).
+- **Lunge** — plays the trident riptide sounds (no dedicated lunge sounds).
+- **Mining wear** — tools take 2 durability per mined block, mirroring the pre-port TOOL component data.
+
+Everything else keeps gameplay/balance identical to `main` — this branch changes platform code only. Fixes that aren't 1.20.1-specific should land on `main` first and be cherry-picked here.
+
+## Remaining before release
+
+- Runtime pass on a client: forge multiblock build/melt/drain, casting, part press animation, tool assembly + tints, armor rendering, controller GUI, JEI pages, Patchouli book.
+- Sweep the deprecated `new ResourceLocation(...)` constructors to the statics Forge 47.4 backported (warnings only).
+- Verify the runtime-generated pack's models/textures resolve on 1.20.1 (bow overrides, impressed sand voxel models).

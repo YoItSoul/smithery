@@ -74,9 +74,9 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     private static final int COL_TANK_EMPTY = 0xFF1A1A1A;
 
     private static final ResourceLocation MOLTEN_FLOW_TEXTURE =
-            new ResourceLocation(Smithery.MODID, "textures/gui/molten_flow.png");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "textures/gui/molten_flow.png");
     private static final ResourceLocation WATER_FLOW_TEXTURE =
-            new ResourceLocation(Smithery.MODID, "textures/gui/water_flow.png");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "textures/gui/water_flow.png");
     private static final int FLOW_FRAME_W      = 32;
     private static final int FLOW_FRAME_H      = 32;
     private static final int FLOW_FRAME_COUNT  = 16;

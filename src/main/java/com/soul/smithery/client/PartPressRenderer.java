@@ -41,7 +41,7 @@ import java.util.Optional;
 public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity> {
 
     private static final ResourceLocation MODEL_ID =
-            new ResourceLocation(Smithery.MODID, "part_press");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "part_press");
 
     private static final int TOOTH_COLOR = 0xFFFFFFFF;
     private static final int TOOTH_SHADE = 0xFFC0C0C0;
@@ -50,7 +50,7 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity> {
     private static final float TOOTH_H_MIN_PX = 0.05f;
 
     private static final ResourceLocation TOOTH_TEXTURE =
-            new ResourceLocation("textures/block/iron_block.png");
+            ResourceLocation.parse("textures/block/iron_block.png");
 
     private static final float HEAD_CLOSED_Y = -10f;
 
@@ -104,7 +104,7 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity> {
             PartType outPt = SmitheryAPI.PART_TYPES.get(pi.partTypeId());
             if (outPt != null && outPt.textureTemplate() != null) {
                 ResourceLocation tmpl = outPt.textureTemplate();
-                ResourceLocation texLoc = new ResourceLocation(
+                ResourceLocation texLoc = ResourceLocation.fromNamespaceAndPath(
                         tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
                 Material mat = SmitheryAPI.MATERIALS.get(pi.materialId());
                 int tint = (mat != null ? mat.stats().partColor() : 0xFFFFFF) | 0xFF000000;
@@ -123,7 +123,7 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity> {
         boolean fullyOpen = !closed && headY >= -0.05f;
         if (fullyOpen && selected.textureTemplate() != null) {
             ResourceLocation tmpl = selected.textureTemplate();
-            ResourceLocation texLoc = new ResourceLocation(
+            ResourceLocation texLoc = ResourceLocation.fromNamespaceAndPath(
                     tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
             final float topY = (15f / 16f) + headOffsetBlocks + (1f / 256f);
             VertexConsumer quad = bufferSource.getBuffer(RenderType.entityTranslucent(texLoc));

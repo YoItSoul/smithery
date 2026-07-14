@@ -80,7 +80,7 @@ public final class AlloyDefinition {
 
         /** String-id overload of {@link #addComponent(ResourceLocation, int)}. */
         public Builder addComponent(String material, int ratio) {
-            return addComponent(new ResourceLocation(material), ratio);
+            return addComponent(ResourceLocation.parse(material), ratio);
         }
 
         /** Sets the minimum forge temperature required for this alloy to fire. */

@@ -65,7 +65,7 @@ public final class PartSilhouetteCache {
     }
 
     private static float[][] readAlphaGrid(ResourceLocation tmpl) {
-        ResourceLocation resourceLoc = new ResourceLocation(
+        ResourceLocation resourceLoc = ResourceLocation.fromNamespaceAndPath(
                 tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
         try {
             Optional<Resource> resource =
