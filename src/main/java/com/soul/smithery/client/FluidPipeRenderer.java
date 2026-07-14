@@ -7,20 +7,17 @@ import com.soul.smithery.block.FluidPipeBlock;
 import com.soul.smithery.block.FluidPipeFaceVisual;
 import com.soul.smithery.block.entity.FluidPipeBlockEntity;
 import com.soul.smithery.registry.SmitheryFluids;
-import net.minecraft.core.Direction;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
-import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
-import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Matrix4f;
 
 /**
@@ -31,8 +28,7 @@ import org.joml.Matrix4f;
  * material's molten colour, fading via the pipe's intensity ticks; arm cuboids extend
  * into each connected face so the flow reads as continuous along the network.
  */
-public class FluidPipeRenderer
-        implements BlockEntityRenderer<FluidPipeBlockEntity, FluidPipeRenderer.RenderState> {
+public class FluidPipeRenderer implements BlockEntityRenderer<FluidPipeBlockEntity> {
 
     private static final ResourceLocation MOLTEN_STILL_TEXTURE =
             new ResourceLocation(Smithery.MODID, "textures/block/molten_still.png");
@@ -44,19 +40,6 @@ public class FluidPipeRenderer
     private static final int FULL_BRIGHT = 0xF000F0;
 
     /**
-     * Snapshot of pipe flow state captured per frame.
-     *
-     * <p>Carries the lerped molten tint plus a per-face flag array indicating which arms
-     * have geometry so matching fluid cuboids can be emitted alongside the core.
-     */
-    public static final class RenderState extends BlockEntityRenderState {
-        public boolean hasFlow;
-        public int colorArgb;
-        /** Per-face connection flags indexed by {@link Direction#get3DDataValue()}. */
-        public final boolean[] armConnected = new boolean[6];
-    }
-
-    /**
      * Constructs the renderer with the provider context.
      *
      * @param context renderer provider context (unused)
@@ -64,45 +47,31 @@ public class FluidPipeRenderer
     public FluidPipeRenderer(BlockEntityRendererProvider.Context context) {}
 
     @Override
-    public RenderState createRenderState() {
-        return new RenderState();
-    }
-
-    @Override
-    public void extractRenderState(FluidPipeBlockEntity be, RenderState state, float partialTick,
-                                   Vec3 camPos, ModelFeatureRenderer.CrumblingOverlay crumbling) {
-        BlockEntityRenderState.extractBase(be, state, crumbling);
-        state.hasFlow = false;
-
+    public void render(FluidPipeBlockEntity be, float partialTick, PoseStack poseStack,
+                       MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
         ResourceLocation fluidId = be.transientFluidId();
         if (fluidId == null) return;
 
-        Fluid fluid = BuiltInRegistries.FLUID.get(fluidId).<Fluid>map(r -> r.value()).orElse(null);
-        if (fluid == null) return;
+        Fluid fluid = ForgeRegistries.FLUIDS.getValue(fluidId);
+        if (fluid == null || fluid == Fluids.EMPTY) return;
         SmitheryFluids.Entry entry = SmitheryFluids.forFluid(fluid);
         if (entry == null) return;
 
         int rgb = entry.material.stats().moltenColor() & 0xFFFFFF;
         float fade = (float) be.intensityTicks() / (float) FluidPipeBlockEntity.FLOW_PERSIST_TICKS;
         int alpha = Math.max(0, Math.min(255, (int) (fade * 255f)));
-        state.colorArgb = (alpha << 24) | rgb;
-        state.hasFlow = alpha > 0;
+        if (alpha <= 0) return;
+        int color = (alpha << 24) | rgb;
 
-        net.minecraft.world.level.block.state.BlockState blockState = be.getBlockState();
+        boolean[] armConnected = new boolean[6];
+        BlockState blockState = be.getBlockState();
         if (blockState.getBlock() instanceof FluidPipeBlock) {
             for (Direction dir : Direction.values()) {
                 FluidPipeFaceVisual v = blockState.getValue(FluidPipeBlock.propertyFor(dir));
-                state.armConnected[dir.get3DDataValue()] = v != FluidPipeFaceVisual.NONE;
+                armConnected[dir.get3DDataValue()] = v != FluidPipeFaceVisual.NONE;
             }
         }
-    }
 
-    @Override
-    public void submit(RenderState state, PoseStack poseStack,
-                       SubmitNodeCollector collector, CameraRenderState camera) {
-        if (!state.hasFlow) return;
-
-        final int color = state.colorArgb;
         final float lo = 6.5f / 16f;
         final float hi = 9.5f / 16f;
         final float armNear = 0f;
@@ -114,25 +83,23 @@ public class FluidPipeRenderer
         final float vMin = frame * FRAME_V_STEP;
         final float vMax = (frame + 1) * FRAME_V_STEP;
 
-        collector.submitCustomGeometry(poseStack,
-                RenderTypes.entityTranslucent(MOLTEN_STILL_TEXTURE),
-                (pose, buffer) -> {
-                    drawCuboid(pose, buffer, lo, lo, lo,  hi, hi, hi, color, vMin, vMax);
+        VertexConsumer buffer = bufferSource.getBuffer(RenderType.entityTranslucent(MOLTEN_STILL_TEXTURE));
+        PoseStack.Pose pose = poseStack.last();
 
-                    boolean[] arm = state.armConnected;
-                    if (arm[Direction.NORTH.get3DDataValue()])
-                        drawCuboid(pose, buffer, lo, lo, armNear,  hi, hi, armFar, color, vMin, vMax);
-                    if (arm[Direction.SOUTH.get3DDataValue()])
-                        drawCuboid(pose, buffer, lo, lo, armFar2,  hi, hi, armEnd, color, vMin, vMax);
-                    if (arm[Direction.WEST.get3DDataValue()])
-                        drawCuboid(pose, buffer, armNear, lo, lo,  armFar, hi, hi, color, vMin, vMax);
-                    if (arm[Direction.EAST.get3DDataValue()])
-                        drawCuboid(pose, buffer, armFar2, lo, lo,  armEnd, hi, hi, color, vMin, vMax);
-                    if (arm[Direction.DOWN.get3DDataValue()])
-                        drawCuboid(pose, buffer, lo, armNear, lo,  hi, armFar, hi, color, vMin, vMax);
-                    if (arm[Direction.UP.get3DDataValue()])
-                        drawCuboid(pose, buffer, lo, armFar2, lo,  hi, armEnd, hi, color, vMin, vMax);
-                });
+        drawCuboid(pose, buffer, lo, lo, lo,  hi, hi, hi, color, vMin, vMax);
+
+        if (armConnected[Direction.NORTH.get3DDataValue()])
+            drawCuboid(pose, buffer, lo, lo, armNear,  hi, hi, armFar, color, vMin, vMax);
+        if (armConnected[Direction.SOUTH.get3DDataValue()])
+            drawCuboid(pose, buffer, lo, lo, armFar2,  hi, hi, armEnd, color, vMin, vMax);
+        if (armConnected[Direction.WEST.get3DDataValue()])
+            drawCuboid(pose, buffer, armNear, lo, lo,  armFar, hi, hi, color, vMin, vMax);
+        if (armConnected[Direction.EAST.get3DDataValue()])
+            drawCuboid(pose, buffer, armFar2, lo, lo,  armEnd, hi, hi, color, vMin, vMax);
+        if (armConnected[Direction.DOWN.get3DDataValue()])
+            drawCuboid(pose, buffer, lo, armNear, lo,  hi, armFar, hi, color, vMin, vMax);
+        if (armConnected[Direction.UP.get3DDataValue()])
+            drawCuboid(pose, buffer, lo, armFar2, lo,  hi, armEnd, hi, color, vMin, vMax);
     }
 
     private static void drawCuboid(PoseStack.Pose pose, VertexConsumer buf,
@@ -172,11 +139,12 @@ public class FluidPipeRenderer
                                    int r, int g, int b, int a,
                                    float u, float v,
                                    float nx, float ny, float nz) {
-        buf.addVertex(m, x, y, z)
-                .setColor(r, g, b, a)
-                .setUv(u, v)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(FULL_BRIGHT)
-                .setNormal(pose, nx, ny, nz);
+        buf.vertex(m, x, y, z)
+                .color(r, g, b, a)
+                .uv(u, v)
+                .overlayCoords(OverlayTexture.NO_OVERLAY)
+                .uv2(FULL_BRIGHT)
+                .normal(pose.normal(), nx, ny, nz)
+                .endVertex();
     }
 }

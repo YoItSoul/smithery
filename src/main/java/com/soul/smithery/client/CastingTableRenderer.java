@@ -2,26 +2,27 @@ package com.soul.smithery.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.soul.smithery.Smithery;
+import com.soul.smithery.api.SmitheryAPI;
+import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.block.entity.CastingTableBlockEntity;
 import com.soul.smithery.block.entity.CastingTableBlockEntity.State;
+import com.soul.smithery.item.PartItem;
 import com.soul.smithery.registry.SmitheryBlocks;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
+import com.soul.smithery.registry.SmitheryFluids;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
-import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
-import net.minecraft.client.renderer.item.ItemModelResolver;
-import net.minecraft.client.renderer.item.ItemStackRenderState;
-import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.RegistryObject;
+import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
 
 /**
  * Block entity renderer for the casting table.
@@ -30,96 +31,66 @@ import net.minecraftforge.registries.RegistryObject;
  * into its texture) and, once filling/cooling/ready, a tinted quad of the part's greyscale
  * template lerped from molten colour to material part colour as cooling progresses.
  */
-public class CastingTableRenderer
-        implements BlockEntityRenderer<CastingTableBlockEntity, CastingTableRenderer.RenderState> {
-
-    /**
-     * Per-frame render snapshot captured from the casting table block entity.
-     *
-     * <p>The sand layer uses the standard item-render pipeline. The part is drawn as a custom
-     * tinted quad rather than through the item pipeline so the tint can lerp per-frame from
-     * the material's molten colour to its part colour while the cast cools.
-     */
-    public static final class RenderState extends BlockEntityRenderState {
-        public State castState = State.EMPTY;
-        public final ItemStackRenderState sand = new ItemStackRenderState();
-        public boolean hasPart;
-        public net.minecraft.resources.@org.jetbrains.annotations.Nullable ResourceLocation partTextureLoc;
-        public int partTintArgb;
-    }
-
-    private final ItemModelResolver itemModelResolver;
+public class CastingTableRenderer implements BlockEntityRenderer<CastingTableBlockEntity> {
 
     /**
      * Constructs the renderer with the provider context.
      *
-     * @param context renderer provider context supplying the shared item model resolver
+     * @param context renderer provider context (unused)
      */
-    public CastingTableRenderer(BlockEntityRendererProvider.Context context) {
-        this.itemModelResolver = context.itemModelResolver();
-    }
+    public CastingTableRenderer(BlockEntityRendererProvider.Context context) {}
 
     @Override
-    public RenderState createRenderState() {
-        return new RenderState();
-    }
+    public void render(CastingTableBlockEntity be, float partialTick, PoseStack poseStack,
+                       MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
+        State castState = be.state();
 
-    @Override
-    public void extractRenderState(CastingTableBlockEntity be, RenderState state, float partialTick,
-                                   Vec3 camPos, ModelFeatureRenderer.CrumblingOverlay crumbling) {
-        BlockEntityRenderState.extractBase(be, state, crumbling);
-        state.castState = be.state();
-        state.sand.clear();
-        state.hasPart = false;
-        state.partTextureLoc = null;
-        state.partTintArgb = 0;
+        ItemStack sand = switch (castState) {
+            case EMPTY -> ItemStack.EMPTY;
+            case SAND -> new ItemStack(SmitheryBlocks.CASTING_SAND.get());
+            default -> pickImpressedSandStack(be);
+        };
+        if (!sand.isEmpty()) {
+            poseStack.pushPose();
+            poseStack.translate(0.5f, 15.5f / 16f, 0.5f);
+            poseStack.scale(14f / 16f * 2f, 1f / 16f * 2f, 14f / 16f * 2f);
+            Minecraft.getInstance().getItemRenderer().renderStatic(sand, ItemDisplayContext.FIXED,
+                    packedLight, OverlayTexture.NO_OVERLAY, poseStack, bufferSource,
+                    be.getLevel(), 0);
+            poseStack.popPose();
+        }
 
-        switch (state.castState) {
-            case EMPTY -> {  }
-            case SAND -> bindSand(state, new ItemStack(SmitheryBlocks.CASTING_SAND.get()), be);
-            case IMPRESSED -> bindSand(state, pickImpressedSandStack(be), be);
-            case FILLING, COOLING, COVERED, READY -> {
-                bindSand(state, pickImpressedSandStack(be), be);
-                bindPart(state, be);
-            }
+        if (castState == State.FILLING || castState == State.COOLING
+                || castState == State.COVERED || castState == State.READY) {
+            renderPart(be, poseStack, bufferSource);
         }
     }
 
-    private void bindSand(RenderState state, ItemStack stack, CastingTableBlockEntity be) {
-        if (stack.isEmpty()) return;
-        itemModelResolver.updateForTopItem(state.sand, stack, ItemDisplayContext.FIXED,
-                be.getLevel(), null, 0);
-    }
-
-    private static void bindPart(RenderState state, CastingTableBlockEntity be) {
-        net.minecraft.resources.ResourceLocation ptId = be.impressedPartTypeId();
+    private static void renderPart(CastingTableBlockEntity be, PoseStack poseStack,
+                                   MultiBufferSource bufferSource) {
+        ResourceLocation ptId = be.impressedPartTypeId();
         if (ptId == null) return;
-        com.soul.smithery.api.part.PartType pt = com.soul.smithery.api.SmitheryAPI.PART_TYPES.get(ptId);
+        PartType pt = SmitheryAPI.PART_TYPES.get(ptId);
         if (pt == null) return;
-        com.soul.smithery.registry.SmitheryFluids.Entry entry =
-                com.soul.smithery.registry.SmitheryFluids.forFluid(be.pouredFluid());
+        SmitheryFluids.Entry entry = SmitheryFluids.forFluid(be.pouredFluid());
         if (entry == null) return;
 
-        net.minecraft.world.item.ItemStack resultStack = be.peekPartItem();
+        ItemStack resultStack = be.peekPartItem();
         if (resultStack.isEmpty()) return;
-        boolean isPartItem = resultStack.getItem() instanceof com.soul.smithery.item.PartItem;
+        boolean isPartItem = resultStack.getItem() instanceof PartItem;
 
-        net.minecraft.resources.ResourceLocation texLoc;
+        ResourceLocation texLoc;
         int baseColor;
         if (isPartItem) {
-            net.minecraft.resources.ResourceLocation tmpl = pt.textureTemplate();
-            texLoc = net.minecraft.resources.new ResourceLocation(
-                    tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
+            ResourceLocation tmpl = pt.textureTemplate();
+            texLoc = new ResourceLocation(tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
             baseColor = entry.material.stats().partColor() | 0xFF000000;
         } else {
-            net.minecraft.resources.ResourceLocation itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM
-                    .getKey(resultStack.getItem());
+            ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(resultStack.getItem());
             if (itemId == null) return;
-            texLoc = net.minecraft.resources.new ResourceLocation(
-                    itemId.getNamespace(), "textures/item/" + itemId.getPath() + ".png");
+            texLoc = new ResourceLocation(itemId.getNamespace(), "textures/item/" + itemId.getPath() + ".png");
             baseColor = 0xFFFFFFFF;
         }
-        state.partTextureLoc = texLoc;
 
         int moltenColor = entry.material.stats().moltenColor() | 0xFF000000;
         float cool      = be.coolingFraction();
@@ -130,9 +101,11 @@ public class CastingTableRenderer
             fillFraction = Math.max(0f, Math.min(1f, (float) be.filledMb() / (float) be.requiredMb()));
         }
         int alpha = Math.max(0, Math.min(255, (int) (fillFraction * 255f)));
+        if (alpha <= 0) return;
 
-        state.partTintArgb = (alpha << 24) | rgb;
-        state.hasPart = alpha > 0;
+        int color = (alpha << 24) | rgb;
+        VertexConsumer buffer = bufferSource.getBuffer(RenderType.entityTranslucent(texLoc));
+        drawPartQuad(poseStack.last(), buffer, color);
     }
 
     private static int lerpArgb(int from, int to, float t) {
@@ -156,53 +129,33 @@ public class CastingTableRenderer
                 : new ItemStack(impressedItem.get());
     }
 
-    @Override
-    public void submit(RenderState state, PoseStack poseStack,
-                       SubmitNodeCollector collector, CameraRenderState camera) {
-        if (!state.sand.isEmpty()) {
-            poseStack.pushPose();
-            poseStack.translate(0.5f, 15.5f / 16f, 0.5f);
-            poseStack.scale(14f / 16f * 2f, 1f / 16f * 2f, 14f / 16f * 2f);
-            state.sand.submit(poseStack, collector, state.lightCoords, OverlayTexture.NO_OVERLAY, 0);
-            poseStack.popPose();
-        }
-
-        if (state.hasPart && state.partTextureLoc != null) {
-            final int color = state.partTintArgb;
-            final net.minecraft.resources.ResourceLocation tex = state.partTextureLoc;
-            collector.submitCustomGeometry(poseStack,
-                    RenderTypes.entityTranslucent(tex),
-                    (pose, buffer) -> drawPartQuad(pose, buffer, color));
-        }
-    }
-
     private static void drawPartQuad(PoseStack.Pose pose, VertexConsumer buf, int color) {
         int r = (color >>> 16) & 0xFF;
         int g = (color >>> 8)  & 0xFF;
         int b = (color)        & 0xFF;
         int a = (color >>> 24) & 0xFF;
-        org.joml.Matrix4f m = pose.pose();
+        Matrix4f m = pose.pose();
         final float y = 16.0f / 16f + 1.0f / 256f;
-        addVertex(m, pose, buf,  1f / 16f, y,  1f / 16f, r, g, b, a, 0f, 0f, 0f, 1f, 0f);
-        addVertex(m, pose, buf,  1f / 16f, y, 15f / 16f, r, g, b, a, 0f, 1f, 0f, 1f, 0f);
-        addVertex(m, pose, buf, 15f / 16f, y, 15f / 16f, r, g, b, a, 1f, 1f, 0f, 1f, 0f);
-        addVertex(m, pose, buf, 15f / 16f, y,  1f / 16f, r, g, b, a, 1f, 0f, 0f, 1f, 0f);
+        addVertex(m, pose, buf,  1f / 16f, y,  1f / 16f, r, g, b, a, 0f, 0f);
+        addVertex(m, pose, buf,  1f / 16f, y, 15f / 16f, r, g, b, a, 0f, 1f);
+        addVertex(m, pose, buf, 15f / 16f, y, 15f / 16f, r, g, b, a, 1f, 1f);
+        addVertex(m, pose, buf, 15f / 16f, y,  1f / 16f, r, g, b, a, 1f, 0f);
     }
 
-    private static void addVertex(org.joml.Matrix4f m, PoseStack.Pose pose, VertexConsumer buf,
+    private static void addVertex(Matrix4f m, PoseStack.Pose pose, VertexConsumer buf,
                                    float x, float y, float z,
-                                   int r, int g, int b, int a, float u, float v,
-                                   float nx, float ny, float nz) {
-        buf.addVertex(m, x, y, z)
-                .setColor(r, g, b, a)
-                .setUv(u, v)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(0xF000F0)
-                .setNormal(pose, nx, ny, nz);
+                                   int r, int g, int b, int a, float u, float v) {
+        buf.vertex(m, x, y, z)
+                .color(r, g, b, a)
+                .uv(u, v)
+                .overlayCoords(OverlayTexture.NO_OVERLAY)
+                .uv2(0xF000F0)
+                .normal(pose.normal(), 0f, 1f, 0f)
+                .endVertex();
     }
 
     @Override
-    public boolean shouldRenderOffScreen() {
+    public boolean shouldRenderOffScreen(CastingTableBlockEntity be) {
         return true;
     }
 }

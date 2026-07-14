@@ -1,19 +1,24 @@
 package com.soul.smithery.gui;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.material.MaterialStats;
 import com.soul.smithery.api.melting.MeltingRecipe;
+import com.soul.smithery.network.ForgeSelectOutputFluidPayload;
+import com.soul.smithery.network.SmitheryPayloads;
+import com.soul.smithery.registry.SmitheryFluids;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -29,8 +34,7 @@ import java.util.Optional;
  * panels shows temperature, validity, and a fuel bar; a small toggle in the top-right pauses
  * or resumes the auto-alloy loop.
  *
- * <p>Rendering uses the {@code extractBackground}/{@code extractLabels} pipeline introduced in
- * MC 26.1.2. Forge item slots live off-screen on the menu side and are rendered here manually.
+ * <p>Forge item slots live off-screen on the menu side and are rendered here manually.
  */
 public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControllerMenu> {
 
@@ -69,12 +73,10 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     private static final int TANK_H       = TANK_BOTTOM - TANK_Y;
     private static final int COL_TANK_EMPTY = 0xFF1A1A1A;
 
-    private static final net.minecraft.resources.ResourceLocation MOLTEN_FLOW_TEXTURE =
-            net.minecraft.resources.new ResourceLocation(
-                    com.soul.smithery.Smithery.MODID, "textures/gui/molten_flow.png");
-    private static final net.minecraft.resources.ResourceLocation WATER_FLOW_TEXTURE =
-            net.minecraft.resources.new ResourceLocation(
-                    com.soul.smithery.Smithery.MODID, "textures/gui/water_flow.png");
+    private static final ResourceLocation MOLTEN_FLOW_TEXTURE =
+            new ResourceLocation(Smithery.MODID, "textures/gui/molten_flow.png");
+    private static final ResourceLocation WATER_FLOW_TEXTURE =
+            new ResourceLocation(Smithery.MODID, "textures/gui/water_flow.png");
     private static final int FLOW_FRAME_W      = 32;
     private static final int FLOW_FRAME_H      = 32;
     private static final int FLOW_FRAME_COUNT  = 16;
@@ -112,7 +114,9 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
      * @param title screen title component
      */
     public ForgeControllerScreen(ForgeControllerMenu menu, Inventory playerInventory, Component title) {
-        super(menu, playerInventory, title, IMG_W, IMG_H);
+        super(menu, playerInventory, title);
+        this.imageWidth      = IMG_W;
+        this.imageHeight     = IMG_H;
         this.titleLabelX     = PL_X + 2;
         this.titleLabelY     = 6;
         this.inventoryLabelX = 44;
@@ -120,9 +124,14 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        super.extractBackground(g, mouseX, mouseY, partialTick);
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        super.render(g, mouseX, mouseY, partialTick);
+        renderTooltip(g, mouseX, mouseY);
+        renderCustomTooltips(g, mouseX, mouseY);
+    }
 
+    @Override
+    protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos, y = topPos;
 
         g.fill(x, y, x + IMG_W, y + IMG_H, COL_BG);
@@ -133,9 +142,14 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         drawPlayerInvSlots(g, x, y);
 
         renderForgeSlots(g, x, y, mouseX, mouseY);
-        renderFluidTank(g, x, y, mouseX, mouseY);
+        renderFluidTank(g, x, y);
         renderStatusStrip(g, x, y);
-        renderAlloyToggleButton(g, x, y, mouseX, mouseY);
+        renderAlloyToggleButton(g, x, y);
+    }
+
+    /** Draws the hover tooltips for the manually-rendered widgets, above every other layer. */
+    private void renderCustomTooltips(GuiGraphics g, int mouseX, int mouseY) {
+        int x = leftPos, y = topPos;
 
         int listTopY  = y + PLC_Y + LIST_HEADER_H;
         int listLeftX = x + PLC_X;
@@ -146,11 +160,23 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             if (slotIdx >= 0 && slotIdx < menu.getForgeSlotCount()) {
                 ItemStack stack = menu.getSlot(slotIdx).getItem();
                 if (!stack.isEmpty()) {
-                    List<Component> lines = buildSlotTooltip(stack, slotIdx);
-                    g.setTooltipForNextFrame(font, lines, Optional.empty(), mouseX, mouseY);
+                    g.renderTooltip(font, buildSlotTooltip(stack, slotIdx), Optional.empty(), mouseX, mouseY);
+                    return;
                 }
             }
         }
+
+        int bx = x + ALLOY_BTN_X;
+        int by = y + ALLOY_BTN_Y;
+        if (mouseX >= bx && mouseX < bx + ALLOY_BTN_W && mouseY >= by && mouseY < by + ALLOY_BTN_H) {
+            Component tip = menu.isAlloyEnabled()
+                    ? Component.translatable("tooltip.smithery.forge.alloy_enabled")
+                    : Component.translatable("tooltip.smithery.forge.alloy_disabled");
+            g.renderTooltip(font, List.of(tip), Optional.empty(), mouseX, mouseY);
+            return;
+        }
+
+        renderFluidTankTooltip(g, mouseX, mouseY);
     }
 
     private static final class MeltState {
@@ -238,12 +264,12 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     }
 
     @Override
-    protected void extractLabels(GuiGraphicsExtractor g, int mouseX, int mouseY) {
-        g.text(font, title, titleLabelX, titleLabelY, COL_TEXT, false);
-        g.text(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, COL_TEXT, false);
+    protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
+        g.drawString(font, title, titleLabelX, titleLabelY, COL_TEXT, false);
+        g.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, COL_TEXT, false);
     }
 
-    private void renderAlloyToggleButton(GuiGraphicsExtractor g, int x, int y, int mouseX, int mouseY) {
+    private void renderAlloyToggleButton(GuiGraphics g, int x, int y) {
         int bx = x + ALLOY_BTN_X;
         int by = y + ALLOY_BTN_Y;
         boolean enabled = menu.isAlloyEnabled();
@@ -252,41 +278,28 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         g.fill(bx + 1, by + 1, bx + ALLOY_BTN_W - 1, by + ALLOY_BTN_H - 1, fill);
         String label = "A";
         int textW = font.width(label);
-        g.text(font, net.minecraft.network.chat.Component.literal(label),
+        g.drawString(font, label,
                 bx + (ALLOY_BTN_W - textW) / 2,
                 by + (ALLOY_BTN_H - 8) / 2,
-                0xFFFFFFFF, false);
-        if (mouseX >= bx && mouseX < bx + ALLOY_BTN_W && mouseY >= by && mouseY < by + ALLOY_BTN_H) {
-            net.minecraft.network.chat.Component tip = enabled
-                    ? net.minecraft.network.chat.Component.translatable(
-                            "tooltip.smithery.forge.alloy_enabled")
-                    : net.minecraft.network.chat.Component.translatable(
-                            "tooltip.smithery.forge.alloy_disabled");
-            g.setTooltipForNextFrame(font, java.util.List.of(tip), java.util.Optional.empty(), mouseX, mouseY);
-        }
+                0xFFFFFF, false);
     }
 
-    private void drawPanel(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+    private void drawPanel(GuiGraphics g, int x, int y, int w, int h) {
         g.fill(x, y, x + w, y + h, COL_BORDER);
         g.fill(x + 1, y + 1, x + w - 1, y + h - 1, COL_INNER);
     }
 
-    private void drawPlayerInvSlots(GuiGraphicsExtractor g, int sx, int sy) {
-        g.blit(RenderPipelines.GUI_TEXTURED,
-                AbstractContainerScreen.INVENTORY_LOCATION,
-                sx + 43, sy + 142,
-                7f, 83f,
-                162, 76,
-                256, 256);
+    private void drawPlayerInvSlots(GuiGraphics g, int sx, int sy) {
+        g.blit(INVENTORY_LOCATION, sx + 43, sy + 142, 7, 83, 162, 76);
     }
 
-    private void renderForgeSlots(GuiGraphicsExtractor g, int sx, int sy, int mouseX, int mouseY) {
+    private void renderForgeSlots(GuiGraphics g, int sx, int sy, int mouseX, int mouseY) {
         int slotCount = menu.getForgeSlotCount();
         int cx = sx + PLC_X;
         int cy = sy + PLC_Y;
         int listTop = cy + LIST_HEADER_H;
 
-        g.text(font, "Forge Items", cx, cy, COL_TEXT, false);
+        g.drawString(font, "Forge Items", cx, cy, COL_TEXT, false);
 
         for (int row = 0; row < SLOTS_VISIBLE; row++) {
             int slotIdx = scrollOffset + row;
@@ -304,17 +317,17 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
 
             ItemStack stack = menu.getSlot(slotIdx).getItem();
             if (stack.isEmpty()) {
-                g.text(font, "Empty", rx + 3, ry + 5, COL_GRAY, false);
+                g.drawString(font, "Empty", rx + 3, ry + 5, COL_GRAY, false);
             } else {
-                g.item(stack, rx + 1, ry + 1);
-                g.itemDecorations(font, stack, rx + 1, ry + 1);
+                g.renderItem(stack, rx + 1, ry + 1);
+                g.renderItemDecorations(font, stack, rx + 1, ry + 1);
 
                 String name = stack.getHoverName().getString();
                 int maxW = ROW_W - 22;
                 while (name.length() > 1 && font.width(name) > maxW) {
                     name = name.substring(0, name.length() - 1);
                 }
-                g.text(font, name, rx + 20, ry + 2, COL_TEXT, false);
+                g.drawString(font, name, rx + 20, ry + 2, COL_TEXT, false);
 
                 MeltState ms = computeMeltState(stack, slotIdx);
                 int barX = rx + 20;
@@ -348,17 +361,17 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             && mouseY >= ry && mouseY < ry + ROW_H - 1;
     }
 
-    private void renderFluidTank(GuiGraphicsExtractor g, int sx, int sy, int mouseX, int mouseY) {
+    private void renderFluidTank(GuiGraphics g, int sx, int sy) {
         int cx = sx + PRC_X;
         int cy = sy + PRC_Y;
 
-        g.text(font, "Molten Metals", cx, cy, COL_TEXT, false);
+        g.drawString(font, "Molten Metals", cx, cy, COL_TEXT, false);
 
         int capacity = menu.getFluidCapacityMb();
         int totalMb  = menu.getTotalFluidMb();
         if (capacity > 0) {
             String cap = totalMb + " / " + capacity + " mB";
-            g.text(font, cap, sx + PR_X + PR_W - 2 - font.width(cap), cy + 10, COL_GRAY, false);
+            g.drawString(font, cap, sx + PR_X + PR_W - 2 - font.width(cap), cy + 10, COL_GRAY, false);
         }
 
         int tankX = sx + TANK_X;
@@ -368,18 +381,16 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         if (capacity <= 0) return;
 
         int innerX = tankX + 1;
-        int innerY = tankY + 1;
         int innerW = TANK_W - 2;
         int innerH = TANK_H - 2;
-        List<FluidLayer> layers = computeFluidLayers(innerY, innerH, capacity);
+        List<FluidLayer> layers = computeFluidLayers(tankY + 1, innerH, capacity);
         int frame  = (int)((System.currentTimeMillis() / FLOW_FRAMETIME_MS) % FLOW_FRAME_COUNT);
-        float baseV = (float)(frame * FLOW_FRAME_H);
+        int baseV  = frame * FLOW_FRAME_H;
         for (FluidLayer layer : layers) {
             int color = layer.material.stats().moltenColor() | 0xFF000000;
             int layerH = layer.bottomY - layer.topY;
-            net.minecraft.resources.ResourceLocation flowTex =
-                    layer.material.stats().fluidBase()
-                            == com.soul.smithery.api.material.MaterialStats.FluidBase.WATER
+            ResourceLocation flowTex =
+                    layer.material.stats().fluidBase() == MaterialStats.FluidBase.WATER
                     ? WATER_FLOW_TEXTURE : MOLTEN_FLOW_TEXTURE;
             drawTiledMolten(g, innerX, layer.topY, innerW, layerH, baseV, color, flowTex);
             g.fill(innerX, layer.topY, innerX + innerW, layer.topY + 1, brighten(color));
@@ -391,27 +402,36 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
                 g.fill(innerX + innerW - 1, layer.topY, innerX + innerW, layer.bottomY, outline);
             }
         }
+    }
 
-        if (mouseX >= innerX && mouseX < innerX + innerW
-                && mouseY >= innerY && mouseY < innerY + innerH) {
-            for (FluidLayer layer : layers) {
-                if (mouseY >= layer.topY && mouseY < layer.bottomY) {
-                    String matName = layer.material.id().getPath();
-                    if (!matName.isEmpty()) {
-                        matName = Character.toUpperCase(matName.charAt(0)) + matName.substring(1);
-                    }
-                    int pct = capacity > 0 ? (int)((long) layer.storedMb * 100 / capacity) : 0;
-                    List<Component> lines = new ArrayList<>();
-                    lines.add(Component.literal("Molten " + matName).withStyle(ChatFormatting.WHITE));
-                    lines.add(Component.literal(layer.storedMb + " mB (" + pct + "% of tank)")
-                            .withStyle(ChatFormatting.GOLD));
-                    lines.add(Component.literal(layer.selected
-                                    ? "Active drain output — click to clear"
-                                    : "Click to set as drain output")
-                            .withStyle(layer.selected ? ChatFormatting.YELLOW : ChatFormatting.GRAY));
-                    g.setTooltipForNextFrame(font, lines, Optional.empty(), mouseX, mouseY);
-                    break;
+    private void renderFluidTankTooltip(GuiGraphics g, int mouseX, int mouseY) {
+        int capacity = menu.getFluidCapacityMb();
+        if (capacity <= 0) return;
+        int innerX = leftPos + TANK_X + 1;
+        int innerY = topPos + TANK_Y + 1;
+        int innerW = TANK_W - 2;
+        int innerH = TANK_H - 2;
+        if (mouseX < innerX || mouseX >= innerX + innerW
+                || mouseY < innerY || mouseY >= innerY + innerH) {
+            return;
+        }
+        for (FluidLayer layer : computeFluidLayers(innerY, innerH, capacity)) {
+            if (mouseY >= layer.topY && mouseY < layer.bottomY) {
+                String matName = layer.material.id().getPath();
+                if (!matName.isEmpty()) {
+                    matName = Character.toUpperCase(matName.charAt(0)) + matName.substring(1);
                 }
+                int pct = (int)((long) layer.storedMb * 100 / capacity);
+                List<Component> lines = new ArrayList<>();
+                lines.add(Component.literal("Molten " + matName).withStyle(ChatFormatting.WHITE));
+                lines.add(Component.literal(layer.storedMb + " mB (" + pct + "% of tank)")
+                        .withStyle(ChatFormatting.GOLD));
+                lines.add(Component.literal(layer.selected
+                                ? "Active drain output — click to clear"
+                                : "Click to set as drain output")
+                        .withStyle(layer.selected ? ChatFormatting.YELLOW : ChatFormatting.GRAY));
+                g.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
+                return;
             }
         }
     }
@@ -463,9 +483,18 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         return 0xFF000000 | (r << 16) | (gn << 8) | b;
     }
 
-    private static void drawTiledMolten(GuiGraphicsExtractor g, int destX, int destY,
-                                        int w, int h, float baseV, int tintArgb,
-                                        net.minecraft.resources.ResourceLocation flowTexture) {
+    /**
+     * Tiles the animated flow texture across the layer rectangle, tinted with the material's
+     * molten color via the shader color (1.20.1 blits have no per-call tint argument).
+     */
+    private static void drawTiledMolten(GuiGraphics g, int destX, int destY,
+                                        int w, int h, int baseV, int tintArgb,
+                                        ResourceLocation flowTexture) {
+        RenderSystem.setShaderColor(
+                ((tintArgb >>> 16) & 0xFF) / 255f,
+                ((tintArgb >>> 8)  & 0xFF) / 255f,
+                ( tintArgb         & 0xFF) / 255f,
+                1.0f);
         int yRemaining = h;
         int dy = destY;
         while (yRemaining > 0) {
@@ -474,32 +503,26 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             int dx = destX;
             while (xRemaining > 0) {
                 int colW = Math.min(FLOW_FRAME_W, xRemaining);
-                g.blit(RenderPipelines.GUI_TEXTURED,
-                        flowTexture,
-                        dx, dy,
-                        0f, baseV,
-                        colW, rowH,
-                        colW, rowH,
-                        FLOW_TEX_W, FLOW_TEX_H,
-                        tintArgb);
+                g.blit(flowTexture, dx, dy, 0, baseV, colW, rowH, FLOW_TEX_W, FLOW_TEX_H);
                 dx += colW;
                 xRemaining -= colW;
             }
             dy += rowH;
             yRemaining -= rowH;
         }
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
     }
 
-    private void renderStatusStrip(GuiGraphicsExtractor g, int sx, int sy) {
+    private void renderStatusStrip(GuiGraphics g, int sx, int sy) {
         int stripY = sy + PL_Y + PL_H + 4;
 
         float temp = menu.getTemperatureC();
         int tempColor = menu.isForgeValid() && temp > 100f ? COL_TEMP_HOT : COL_TEXT;
-        g.text(font, String.format("%.0f°C", temp), sx + PL_X + 2, stripY, tempColor, false);
+        g.drawString(font, String.format("%.0f°C", temp), sx + PL_X + 2, stripY, tempColor, false);
 
         String status = menu.isForgeValid() ? "valid" : "invalid";
         int statusColor = menu.isForgeValid() ? 0xFF00AA00 : 0xFFAA0000;
-        g.text(font, status, sx + PL_X + 48, stripY, statusColor, false);
+        g.drawString(font, status, sx + PL_X + 48, stripY, statusColor, false);
 
         int fuelMb  = menu.getFuelMb();
         int fuelCap = menu.getFuelCapacityMb();
@@ -511,79 +534,69 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             int fw = Math.max(0, (int)((float) fuelMb / fuelCap * bw));
             g.fill(bx, by, bx + fw, by + bh, COL_FUEL);
             String fuelStr = fuelMb + " mB";
-            g.text(font, fuelStr, bx - font.width(fuelStr) - 3, stripY, COL_GRAY, false);
+            g.drawString(font, fuelStr, bx - font.width(fuelStr) - 3, stripY, COL_GRAY, false);
         }
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         int px = leftPos + PL_X, py = topPos + PL_Y;
         if (mouseX >= px && mouseX < px + PL_W && mouseY >= py && mouseY < py + PL_H) {
             int maxScroll = Math.max(0, menu.getForgeSlotCount() - SLOTS_VISIBLE);
-            scrollOffset  = (int) Math.max(0, Math.min(maxScroll, scrollOffset - scrollY));
+            scrollOffset  = (int) Math.max(0, Math.min(maxScroll, scrollOffset - delta));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
         int btnX = leftPos + ALLOY_BTN_X;
         int btnY = topPos  + ALLOY_BTN_Y;
-        if (event.x() >= btnX && event.x() < btnX + ALLOY_BTN_W
-                && event.y() >= btnY && event.y() < btnY + ALLOY_BTN_H) {
-            net.minecraft.client.Minecraft.getInstance().gameMode.handleInventoryButtonClick(
+        if (mouseX >= btnX && mouseX < btnX + ALLOY_BTN_W
+                && mouseY >= btnY && mouseY < btnY + ALLOY_BTN_H) {
+            Minecraft.getInstance().gameMode.handleInventoryButtonClick(
                     menu.containerId, ForgeControllerMenu.BUTTON_TOGGLE_ALLOY);
             return true;
         }
 
         int listTopY  = topPos  + PLC_Y + LIST_HEADER_H;
         int listLeftX = leftPos + PLC_X;
-        if (event.x() >= listLeftX && event.x() < listLeftX + ROW_W
-                && event.y() >= listTopY && event.y() < listTopY + SLOTS_VISIBLE * ROW_H) {
-            int row     = (int)((event.y() - listTopY) / ROW_H);
+        if (mouseX >= listLeftX && mouseX < listLeftX + ROW_W
+                && mouseY >= listTopY && mouseY < listTopY + SLOTS_VISIBLE * ROW_H) {
+            int row     = (int)((mouseY - listTopY) / ROW_H);
             int slotIdx = scrollOffset + row;
             if (slotIdx >= 0 && slotIdx < menu.getForgeSlotCount()) {
-                ContainerInput type = event.hasShiftDown()
-                        ? ContainerInput.QUICK_MOVE : ContainerInput.PICKUP;
-                slotClicked(menu.getSlot(slotIdx), slotIdx, event.button(), type);
+                ClickType type = Screen.hasShiftDown() ? ClickType.QUICK_MOVE : ClickType.PICKUP;
+                slotClicked(menu.getSlot(slotIdx), slotIdx, button, type);
                 return true;
             }
         }
 
-        int tankX = leftPos + TANK_X;
-        int tankY = topPos  + TANK_Y;
-        int innerX = tankX + 1;
-        int innerY = tankY + 1;
+        int innerX = leftPos + TANK_X + 1;
+        int innerY = topPos  + TANK_Y + 1;
         int innerW = TANK_W - 2;
         int innerH = TANK_H - 2;
         int capacity = menu.getFluidCapacityMb();
-        if (capacity > 0 && event.x() >= innerX && event.x() < innerX + innerW
-                && event.y() >= innerY && event.y() < innerY + innerH) {
+        if (capacity > 0 && mouseX >= innerX && mouseX < innerX + innerW
+                && mouseY >= innerY && mouseY < innerY + innerH) {
             List<FluidLayer> layers = computeFluidLayers(innerY, innerH, capacity);
             for (FluidLayer layer : layers) {
-                if (event.y() >= layer.topY && event.y() < layer.bottomY) {
+                if (mouseY >= layer.topY && mouseY < layer.bottomY) {
                     sendOutputFluidSelection(layer);
                     return true;
                 }
             }
         }
-        return super.mouseClicked(event, doubleClick);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     private void sendOutputFluidSelection(FluidLayer layer) {
-        net.minecraft.resources.ResourceLocation matId = layer.material.id();
-        com.soul.smithery.registry.SmitheryFluids.Entry entry =
-                com.soul.smithery.registry.SmitheryFluids.forMaterial(matId);
+        SmitheryFluids.Entry entry = SmitheryFluids.forMaterial(layer.material.id());
         if (entry == null) return;
-        net.minecraft.resources.ResourceLocation fluidId =
-                net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(entry.source.get());
+        ResourceLocation fluidId = BuiltInRegistries.FLUID.getKey(entry.source.get());
         if (fluidId == null) return;
-        net.minecraft.client.multiplayer.ClientPacketListener conn =
-                net.minecraft.client.Minecraft.getInstance().getConnection();
-        if (conn != null) {
-            conn.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
-                    new com.soul.smithery.network.ForgeSelectOutputFluidPayload(menu.getBlockPos(), fluidId)));
-        }
+        SmitheryPayloads.sendToServer(
+                new ForgeSelectOutputFluidPayload(menu.getBlockPos(), fluidId));
     }
 }
