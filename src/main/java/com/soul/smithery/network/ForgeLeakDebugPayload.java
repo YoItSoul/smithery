@@ -1,17 +1,13 @@
 package com.soul.smithery.network;
 
-import com.soul.smithery.Smithery;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Server-to-client payload requesting that the client draw debug wireframe boxes at the given
+ * Server-to-client message requesting that the client draw debug wireframe boxes at the given
  * positions for a fixed duration.
  *
  * <p>Used to visualise the wall holes (leak points) found during forge multiblock validation.
@@ -19,20 +15,24 @@ import java.util.List;
  * @param positions     block positions to outline on the client
  * @param durationTicks how long the boxes remain visible, in ticks
  */
-public record ForgeLeakDebugPayload(List<BlockPos> positions, int durationTicks) implements CustomPacketPayload {
+public record ForgeLeakDebugPayload(List<BlockPos> positions, int durationTicks) {
 
-    /** Payload type identifier under {@code smithery:forge_leak_debug}. */
-    public static final CustomPacketPayload.Type<ForgeLeakDebugPayload> TYPE =
-            new CustomPacketPayload.Type<>(new ResourceLocation(Smithery.MODID, "forge_leak_debug"));
+    /** Writes this message to the network buffer. */
+    public static void encode(ForgeLeakDebugPayload msg, FriendlyByteBuf buf) {
+        buf.writeVarInt(msg.positions.size());
+        for (BlockPos pos : msg.positions) {
+            buf.writeBlockPos(pos);
+        }
+        buf.writeVarInt(msg.durationTicks);
+    }
 
-    /** Stream codec for serialising payload instances over the network. */
-    public static final StreamCodec<RegistryFriendlyByteBuf, ForgeLeakDebugPayload> STREAM_CODEC =
-            StreamCodec.composite(
-                    BlockPos.STREAM_CODEC.apply(ByteBufCodecs.list()), ForgeLeakDebugPayload::positions,
-                    ByteBufCodecs.VAR_INT, ForgeLeakDebugPayload::durationTicks,
-                    ForgeLeakDebugPayload::new
-            );
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    /** Reads a message from the network buffer. */
+    public static ForgeLeakDebugPayload decode(FriendlyByteBuf buf) {
+        int size = buf.readVarInt();
+        List<BlockPos> positions = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            positions.add(buf.readBlockPos());
+        }
+        return new ForgeLeakDebugPayload(positions, buf.readVarInt());
+    }
 }

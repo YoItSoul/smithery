@@ -2,10 +2,12 @@ package com.soul.smithery.block;
 
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
 import com.soul.smithery.network.ForgeLeakDebugPayload;
+import com.soul.smithery.network.SmitheryPayloads;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -16,7 +18,7 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.network.PacketDistributor;
+import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -48,7 +50,7 @@ public class ForgeControllerBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+    public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
         super.onPlace(state, level, pos, oldState, movedByPiston);
         if (!level.isClientSide() && level.getBlockEntity(pos) instanceof ForgeControllerBlockEntity fc) {
             fc.validateStructure();
@@ -56,19 +58,20 @@ public class ForgeControllerBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+    public InteractionResult use(BlockState state, Level level, BlockPos pos,
+                                 Player player, InteractionHand hand, BlockHitResult hit) {
         if (level.isClientSide()) return InteractionResult.SUCCESS;
         if (!(level.getBlockEntity(pos) instanceof ForgeControllerBlockEntity fc)) return InteractionResult.PASS;
         if (!(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
 
         ForgeControllerBlockEntity.ValidationResult result = fc.lastValidation();
         if (!result.holePositions.isEmpty()) {
-            PacketDistributor.sendToPlayer(sp,
+            SmitheryPayloads.sendToPlayer(sp,
                     new ForgeLeakDebugPayload(new ArrayList<>(result.holePositions), 60));
         }
 
         final int forgeSlotCount = fc.slots().size();
-        sp.openMenu(fc, buf -> {
+        NetworkHooks.openScreen(sp, fc, buf -> {
             buf.writeBlockPos(pos);
             buf.writeVarInt(forgeSlotCount);
         });

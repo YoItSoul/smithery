@@ -21,9 +21,8 @@ import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.fluid.FluidResource;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.fluids.capability.IFluidHandler;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -84,12 +83,12 @@ public class FluidPipeBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
+    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
         return SHAPE;
     }
 
     @Override
-    protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+    public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
         super.onPlace(state, level, pos, oldState, movedByPiston);
         if (level.isClientSide()) return;
         refreshConnections(level, pos);
@@ -103,9 +102,9 @@ public class FluidPipeBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected void neighborChanged(BlockState state, Level level, BlockPos pos, Block neighborBlock,
-                                   net.minecraft.world.level.redstone.@Nullable Orientation orientation, boolean movedByPiston) {
-        super.neighborChanged(state, level, pos, neighborBlock, orientation, movedByPiston);
+    public void neighborChanged(BlockState state, Level level, BlockPos pos, Block neighborBlock,
+                                BlockPos fromPos, boolean movedByPiston) {
+        super.neighborChanged(state, level, pos, neighborBlock, fromPos, movedByPiston);
         if (level.isClientSide()) return;
         refreshConnections(level, pos);
     }
@@ -144,10 +143,14 @@ public class FluidPipeBlock extends Block implements EntityBlock {
         if (neighborState.isAir()) {
             return FluidPipeFaceVisual.NONE;
         }
-        ResourceHandler<FluidResource> handler = level.getCapability(
-                Capabilities.Fluid.BLOCK, neighborPos, dir.getOpposite());
-        if (handler != null && handler.size() > 0) {
-            return FluidPipeFaceVisual.ARM_TOOTHER;
+        BlockEntity neighborBe = level.getBlockEntity(neighborPos);
+        if (neighborBe != null) {
+            IFluidHandler handler = neighborBe
+                    .getCapability(ForgeCapabilities.FLUID_HANDLER, dir.getOpposite())
+                    .orElse(null);
+            if (handler != null && handler.getTanks() > 0) {
+                return FluidPipeFaceVisual.ARM_TOOTHER;
+            }
         }
         return FluidPipeFaceVisual.NONE;
     }

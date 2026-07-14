@@ -2,7 +2,6 @@ package com.soul.smithery.block.entity;
 
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -11,12 +10,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Visualization-only BE for fluid pipes. Pipes carry no buffered fluid; the
@@ -91,20 +87,21 @@ public class FluidPipeBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(ValueOutput output) {
-        super.saveAdditional(output);
+    protected void saveAdditional(CompoundTag tag) {
+        super.saveAdditional(tag);
         if (transientFluidId != null && intensityTicks > 0) {
-            output.putString("flow", transientFluidId.toString());
-            output.putInt("flowTicks", intensityTicks);
+            tag.putString("flow", transientFluidId.toString());
+            tag.putInt("flowTicks", intensityTicks);
         }
     }
 
     @Override
-    protected void loadAdditional(ValueInput input) {
-        super.loadAdditional(input);
-        Optional<String> flowStr = input.getString("flow");
-        transientFluidId = flowStr.map(ResourceLocation::tryParse).orElse(null);
-        intensityTicks = input.getInt("flowTicks").orElse(0);
+    public void load(CompoundTag tag) {
+        super.load(tag);
+        transientFluidId = tag.contains("flow")
+                ? ResourceLocation.tryParse(tag.getString("flow"))
+                : null;
+        intensityTicks = tag.getInt("flowTicks");
     }
 
     @Override
@@ -113,7 +110,9 @@ public class FluidPipeBlockEntity extends BlockEntity {
     }
 
     @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        return saveCustomOnly(registries);
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = super.getUpdateTag();
+        saveAdditional(tag);
+        return tag;
     }
 }

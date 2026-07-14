@@ -1,5 +1,6 @@
 package com.soul.smithery.block;
 
+import com.soul.smithery.api.cast.CastTemplates;
 import com.soul.smithery.block.entity.CastingTableBlockEntity;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.registry.SmitheryBlockEntities;
@@ -7,6 +8,7 @@ import com.soul.smithery.registry.SmitheryBlocks;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -52,7 +54,7 @@ public class CastingTableBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
+    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
         return SHAPE;
     }
 
@@ -67,7 +69,7 @@ public class CastingTableBlock extends Block implements EntityBlock {
      * any mid-pour molten fluid is lost.
      */
     @Override
-    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+    public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
         if (!level.isClientSide()
                 && level.getBlockEntity(pos) instanceof CastingTableBlockEntity be) {
             if (be.state() == CastingTableBlockEntity.State.READY) {
@@ -80,7 +82,7 @@ public class CastingTableBlock extends Block implements EntityBlock {
                 popResource(level, pos, new ItemStack(SmitheryBlocks.CASTING_SAND_ITEM.get()));
             }
         }
-        return super.playerWillDestroy(level, pos, state, player);
+        super.playerWillDestroy(level, pos, state, player);
     }
 
     @Override
@@ -93,8 +95,9 @@ public class CastingTableBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
-                                          Player player, InteractionHand hand, BlockHitResult hit) {
+    public InteractionResult use(BlockState state, Level level, BlockPos pos,
+                                 Player player, InteractionHand hand, BlockHitResult hit) {
+        ItemStack stack = player.getItemInHand(hand);
         if (!(level.getBlockEntity(pos) instanceof CastingTableBlockEntity be)) {
             return InteractionResult.PASS;
         }
@@ -129,8 +132,7 @@ public class CastingTableBlock extends Block implements EntityBlock {
             return InteractionResult.PASS;
         }
 
-        net.minecraft.resources.ResourceLocation castTypeId =
-                com.soul.smithery.api.cast.CastTemplates.resolve(stack);
+        ResourceLocation castTypeId = CastTemplates.resolve(stack);
         if (castTypeId != null) {
             if (level.isClientSide()) return InteractionResult.SUCCESS;
             if (be.tryImpressTemplateItem(castTypeId)) return InteractionResult.SUCCESS;

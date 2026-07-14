@@ -4,7 +4,7 @@ import com.soul.smithery.block.FluidPipeBlock;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -12,13 +12,13 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.fluid.FluidResource;
-import net.neoforged.neoforge.transfer.transaction.Transaction;
-import net.neoforged.neoforge.transfer.transaction.TransactionContext;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.capability.IFluidHandler;
+import net.minecraftforge.registries.ForgeRegistries;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
@@ -29,7 +29,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -51,6 +50,8 @@ public class ForgeDrainBlockEntity extends BlockEntity {
     private @Nullable Map<BlockPos, Integer> pipeDistances;
     private @Nullable Map<BlockPos, BlockPos> pipeParents;
     private @Nullable List<SinkRef> sinks;
+
+    private final LazyOptional<IFluidHandler> fluidCap = LazyOptional.of(DrainHandler::new);
 
     /**
      * Constructs a forge drain BE bound to the given position and blockstate.
@@ -101,9 +102,8 @@ public class ForgeDrainBlockEntity extends BlockEntity {
         if (outputFluidId == null) return;
         if (controller.outputFluidMb() <= 0) return;
 
-        Fluid outputFluid = BuiltInRegistries.FLUID.get(outputFluidId)
-                .<Fluid>map(r -> r.value()).orElse(Fluids.EMPTY);
-        if (outputFluid == Fluids.EMPTY) return;
+        Fluid outputFluid = ForgeRegistries.FLUIDS.getValue(outputFluidId);
+        if (outputFluid == null || outputFluid == Fluids.EMPTY) return;
 
         long currentTick = level.getGameTime();
 
@@ -114,12 +114,14 @@ public class ForgeDrainBlockEntity extends BlockEntity {
         if (pipeDistances == null || pipeParents == null || sinks == null) return;
 
         int wavefront = (int) (currentTick - pumpStartTick) + 1;
-        FluidResource resource = FluidResource.of(outputFluid);
 
         List<SinkRef> activeSinks = new ArrayList<>();
         for (SinkRef sink : sinks) {
             if (sink.distance > wavefront) continue;
-            if (sink.handler.isValid(0, resource)) activeSinks.add(sink);
+            FluidStack probe = new FluidStack(outputFluid, PUMP_RATE_MB);
+            if (sink.handler.fill(probe, IFluidHandler.FluidAction.SIMULATE) > 0) {
+                activeSinks.add(sink);
+            }
         }
 
         Set<BlockPos> activePipes = new HashSet<>();
@@ -152,11 +154,8 @@ public class ForgeDrainBlockEntity extends BlockEntity {
             int available = controller.outputFluidMb();
             if (available <= 0) break;
             int budget = Math.min(PUMP_RATE_MB, available);
-            int pushed;
-            try (Transaction tx = Transaction.openRoot()) {
-                pushed = sink.handler.insert(resource, budget, tx);
-                if (pushed > 0) tx.commit();
-            }
+            int pushed = sink.handler.fill(new FluidStack(outputFluid, budget),
+                    IFluidHandler.FluidAction.EXECUTE);
             if (pushed > 0) {
                 controller.drainFluid(outputFluid, pushed);
             }
@@ -178,9 +177,8 @@ public class ForgeDrainBlockEntity extends BlockEntity {
                     queue.add(seed);
                 }
             } else {
-                ResourceHandler<FluidResource> h = level.getCapability(
-                        Capabilities.Fluid.BLOCK, seed, d.getOpposite());
-                if (h != null && h.size() > 0) sinkList.add(new SinkRef(seed, h, 1, null));
+                IFluidHandler h = fluidSinkAt(level, seed, d.getOpposite());
+                if (h != null) sinkList.add(new SinkRef(seed, h, 1, null));
             }
         }
 
@@ -197,9 +195,8 @@ public class ForgeDrainBlockEntity extends BlockEntity {
                     parents.put(neighbor, current);
                     queue.add(neighbor);
                 } else {
-                    ResourceHandler<FluidResource> h = level.getCapability(
-                            Capabilities.Fluid.BLOCK, neighbor, d.getOpposite());
-                    if (h != null && h.size() > 0) sinkList.add(new SinkRef(neighbor, h, dist + 1, current));
+                    IFluidHandler h = fluidSinkAt(level, neighbor, d.getOpposite());
+                    if (h != null) sinkList.add(new SinkRef(neighbor, h, dist + 1, current));
                 }
             }
         }
@@ -218,18 +215,41 @@ public class ForgeDrainBlockEntity extends BlockEntity {
         this.sinks         = sinkList;
     }
 
-    private record SinkRef(BlockPos pos, ResourceHandler<FluidResource> handler,
+    /** Resolves the fluid capability of the block entity at {@code pos}, or null when absent. */
+    private static @Nullable IFluidHandler fluidSinkAt(Level level, BlockPos pos, Direction side) {
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be == null) return null;
+        IFluidHandler h = be.getCapability(ForgeCapabilities.FLUID_HANDLER, side).orElse(null);
+        return (h != null && h.getTanks() > 0) ? h : null;
+    }
+
+    private record SinkRef(BlockPos pos, IFluidHandler handler,
                            int distance, @Nullable BlockPos entryPipe) {}
 
+    @Override
+    public <T> @NotNull LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
+        if (cap == ForgeCapabilities.FLUID_HANDLER) {
+            return fluidCap.cast();
+        }
+        return super.getCapability(cap, side);
+    }
+
+    @Override
+    public void invalidateCaps() {
+        super.invalidateCaps();
+        fluidCap.invalidate();
+    }
+
     /**
-     * Returns a passthrough fluid capability that surfaces only the controller's
+     * Returns a passthrough fluid handler that surfaces only the controller's
      * currently-selected output fluid.
      */
-    public ResourceHandler<FluidResource> fluidHandlerFor(@Nullable Direction side) {
+    public IFluidHandler fluidHandlerFor(@Nullable Direction side) {
         return new DrainHandler();
     }
 
-    private final class DrainHandler implements ResourceHandler<FluidResource> {
+    /** Extract-only view of the controller's selected output fluid. */
+    private final class DrainHandler implements IFluidHandler {
 
         private @Nullable ResourceLocation activeId() {
             ForgeControllerBlockEntity c = controller();
@@ -242,65 +262,73 @@ public class ForgeDrainBlockEntity extends BlockEntity {
         private @Nullable Fluid activeFluid() {
             ResourceLocation id = activeId();
             if (id == null) return null;
-            return BuiltInRegistries.FLUID.get(id).<Fluid>map(r -> r.value()).orElse(null);
+            Fluid f = ForgeRegistries.FLUIDS.getValue(id);
+            return f == Fluids.EMPTY ? null : f;
         }
 
-        @Override public int size() { return activeId() == null ? 0 : 1; }
+        @Override public int getTanks() { return 1; }
 
-        @Override public FluidResource getResource(int slot) {
-            if (slot != 0) return FluidResource.EMPTY;
-            Fluid f = activeFluid();
-            return f == null ? FluidResource.EMPTY : FluidResource.of(f);
-        }
-
-        @Override public long getAmountAsLong(int slot) {
+        @Override
+        public @NotNull FluidStack getFluidInTank(int tank) {
             ForgeControllerBlockEntity c = controller();
-            return (slot != 0 || c == null) ? 0L : c.outputFluidMb();
-        }
-
-        @Override public long getCapacityAsLong(int slot, FluidResource resource) {
-            ForgeControllerBlockEntity c = controller();
-            return c == null ? 0L : c.fluidCapacityMb();
-        }
-
-        @Override public boolean isValid(int slot, FluidResource resource) {
             Fluid f = activeFluid();
-            return f != null && !resource.isEmpty() && resource.getFluid() == f;
+            if (tank != 0 || c == null || f == null) return FluidStack.EMPTY;
+            return new FluidStack(f, c.outputFluidMb());
         }
 
         @Override
-        public int insert(int slot, FluidResource resource, int amount, TransactionContext tx) {
+        public int getTankCapacity(int tank) {
+            ForgeControllerBlockEntity c = controller();
+            return c == null ? 0 : c.fluidCapacityMb();
+        }
+
+        @Override
+        public boolean isFluidValid(int tank, @NotNull FluidStack stack) {
+            Fluid f = activeFluid();
+            return f != null && !stack.isEmpty() && stack.getFluid() == f;
+        }
+
+        @Override
+        public int fill(FluidStack resource, FluidAction action) {
             return 0;
         }
 
         @Override
-        public int extract(int slot, FluidResource resource, int amount, TransactionContext tx) {
+        public @NotNull FluidStack drain(FluidStack resource, FluidAction action) {
+            Fluid f = activeFluid();
+            if (f == null || resource.isEmpty() || resource.getFluid() != f) return FluidStack.EMPTY;
+            return drain(resource.getAmount(), action);
+        }
+
+        @Override
+        public @NotNull FluidStack drain(int maxDrain, FluidAction action) {
             ForgeControllerBlockEntity c = controller();
             Fluid f = activeFluid();
-            if (slot != 0 || c == null || f == null || resource.isEmpty() || amount <= 0) return 0;
-            if (resource.getFluid() != f) return 0;
-            return c.drainFluid(f, amount);
+            if (c == null || f == null || maxDrain <= 0) return FluidStack.EMPTY;
+            if (action.simulate()) {
+                int available = Math.min(maxDrain, c.outputFluidMb());
+                return available <= 0 ? FluidStack.EMPTY : new FluidStack(f, available);
+            }
+            int drained = c.drainFluid(f, maxDrain);
+            return drained <= 0 ? FluidStack.EMPTY : new FluidStack(f, drained);
         }
     }
 
     @Override
-    protected void saveAdditional(ValueOutput output) {
-        super.saveAdditional(output);
+    protected void saveAdditional(CompoundTag tag) {
+        super.saveAdditional(tag);
         if (controllerPos != null) {
-            output.putInt("ctrlX", controllerPos.getX());
-            output.putInt("ctrlY", controllerPos.getY());
-            output.putInt("ctrlZ", controllerPos.getZ());
+            tag.putInt("ctrlX", controllerPos.getX());
+            tag.putInt("ctrlY", controllerPos.getY());
+            tag.putInt("ctrlZ", controllerPos.getZ());
         }
     }
 
     @Override
-    protected void loadAdditional(ValueInput input) {
-        super.loadAdditional(input);
-        Optional<Integer> x = input.getInt("ctrlX");
-        Optional<Integer> y = input.getInt("ctrlY");
-        Optional<Integer> z = input.getInt("ctrlZ");
-        controllerPos = (x.isPresent() && y.isPresent() && z.isPresent())
-                ? new BlockPos(x.get(), y.get(), z.get())
+    public void load(CompoundTag tag) {
+        super.load(tag);
+        controllerPos = (tag.contains("ctrlX") && tag.contains("ctrlY") && tag.contains("ctrlZ"))
+                ? new BlockPos(tag.getInt("ctrlX"), tag.getInt("ctrlY"), tag.getInt("ctrlZ"))
                 : null;
     }
 }
