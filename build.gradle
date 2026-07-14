@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.141'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
     id 'idea'
 }
 
@@ -37,10 +37,11 @@ repositories {
         }
     }
     // Geckolib (animated block models for the Part Press). Geckolib's Cloudsmith maven.
+    // Geckolib 4.x (the 1.20.1 line) uses the software.bernie.geckolib group.
     maven {
         url = "https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/"
         content {
-            includeGroup "com.geckolib"
+            includeGroup "software.bernie.geckolib"
         }
     }
     // JEI (Just Enough Items). Hosted on BlameJared's maven.
@@ -56,72 +57,70 @@ base {
     archivesName = mod_id
 }
 
-// Mojang ships Java 25 to end users in 26.1.2, so mods should target Java 25.
-java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+// Minecraft 1.20.1 ships Java 17 to end users, so mods must target Java 17.
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-neoForge {
-    // Specify the version of NeoForge to use.
-    version = project.neo_version
+minecraft {
+    // The mappings can be changed at any time and must be in the following format.
+    // Channel:   Version:
+    // official   MCVersion        Official field/method names from Mojang mapping files
+    // parchment  YYYY.MM.DD-MCVersion   Open community-sourced parameter names and javadocs layered on top of official
+    mappings channel: mapping_channel, version: mapping_version
 
-    // This line is optional. Access Transformers are automatically detected
-    // accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
+    // When true, this property will have all Eclipse/IntelliJ IDEA run configurations run the "prepareX" task for the given run configuration before launching the game.
+    copyIdeResources = true
+
+    // This property allows configuring Gradle's ProcessResources task(s) to run on IDE output locations before launching the game.
+    // accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 
     // Default run configurations.
     // These can be tweaked, removed, or duplicated as needed.
     runs {
-        client {
-            client()
+        // applies to all the run configs below
+        configureEach {
+            workingDirectory project.file('run')
 
+            // Recommended logging data for a userdev environment
+            // The markers can be added/remove as needed separated by commas.
+            // "SCAN": For mods scan.
+            // "REGISTRIES": For firing of registry events.
+            // "REGISTRYDUMP": For getting the contents of all registries.
+            property 'forge.logging.markers', 'REGISTRIES'
+
+            // Recommended logging level for the console
+            // You can set various levels here.
+            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
+            property 'forge.logging.console.level', 'debug'
+
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            property 'forge.enabledGameTestNamespaces', mod_id
         }
 
         server {
-            server()
-            programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
         }
 
         // This run config launches GameTestServer and runs all registered gametests, then exits.
         // By default, the server will crash when no gametests are provided.
         // The gametest system is also enabled by default for other run configs under the /test command.
         gameTestServer {
-            type = "gameTestServer"
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            property 'forge.enabledGameTestNamespaces', mod_id
         }
 
         data {
-            clientData()
-
-            // example of overriding the workingDirectory set in configureEach above, uncomment if you want to use it
-            // gameDirectory = project.file('run-data')
+            workingDirectory project.file('run-data')
 
             // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
-            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
-        }
-
-        // applies to all the run configs above
-        configureEach {
-            // Recommended logging data for a userdev environment
-            // The markers can be added/remove as needed separated by commas.
-            // "SCAN": For mods scan.
-            // "REGISTRIES": For firing of registry events.
-            // "REGISTRYDUMP": For getting the contents of all registries.
-            systemProperty 'forge.logging.markers', 'REGISTRIES'
-
-            // Recommended logging level for the console
-            // You can set various levels here.
-            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
-            logLevel = org.slf4j.event.Level.DEBUG
-        }
-    }
-
-    mods {
-        // define mod <-> source bindings
-        // these are used to tell the game which sources are for which mod
-        // multi mod projects should define one per mod
-        "${mod_id}" {
-            sourceSet(sourceSets.main)
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
         }
     }
 }
@@ -135,38 +134,29 @@ configurations {
 }
 
 dependencies {
+    // Specify the version of Minecraft to use.
+    // Any artifact can be supplied so long as it has a "userdev" classifier artifact and is a compatible patcher artifact.
+    // The "userdev" classifier will be requested and setup by ForgeGradle.
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
     // Modonomicon — in-game documentation framework. We compile against it (so
     // datagen + book classes resolve) and load it in dev so we can test the
     // generated book in-game. transitive=false because Modonomicon also pulls
-    // a fluxapi / cardinal-components-style stack that we don't need.
-    implementation("com.klikli_dev:modonomicon-${minecraft_version}-neoforge:${modonomicon_version}") {
+    // extra dependencies that we don't need. fg.deobf remaps the published SRG
+    // jar to the mapped names used in the dev environment.
+    implementation fg.deobf("com.klikli_dev:modonomicon-${minecraft_version}-forge:${modonomicon_version}") {
         transitive = false
     }
 
     // Geckolib — animated block models. Powers the Part Press.
-    implementation "com.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
+    implementation fg.deobf("software.bernie.geckolib:geckolib-forge-${minecraft_version}:${geckolib_version}")
 
-    // JEI — recipe viewer integration. Compile against the API split (common + neoforge);
+    // JEI — recipe viewer integration. Compile against the API split (common + forge);
     // pull the full runtime jar only into localRuntime so downstream consumers don't inherit
     // a hard JEI dependency.
-    compileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"
-    compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
-    localRuntime "mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}"
-
-    // Example mod dependency using a mod jar from ./libs with a flat dir repository
-    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
-    // The group id is ignored when searching -- in this case, it is "blank"
-    // implementation "blank:coolmod-${mc_version}:${coolmod_version}"
-
-    // Example mod dependency using a file as dependency
-    // implementation files("libs/coolmod-${mc_version}-${coolmod_version}.jar")
-
-    // Example project dependency using a sister or child project:
-    // implementation project(":myproject")
-
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+    compileOnly fg.deobf("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}")
+    compileOnly fg.deobf("mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}")
+    localRuntime fg.deobf("mezz.jei:jei-${minecraft_version}-forge:${jei_version}")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -175,7 +165,9 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
     var replaceProperties = [
             minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
-            neo_version            : neo_version,
+            forge_version          : forge_version,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
             mod_license            : mod_license,
@@ -189,14 +181,17 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
 // Include the output of "generateModMetadata" as an input directory for the build
 // this works with both building through Gradle and the IDE.
 sourceSets.main.resources.srcDir generateModMetadata
-// To avoid having to run "generateModMetadata" manually, make it run on every project reload
-neoForge.ideSyncTask generateModMetadata
+
+// Forge 1.20.1 mods are distributed in SRG names, so the built jar must be reobfuscated.
+tasks.named('jar', Jar).configure {
+    finalizedBy 'reobfJar'
+}
 
 // Example configuration to allow publishing using the maven-publish plugin
 publishing {
     publications {
         register('mavenJava', MavenPublication) {
-            from components.java
+            artifact jar
         }
     }
     repositories {
@@ -217,7 +212,7 @@ tasks.withType(JavaCompile).configureEach {
  * package-private declarations are intentionally skipped. Run with {@code ./gradlew javadoc}.
  *
  * {@code failOnError = false} keeps the build alive when the doclet trips on Minecraft /
- * NeoForge / JEI / Modonomicon / Geckolib classes it cannot resolve (those libraries are
+ * Forge / JEI / Modonomicon / Geckolib classes it cannot resolve (those libraries are
  * not on the javadoc classpath in offline runs). Doclint is disabled for the same reason
  * — we explicitly skip private docs by design, which would otherwise emit MISSING tag noise.
  */
@@ -229,7 +224,7 @@ javadoc {
     options.version = false
     options.windowTitle = "${mod_name} ${mod_version} API"
     options.docTitle = "${mod_name} ${mod_version} API"
-    options.bottom = "<i>Smithery — modular Tinkers-style tool crafting for NeoForge.</i>"
+    options.bottom = "<i>Smithery — modular Tinkers-style tool crafting for Forge.</i>"
     options.addStringOption('Xdoclint:none', '-quiet')
     failOnError = false
 }
