@@ -47,10 +47,14 @@ public final class SmitheryItems {
     /**
      * Registers a non-stacking {@link SmitheryToolItem} whose item name doubles as its
      * ToolType path — the invariant the assembly recipe's item lookup relies on.
+     *
+     * <p>The 1-point durability is a damageable-item placeholder: the real composed value is
+     * served by the item's stack-sensitive {@code getMaxDamage} override, and being damageable
+     * is what keeps the tool unstackable, exactly like vanilla tools.
      */
     private static RegistryObject<SmitheryToolItem> registerTool(String name) {
         return ITEMS.register(name,
-                () -> new SmitheryToolItem(new Item.Properties().stacksTo(1), id(name)));
+                () -> new SmitheryToolItem(new Item.Properties().durability(1), id(name)));
     }
 
     /**
@@ -59,7 +63,7 @@ public final class SmitheryItems {
      */
     private static RegistryObject<SmitheryArmorItem> registerArmor(String name, ArmorItem.Type type) {
         return ITEMS.register(name,
-                () -> new SmitheryArmorItem(type, new Item.Properties().stacksTo(1), id(name)));
+                () -> new SmitheryArmorItem(type, new Item.Properties(), id(name)));
     }
 
     /** Smithery sword tool item; per-stack composition lives in the stack's {@code tool_composition} NBT. */
@@ -85,7 +89,7 @@ public final class SmitheryItems {
 
     /** Smithery bow tool item; uses a {@link SmitheryBowItem} for draw-frame model swaps. */
     public static final RegistryObject<SmitheryBowItem> BOW = ITEMS.register("bow",
-            () -> new SmitheryBowItem(new Item.Properties().stacksTo(1), id("bow")));
+            () -> new SmitheryBowItem(new Item.Properties().durability(1), id("bow")));
 
     /** Smithery kama; shears abilities plus 3x3 double-yield crop harvesting. */
     public static final RegistryObject<SmitheryToolItem> KAMA = registerTool("kama");
@@ -105,11 +109,11 @@ public final class SmitheryItems {
 
     /** Smithery trident; vanilla charge/throw pipeline, composition-driven melee stats. */
     public static final RegistryObject<SmitheryTridentItem> TRIDENT = ITEMS.register("trident",
-            () -> new SmitheryTridentItem(new Item.Properties().stacksTo(1), id("trident")));
+            () -> new SmitheryTridentItem(new Item.Properties().durability(1), id("trident")));
 
     /** Smithery crossbow; vanilla charge/store/fire pipeline with smithery arrow scaling. */
     public static final RegistryObject<SmitheryCrossbowItem> CROSSBOW = ITEMS.register("crossbow",
-            () -> new SmitheryCrossbowItem(new Item.Properties().stacksTo(1), id("crossbow")));
+            () -> new SmitheryCrossbowItem(new Item.Properties().durability(1), id("crossbow")));
 
     /** Smithery arrow tool item; stays stackable (default 64) since vanilla forbids stackables from taking damage. */
     public static final RegistryObject<SmitheryArrowItem> ARROW = ITEMS.register("arrow",

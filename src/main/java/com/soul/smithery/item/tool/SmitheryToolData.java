@@ -38,6 +38,7 @@ public final class SmitheryToolData {
     private static final String KEY_COMPOSITION       = Smithery.MODID + ":tool_composition";
     private static final String KEY_APPLIED_MODIFIERS = Smithery.MODID + ":applied_modifiers";
     private static final String KEY_MODIFIER_PROGRESS = Smithery.MODID + ":modifier_progress";
+    private static final String KEY_MAX_DURABILITY    = Smithery.MODID + ":max_durability";
 
     private static final Codec<List<ModifierEffect>> APPLIED_MODIFIERS_CODEC =
             ModifierEffect.CODEC.listOf();
@@ -69,6 +70,23 @@ public final class SmitheryToolData {
     /** Writes the stack's post-craft modifier list. */
     public static void setAppliedModifiers(ItemStack stack, List<ModifierEffect> modifiers) {
         write(stack, KEY_APPLIED_MODIFIERS, APPLIED_MODIFIERS_CODEC, modifiers);
+    }
+
+    /**
+     * The composed max durability written at compose time, or {@code fallback} when absent.
+     * Every smithery item family's {@code getMaxDamage(ItemStack)} override serves this value.
+     */
+    public static int getMaxDurability(ItemStack stack, int fallback) {
+        var tag = stack.getTag();
+        if (tag != null && tag.contains(KEY_MAX_DURABILITY)) {
+            return tag.getInt(KEY_MAX_DURABILITY);
+        }
+        return fallback;
+    }
+
+    /** Writes the composed max durability served by the items' {@code getMaxDamage} overrides. */
+    public static void setMaxDurability(ItemStack stack, int maxDurability) {
+        stack.getOrCreateTag().putInt(KEY_MAX_DURABILITY, maxDurability);
     }
 
     /** The stack's partial modifier-application progress; empty when absent or unreadable. */

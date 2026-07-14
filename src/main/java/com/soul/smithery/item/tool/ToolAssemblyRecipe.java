@@ -1,28 +1,24 @@
 package com.soul.smithery.item.tool;
 
-import com.mojang.serialization.Codec;
-import com.mojang.serialization.MapCodec;
-import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.google.gson.JsonObject;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.item.PartItem;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.GsonHelper;
+import net.minecraft.world.inventory.CraftingContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
-import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.PlacementInfo;
-import net.minecraft.world.item.crafting.RecipeBookCategories;
-import net.minecraft.world.item.crafting.RecipeBookCategory;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,13 +34,15 @@ import java.util.Map;
  */
 public final class ToolAssemblyRecipe implements CraftingRecipe {
 
+    private final ResourceLocation id;
     private final ResourceLocation toolTypeId;
     private final String group;
 
     /**
      * Constructs the recipe for a given tool type id and crafting-book group.
      */
-    public ToolAssemblyRecipe(ResourceLocation toolTypeId, String group) {
+    public ToolAssemblyRecipe(ResourceLocation id, ResourceLocation toolTypeId, String group) {
+        this.id = id;
         this.toolTypeId = toolTypeId;
         this.group = group;
     }
@@ -53,7 +51,10 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
     public ResourceLocation toolTypeId() { return toolTypeId; }
 
     @Override
-    public boolean matches(CraftingInput input, Level level) {
+    public ResourceLocation getId() { return id; }
+
+    @Override
+    public boolean matches(CraftingContainer input, Level level) {
         ToolType tt = SmitheryAPI.TOOL_TYPES.get(toolTypeId);
         if (tt == null) return false;
 
@@ -64,7 +65,7 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
 
         Map<ResourceLocation, Integer> provided = new HashMap<>();
         int nonEmpty = 0;
-        for (int i = 0; i < input.size(); i++) {
+        for (int i = 0; i < input.getContainerSize(); i++) {
             ItemStack stack = input.getItem(i);
             if (stack.isEmpty()) continue;
             nonEmpty++;
@@ -78,15 +79,15 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
     }
 
     @Override
-    public ItemStack assemble(CraftingInput input) {
+    public ItemStack assemble(CraftingContainer input, RegistryAccess registryAccess) {
         ToolType tt = SmitheryAPI.TOOL_TYPES.get(toolTypeId);
         if (tt == null) return ItemStack.EMPTY;
 
-        boolean[] used = new boolean[input.size()];
+        boolean[] used = new boolean[input.getContainerSize()];
         List<ResourceLocation> materials = new ArrayList<>(tt.slots().size());
         for (ToolType.Slot slot : tt.slots()) {
             ResourceLocation matched = null;
-            for (int i = 0; i < input.size(); i++) {
+            for (int i = 0; i < input.getContainerSize(); i++) {
                 if (used[i]) continue;
                 ItemStack stack = input.getItem(i);
                 if (stack.isEmpty()) continue;
@@ -100,51 +101,75 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
             materials.add(matched);
         }
 
-        Item resultItem = BuiltInRegistries.ITEM.get(toolTypeId);
-        if (resultItem == null) return ItemStack.EMPTY;
+        Item resultItem = ForgeRegistries.ITEMS.getValue(toolTypeId);
+        if (resultItem == null || resultItem == Items.AIR) return ItemStack.EMPTY;
 
         ToolComposition comp = new ToolComposition(toolTypeId, materials);
         return ToolCompositions.apply(new ItemStack(resultItem), comp);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The preview result depends on the actual part inputs, so the static result is empty;
+     * JEI integration surfaces representative material combinations instead.
+     */
+    @Override
+    public ItemStack getResultItem(RegistryAccess registryAccess) {
+        return ItemStack.EMPTY;
+    }
+
+    @Override
+    public boolean canCraftInDimensions(int width, int height) {
+        ToolType tt = SmitheryAPI.TOOL_TYPES.get(toolTypeId);
+        return tt != null && width * height >= tt.slots().size();
     }
 
     @Override
     public boolean showNotification() { return true; }
 
     @Override
-    public String group() { return group; }
+    public String getGroup() { return group; }
 
     @Override
     public CraftingBookCategory category() { return CraftingBookCategory.EQUIPMENT; }
 
     @Override
-    public RecipeSerializer<? extends CraftingRecipe> getSerializer() { return SERIALIZER; }
+    public RecipeSerializer<?> getSerializer() { return SERIALIZER; }
 
     @Override
-    public PlacementInfo placementInfo() { return PlacementInfo.NOT_PLACEABLE; }
-
-    @Override
-    public RecipeBookCategory recipeBookCategory() { return RecipeBookCategories.CRAFTING_EQUIPMENT; }
-
-    @Override
-    public NonNullList<ItemStack> getRemainingItems(CraftingInput input) {
-        return NonNullList.withSize(input.size(), ItemStack.EMPTY);
+    public NonNullList<ItemStack> getRemainingItems(CraftingContainer input) {
+        return NonNullList.withSize(input.getContainerSize(), ItemStack.EMPTY);
     }
 
-    private static final MapCodec<ToolAssemblyRecipe> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
-            ResourceLocation.CODEC.fieldOf("tool_type").forGetter(ToolAssemblyRecipe::toolTypeId),
-            Codec.STRING.optionalFieldOf("group", "").forGetter(ToolAssemblyRecipe::group)
-    ).apply(i, ToolAssemblyRecipe::new));
-
-    private static final StreamCodec<RegistryFriendlyByteBuf, ToolAssemblyRecipe> STREAM_CODEC =
-            StreamCodec.composite(
-                    ResourceLocation.STREAM_CODEC, ToolAssemblyRecipe::toolTypeId,
-                    ByteBufCodecs.STRING_UTF8, ToolAssemblyRecipe::group,
-                    ToolAssemblyRecipe::new
-            );
-
     /** Recipe serializer, registered into the recipe-serializer registry. */
-    public static final RecipeSerializer<ToolAssemblyRecipe> SERIALIZER =
-            new RecipeSerializer<>(CODEC, STREAM_CODEC);
+    public static final RecipeSerializer<ToolAssemblyRecipe> SERIALIZER = new Serializer();
+
+    /**
+     * 1.20.1-style serializer: hand-written JSON parse plus symmetric network round-trip
+     * (this recipe is fully described by its tool-type id and group).
+     */
+    private static final class Serializer implements RecipeSerializer<ToolAssemblyRecipe> {
+        @Override
+        public ToolAssemblyRecipe fromJson(ResourceLocation recipeId, JsonObject json) {
+            ResourceLocation toolTypeId = new ResourceLocation(GsonHelper.getAsString(json, "tool_type"));
+            String group = GsonHelper.getAsString(json, "group", "");
+            return new ToolAssemblyRecipe(recipeId, toolTypeId, group);
+        }
+
+        @Override
+        public ToolAssemblyRecipe fromNetwork(ResourceLocation recipeId, FriendlyByteBuf buf) {
+            ResourceLocation toolTypeId = buf.readResourceLocation();
+            String group = buf.readUtf();
+            return new ToolAssemblyRecipe(recipeId, toolTypeId, group);
+        }
+
+        @Override
+        public void toNetwork(FriendlyByteBuf buf, ToolAssemblyRecipe recipe) {
+            buf.writeResourceLocation(recipe.toolTypeId);
+            buf.writeUtf(recipe.group);
+        }
+    }
 
     /** Returns the fixed {@code smithery:tool_assembly} serializer id. */
     public static ResourceLocation serializerId() {

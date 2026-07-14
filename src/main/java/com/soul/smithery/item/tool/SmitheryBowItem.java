@@ -3,25 +3,30 @@ package com.soul.smithery.item.tool;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.tool.DurabilityRole;
 import com.soul.smithery.api.tool.ToolType;
-import com.soul.smithery.entity.SmitheryArrow;
 import com.soul.smithery.item.PartItem;
-import com.soul.smithery.item.tool.SmitheryToolData;
+import com.soul.smithery.item.SmitheryTooltips;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.projectile.Projectile;
-import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.item.ArrowItem;
 import net.minecraft.world.item.BowItem;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.component.TooltipDisplay;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.event.ForgeEventFactory;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -29,10 +34,12 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
- * Smithery bow item. Extends vanilla {@link BowItem} so the full draw/charge/shoot
- * pipeline runs unchanged; only projectile prep (smithery arrow damage scaling) and
- * the tooltip are customised. Per-stack composition lives in the TOOL_COMPOSITION
- * component written by {@link SmitheryToolItem#applyComposition}.
+ * Smithery bow item. Extends vanilla {@link BowItem}; per-stack composition lives in the
+ * {@code tool_composition} NBT written by {@link SmitheryToolItem#applyComposition}.
+ *
+ * <p>1.20.1's BowItem offers no projectile-preparation hook, so {@link #releaseUsing}
+ * mirrors the vanilla shoot path with the smithery arrow damage scaling applied to the
+ * spawned arrow.
  */
 public class SmitheryBowItem extends BowItem {
 
@@ -51,19 +58,78 @@ public class SmitheryBowItem extends BowItem {
     /** Resolves the live {@link ToolType} for this bow item, or null if unregistered. */
     public ToolType toolType() { return SmitheryAPI.TOOL_TYPES.get(toolTypeId); }
 
+    /** {@inheritDoc} Serves the composed durability; see {@link SmitheryToolData}. */
+    @Override
+    public int getMaxDamage(ItemStack stack) {
+        return SmitheryToolData.getMaxDurability(stack, super.getMaxDamage(stack));
+    }
+
     @Override
     public Predicate<ItemStack> getAllSupportedProjectiles() {
         return s -> s.is(ItemTags.ARROWS);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Mirrors the vanilla 1.20.1 bow shoot path, inserting
+     * {@link #applySmitheryArrowDamage} on the spawned arrow — the only divergence.
+     */
     @Override
-    protected Projectile createProjectile(Level level, LivingEntity shooter, ItemStack weapon,
-                                          ItemStack projectile, boolean isCrit) {
-        Projectile out = super.createProjectile(level, shooter, weapon, projectile, isCrit);
-        if (out instanceof AbstractArrow arrow) {
-            applySmitheryArrowDamage(arrow, projectile, weapon);
+    public void releaseUsing(ItemStack stack, Level level, LivingEntity entity, int timeLeft) {
+        if (!(entity instanceof Player player)) return;
+        boolean infinite = player.getAbilities().instabuild
+                || EnchantmentHelper.getItemEnchantmentLevel(Enchantments.INFINITY_ARROWS, stack) > 0;
+        ItemStack projectile = player.getProjectile(stack);
+
+        int charge = this.getUseDuration(stack) - timeLeft;
+        charge = ForgeEventFactory.onArrowLoose(stack, level, player, charge, !projectile.isEmpty() || infinite);
+        if (charge < 0) return;
+
+        if (projectile.isEmpty() && !infinite) return;
+        if (projectile.isEmpty()) {
+            projectile = new ItemStack(Items.ARROW);
         }
-        return out;
+
+        float power = getPowerForTime(charge);
+        if (power < 0.1f) return;
+
+        boolean creativeArrow = infinite && projectile.is(Items.ARROW);
+        if (!level.isClientSide) {
+            ArrowItem arrowItem = (ArrowItem) (projectile.getItem() instanceof ArrowItem a ? a : Items.ARROW);
+            AbstractArrow arrow = arrowItem.createArrow(level, projectile, player);
+            arrow = customArrow(arrow);
+            arrow.shootFromRotation(player, player.getXRot(), player.getYRot(), 0.0f, power * 3.0f, 1.0f);
+            if (power == 1.0f) arrow.setCritArrow(true);
+
+            applySmitheryArrowDamage(arrow, projectile, stack);
+
+            int powerLevel = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.POWER_ARROWS, stack);
+            if (powerLevel > 0) arrow.setBaseDamage(arrow.getBaseDamage() + powerLevel * 0.5 + 0.5);
+            int punchLevel = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.PUNCH_ARROWS, stack);
+            if (punchLevel > 0) arrow.setKnockback(punchLevel);
+            if (EnchantmentHelper.getItemEnchantmentLevel(Enchantments.FLAMING_ARROWS, stack) > 0) {
+                arrow.setSecondsOnFire(100);
+            }
+
+            stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(player.getUsedItemHand()));
+            if (creativeArrow || player.getAbilities().instabuild
+                    && (projectile.is(Items.SPECTRAL_ARROW) || projectile.is(Items.TIPPED_ARROW))) {
+                arrow.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
+            }
+            level.addFreshEntity(arrow);
+        }
+
+        level.playSound(null, player.getX(), player.getY(), player.getZ(),
+                SoundEvents.ARROW_SHOOT, SoundSource.PLAYERS,
+                1.0f, 1.0f / (level.getRandom().nextFloat() * 0.4f + 1.2f) + power * 0.5f);
+        if (!creativeArrow && !player.getAbilities().instabuild) {
+            projectile.shrink(1);
+            if (projectile.isEmpty()) {
+                player.getInventory().removeItem(projectile);
+            }
+        }
+        player.awardStat(net.minecraft.stats.Stats.ITEM_USED.get(this));
     }
 
     /** Shared with {@link SmitheryCrossbowItem}: scales arrow base damage by arrow + weapon stats. */
@@ -104,40 +170,39 @@ public class SmitheryBowItem extends BowItem {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display,
-                                Consumer<Component> tooltip, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> lines, TooltipFlag flag) {
+        Consumer<Component> tooltip = lines::add;
         ToolComposition comp = SmitheryToolData.getComposition(stack);
         ToolType tt = toolType();
         if (comp == null || tt == null || !comp.isValid()) {
             tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.uncomposed")
                     .withStyle(ChatFormatting.RED));
-            super.appendHoverText(stack, context, display, tooltip, flag);
+            super.appendHoverText(stack, level, lines, flag);
             return;
         }
 
-        java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
-                SmitheryToolData.getAppliedModifiers(stack);
+        List<ModifierEffect> applied = SmitheryToolData.getAppliedModifiers(stack);
         ToolStats stats = ToolStats.compute(comp, applied);
-        com.soul.smithery.item.SmitheryTooltips.Tier tier = com.soul.smithery.item.SmitheryTooltips.currentTier();
+        SmitheryTooltips.Tier tier = SmitheryTooltips.currentTier();
 
         tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".section.summary")
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
 
-        if (tier == com.soul.smithery.item.SmitheryTooltips.Tier.BASIC) {
-            com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
-            super.appendHoverText(stack, context, display, tooltip, flag);
+        if (tier == SmitheryTooltips.Tier.BASIC) {
+            SmitheryTooltips.appendKeyHint(tooltip, tier);
+            super.appendHoverText(stack, level, lines, flag);
             return;
         }
 
-        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+        tooltip.accept(SmitheryTooltips.sectionHeader(
                 Component.translatable("tooltip." + Smithery.MODID + ".tool.stats")));
-        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+        tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
                 "tooltip." + Smithery.MODID + ".tool.durability", stats.maxDurability)));
-        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+        tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
                 "tooltip." + Smithery.MODID + ".tool.attack_damage",
                 String.format("×%.2f", Math.max(0.5f, stats.attackDamage / 2.0f)))));
 
-        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+        tooltip.accept(SmitheryTooltips.sectionHeader(
                 Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")));
         List<ToolType.Slot> slots = tt.slots();
         for (int i = 0; i < slots.size(); i++) {
@@ -145,14 +210,14 @@ public class SmitheryBowItem extends BowItem {
             Material m = SmitheryAPI.MATERIALS.get(comp.slotMaterials().get(i));
             if (m == null) continue;
             PartType pt = slot.partType();
-            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.bullet(Component.empty()
+            tooltip.accept(SmitheryTooltips.bullet(Component.empty()
                     .append(Component.translatable(PartItem.materialTranslationKey(m.id())))
                     .append(Component.literal(" "))
                     .append(Component.translatable(PartItem.partTranslationKey(pt.id())))));
         }
 
-        com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
-        super.appendHoverText(stack, context, display, tooltip, flag);
+        SmitheryTooltips.appendKeyHint(tooltip, tier);
+        super.appendHoverText(stack, level, lines, flag);
     }
 
     private static ResourceLocation primaryAdditiveMaterial(ToolType tt, ToolComposition comp) {

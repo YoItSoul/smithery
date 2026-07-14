@@ -3,26 +3,22 @@ package com.soul.smithery.item.tool;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.tool.DurabilityRole;
 import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.entity.SmitheryArrow;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.item.tool.SmitheryToolData;
+import com.soul.smithery.item.SmitheryTooltips;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.Direction;
-import net.minecraft.core.Position;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.projectile.Projectile;
-import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.ArrowItem;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
@@ -53,14 +49,8 @@ public class SmitheryArrowItem extends ArrowItem {
     public ToolType toolType() { return SmitheryAPI.TOOL_TYPES.get(toolTypeId); }
 
     @Override
-    public AbstractArrow createArrow(Level level, ItemStack itemStack, LivingEntity owner,
-                                     @Nullable ItemStack firedFromWeapon) {
-        return new SmitheryArrow(level, owner, itemStack.copyWithCount(1), firedFromWeapon);
-    }
-
-    @Override
-    public Projectile asProjectile(Level level, Position position, ItemStack itemStack, Direction direction) {
-        return SmitheryArrow.spawnFromDispenser(level, position.x(), position.y(), position.z(), itemStack);
+    public AbstractArrow createArrow(Level level, ItemStack itemStack, LivingEntity owner) {
+        return new SmitheryArrow(level, owner, itemStack.copyWithCount(1));
     }
 
     @Override
@@ -80,38 +70,37 @@ public class SmitheryArrowItem extends ArrowItem {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display,
-                                Consumer<Component> tooltip, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> lines, TooltipFlag flag) {
+        Consumer<Component> tooltip = lines::add;
         ToolComposition comp = SmitheryToolData.getComposition(stack);
         ToolType tt = toolType();
         if (comp == null || tt == null || !comp.isValid()) {
             tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".tool.uncomposed")
                     .withStyle(ChatFormatting.RED));
-            super.appendHoverText(stack, context, display, tooltip, flag);
+            super.appendHoverText(stack, level, lines, flag);
             return;
         }
 
-        java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
-                SmitheryToolData.getAppliedModifiers(stack);
+        List<ModifierEffect> applied = SmitheryToolData.getAppliedModifiers(stack);
         ToolStats stats = ToolStats.compute(comp, applied);
-        com.soul.smithery.item.SmitheryTooltips.Tier tier = com.soul.smithery.item.SmitheryTooltips.currentTier();
+        SmitheryTooltips.Tier tier = SmitheryTooltips.currentTier();
 
         tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".section.summary")
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
 
-        if (tier == com.soul.smithery.item.SmitheryTooltips.Tier.BASIC) {
-            com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
-            super.appendHoverText(stack, context, display, tooltip, flag);
+        if (tier == SmitheryTooltips.Tier.BASIC) {
+            SmitheryTooltips.appendKeyHint(tooltip, tier);
+            super.appendHoverText(stack, level, lines, flag);
             return;
         }
 
-        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+        tooltip.accept(SmitheryTooltips.sectionHeader(
                 Component.translatable("tooltip." + Smithery.MODID + ".tool.stats")));
-        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+        tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
                 "tooltip." + Smithery.MODID + ".tool.attack_damage",
                 String.format("%.1f", stats.attackDamage))));
 
-        tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
+        tooltip.accept(SmitheryTooltips.sectionHeader(
                 Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")));
         List<ToolType.Slot> slots = tt.slots();
         for (int i = 0; i < slots.size(); i++) {
@@ -119,14 +108,14 @@ public class SmitheryArrowItem extends ArrowItem {
             Material m = SmitheryAPI.MATERIALS.get(comp.slotMaterials().get(i));
             if (m == null) continue;
             PartType pt = slot.partType();
-            tooltip.accept(com.soul.smithery.item.SmitheryTooltips.bullet(Component.empty()
+            tooltip.accept(SmitheryTooltips.bullet(Component.empty()
                     .append(Component.translatable(PartItem.materialTranslationKey(m.id())))
                     .append(Component.literal(" "))
                     .append(Component.translatable(PartItem.partTranslationKey(pt.id())))));
         }
 
-        com.soul.smithery.item.SmitheryTooltips.appendKeyHint(tooltip, tier);
-        super.appendHoverText(stack, context, display, tooltip, flag);
+        SmitheryTooltips.appendKeyHint(tooltip, tier);
+        super.appendHoverText(stack, level, lines, flag);
     }
 
     /**
@@ -150,7 +139,6 @@ public class SmitheryArrowItem extends ArrowItem {
 
     @Override
     public boolean isBarVisible(ItemStack stack) {
-        Integer dmg = stack.get(DataComponents.DAMAGE);
-        return dmg != null && dmg > 0;
+        return stack.getDamageValue() > 0;
     }
 }
