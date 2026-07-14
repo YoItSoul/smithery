@@ -4,18 +4,17 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.soul.smithery.Smithery;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.ShapeRenderer;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.Shapes;
-import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.client.event.ClientTickEvent;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,9 +34,9 @@ public final class DebugBoxRenderer {
 
     private static final List<Box> BOXES = new ArrayList<>();
 
-    private static final int BASE_COLOR_RGB = 0x00FF0000;
-
-    private static final float LINE_WIDTH = 2.5f;
+    private static final float BASE_R = 1.0f;
+    private static final float BASE_G = 0.0f;
+    private static final float BASE_B = 0.0f;
 
     /**
      * Adds wireframe boxes at the given positions with a shared lifetime.
@@ -54,11 +53,11 @@ public final class DebugBoxRenderer {
     /**
      * Ticks down each pending box and removes the ones that have expired.
      *
-     * @param event the post client-tick event
+     * @param event the client-tick event; only the END phase advances timers
      */
     @SubscribeEvent
-    public static void onClientTick(ClientTickEvent.Post event) {
-        if (BOXES.isEmpty()) return;
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || BOXES.isEmpty()) return;
         Iterator<Box> it = BOXES.iterator();
         while (it.hasNext()) {
             Box b = it.next();
@@ -70,30 +69,27 @@ public final class DebugBoxRenderer {
     /**
      * Draws each surviving box as a red wireframe cube, with alpha fading over its remaining lifetime.
      *
-     * @param event the after-translucent-particles render-level event
+     * @param event the render-level event; only the after-particles stage draws
      */
     @SubscribeEvent
-    public static void onRenderLevel(RenderLevelStageEvent.AfterTranslucentParticles event) {
+    public static void onRenderLevel(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return;
         if (BOXES.isEmpty()) return;
         PoseStack stack = event.getPoseStack();
-        if (stack == null) return;
 
-        Vec3 camPos = Minecraft.getInstance().gameRenderer.getMainCamera().position();
+        Vec3 camPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
         MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
-        VertexConsumer consumer = buffers.getBuffer(RenderTypes.lines());
-        VoxelShape unitCube = Shapes.block();
+        VertexConsumer consumer = buffers.getBuffer(RenderType.lines());
 
         stack.pushPose();
         stack.translate(-camPos.x, -camPos.y, -camPos.z);
         for (Box b : BOXES) {
-            float fade = Math.max(0f, (float) b.remainingTicks / b.totalTicks);
-            int alpha = (int) (fade * 255f) & 0xFF;
-            int color = (alpha << 24) | BASE_COLOR_RGB;
-            ShapeRenderer.renderShape(stack, consumer, unitCube,
-                    b.pos.getX(), b.pos.getY(), b.pos.getZ(), color, LINE_WIDTH);
+            float alpha = Math.max(0f, (float) b.remainingTicks / b.totalTicks);
+            LevelRenderer.renderLineBox(stack, consumer, new AABB(b.pos),
+                    BASE_R, BASE_G, BASE_B, alpha);
         }
         stack.popPose();
-        buffers.endBatch(RenderTypes.lines());
+        buffers.endBatch(RenderType.lines());
     }
 
     private static final class Box {

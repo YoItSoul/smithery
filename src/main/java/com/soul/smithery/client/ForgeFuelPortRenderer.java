@@ -7,23 +7,22 @@ import com.soul.smithery.block.ForgeFuelPortBlock;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
 import com.soul.smithery.registry.SmitheryFluids;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
-import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.sprite.SpriteId;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraft.world.phys.Vec3;
-import org.joml.Matrix4f;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Block entity renderer for the forge fuel port.
@@ -34,8 +33,7 @@ import org.jetbrains.annotations.Nullable;
  * correct still texture and animation cycle. Vertical extension toward connected neighbours
  * is lerped on a matching schedule so adjacent ports merge their fluid surfaces visually.
  */
-public class ForgeFuelPortRenderer
-        implements BlockEntityRenderer<ForgeFuelPortBlockEntity, ForgeFuelPortRenderer.RenderState> {
+public class ForgeFuelPortRenderer implements BlockEntityRenderer<ForgeFuelPortBlockEntity> {
 
     private static final int FULL_BRIGHT = 0xF000F0;
 
@@ -54,10 +52,10 @@ public class ForgeFuelPortRenderer
         return prev + diff * factor;
     }
 
-    private final java.util.Map<Long, Float> displayedByPos = new java.util.HashMap<>();
-    private final java.util.Map<Long, Fluid> lastFluidByPos = new java.util.HashMap<>();
-    private final java.util.Map<Long, Float> displayedTopExtendByPos = new java.util.HashMap<>();
-    private final java.util.Map<Long, Float> displayedBottomExtendByPos = new java.util.HashMap<>();
+    private final Map<Long, Float> displayedByPos = new HashMap<>();
+    private final Map<Long, Fluid> lastFluidByPos = new HashMap<>();
+    private final Map<Long, Float> displayedTopExtendByPos = new HashMap<>();
+    private final Map<Long, Float> displayedBottomExtendByPos = new HashMap<>();
 
     /**
      * Constructs the renderer with the provider context.
@@ -66,82 +64,18 @@ public class ForgeFuelPortRenderer
      */
     public ForgeFuelPortRenderer(BlockEntityRendererProvider.Context context) {}
 
-    /**
-     * Per-frame snapshot of the port's fluid column state.
-     *
-     * <p>Holds the lerped fill fraction, vertical extension toward each neighbour, and the
-     * resolved fluid sprite to texture the column with.
-     */
-    public static final class RenderState extends BlockEntityRenderState {
-        public boolean hasFuel;
-        public int colorArgb;
-        public float fillFraction;
-        public float topExtend;
-        public float bottomExtend;
-        public boolean aboveHasFuel;
-        public boolean belowHasFuel;
-        /** Resolved still sprite for the current fluid; UVs already track its animation frame. */
-        public @Nullable TextureAtlasSprite fluidSprite;
-    }
-
     @Override
-    public RenderState createRenderState() {
-        return new RenderState();
-    }
-
-    @Override
-    public void extractRenderState(ForgeFuelPortBlockEntity be, RenderState state, float partialTick,
-                                   Vec3 camPos, ModelFeatureRenderer.CrumblingOverlay crumbling) {
-        BlockEntityRenderState.extractBase(be, state, crumbling);
-        lerpFluidConnections(be, state);
-
-        state.hasFuel = false;
-        state.fluidSprite = null;
-        Fluid fluid = be.fuelFluid();
+    public void render(ForgeFuelPortBlockEntity be, float partialTick, PoseStack poseStack,
+                       MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
         long key = be.getBlockPos().asLong();
 
-        if (fluid == null || be.fuelMb() <= 0) {
-            float prev = displayedByPos.getOrDefault(key, 0f);
-            float lerped = lerpStep(prev, 0f);
-            if (lerped < 0.001f) {
-                displayedByPos.put(key, 0f);
-                lastFluidByPos.remove(key);
-                state.fillFraction = 0f;
-                return;
-            }
-            displayedByPos.put(key, lerped);
-            state.fillFraction = lerped;
-            Fluid lastFluid = lastFluidByPos.get(key);
-            if (lastFluid != null) {
-                state.colorArgb = tintForFluid(lastFluid);
-                state.fluidSprite = spriteForFluid(lastFluid);
-            } else {
-                state.colorArgb = 0xFFFF6622;
-            }
-            state.hasFuel = true;
-            return;
-        }
-
-        float target = Math.max(0f, Math.min(1f,
-                (float) be.fuelMb() / (float) ForgeFuelPortBlockEntity.CAPACITY_MB));
-        float prev = displayedByPos.getOrDefault(key, 0f);
-        float lerped = lerpStep(prev, target);
-        displayedByPos.put(key, lerped);
-        lastFluidByPos.put(key, fluid);
-
-        state.fillFraction = lerped;
-        state.colorArgb = tintForFluid(fluid);
-        state.fluidSprite = spriteForFluid(fluid);
-        state.hasFuel = true;
-    }
-
-    private void lerpFluidConnections(ForgeFuelPortBlockEntity be, RenderState state) {
+        // Lerp the vertical extensions toward connected same-group neighbours.
         boolean targetAbove = false;
         boolean targetBelow = false;
         boolean aboveHasFuel = false;
         boolean belowHasFuel = false;
         var level = be.getLevel();
-        net.minecraft.world.level.block.state.BlockState bs = be.getBlockState();
+        BlockState bs = be.getBlockState();
         if (level != null && bs.getBlock() instanceof ForgeFuelPortBlock) {
             if (bs.getValue(ForgeFuelPortBlock.CONNECTED_UP)) {
                 targetAbove = true;
@@ -156,14 +90,64 @@ public class ForgeFuelPortRenderer
                 }
             }
         }
-        long key = be.getBlockPos().asLong();
-        state.topExtend    = lerpExtend(displayedTopExtendByPos,    key, targetAbove ? 1f : 0f);
-        state.bottomExtend = lerpExtend(displayedBottomExtendByPos, key, targetBelow ? 1f : 0f);
-        state.aboveHasFuel = aboveHasFuel;
-        state.belowHasFuel = belowHasFuel;
+        float topExtend    = lerpExtend(displayedTopExtendByPos,    key, targetAbove ? 1f : 0f);
+        float bottomExtend = lerpExtend(displayedBottomExtendByPos, key, targetBelow ? 1f : 0f);
+
+        // Lerp the fill level; a draining port keeps its last fluid's look while it empties.
+        Fluid fluid = be.fuelFluid();
+        float fillFraction;
+        int colorArgb;
+        TextureAtlasSprite sprite;
+        if (fluid == null || be.fuelMb() <= 0) {
+            float prev = displayedByPos.getOrDefault(key, 0f);
+            float lerped = lerpStep(prev, 0f);
+            if (lerped < 0.001f) {
+                displayedByPos.put(key, 0f);
+                lastFluidByPos.remove(key);
+                return;
+            }
+            displayedByPos.put(key, lerped);
+            fillFraction = lerped;
+            Fluid lastFluid = lastFluidByPos.get(key);
+            if (lastFluid != null) {
+                colorArgb = tintForFluid(lastFluid);
+                sprite = spriteForFluid(lastFluid);
+            } else {
+                colorArgb = 0xFFFF6622;
+                sprite = null;
+            }
+        } else {
+            float target = Math.max(0f, Math.min(1f,
+                    (float) be.fuelMb() / (float) ForgeFuelPortBlockEntity.CAPACITY_MB));
+            float prev = displayedByPos.getOrDefault(key, 0f);
+            float lerped = lerpStep(prev, target);
+            displayedByPos.put(key, lerped);
+            lastFluidByPos.put(key, fluid);
+            fillFraction = lerped;
+            colorArgb = tintForFluid(fluid);
+            sprite = spriteForFluid(fluid);
+        }
+        if (sprite == null) return;
+
+        final float x0 = INSET;
+        final float x1 = 1f - INSET;
+        final float z0 = INSET;
+        final float z1 = 1f - INSET;
+        final float yBottom = INSET * (1f - bottomExtend);
+        final float yTop    = 1f - INSET * (1f - topExtend);
+        final float yFluid  = yBottom + (yTop - yBottom) * Math.max(0f, Math.min(1f, fillFraction));
+        if (yFluid <= yBottom) return;
+
+        final boolean hideTopCap    = aboveHasFuel && topExtend > 0.95f && fillFraction > 0.95f;
+        final boolean hideBottomCap = belowHasFuel && bottomExtend > 0.95f;
+
+        VertexConsumer buffer = bufferSource.getBuffer(RenderType.entityTranslucent(sprite.atlasLocation()));
+        drawColumn(poseStack.last(), buffer, sprite,
+                x0, yBottom, z0, x1, yFluid, z1,
+                colorArgb, hideTopCap, hideBottomCap);
     }
 
-    private static float lerpExtend(java.util.Map<Long, Float> cache, long key, float target) {
+    private static float lerpExtend(Map<Long, Float> cache, long key, float target) {
         float prev = cache.getOrDefault(key, 0f);
         float lerped = lerpStep(prev, target);
         cache.put(key, lerped);
@@ -184,13 +168,9 @@ public class ForgeFuelPortRenderer
         } else {
             return null;
         }
-        return lookupSprite(path);
-    }
-
-    private static TextureAtlasSprite lookupSprite(ResourceLocation path) {
         return Minecraft.getInstance()
-                .getAtlasManager()
-                .get(new SpriteId(TextureAtlas.LOCATION_BLOCKS, path));
+                .getTextureAtlas(TextureAtlas.LOCATION_BLOCKS)
+                .apply(path);
     }
 
     private static int tintForFluid(Fluid fluid) {
@@ -201,36 +181,6 @@ public class ForgeFuelPortRenderer
             return 0xFF000000 | rgb;
         }
         return 0xFFFFFFFF;
-    }
-
-    @Override
-    public void submit(RenderState state, PoseStack poseStack,
-                       SubmitNodeCollector collector, CameraRenderState camera) {
-        TextureAtlasSprite sprite = state.fluidSprite;
-        if (sprite == null) return;
-
-        final float x0 = INSET;
-        final float x1 = 1f - INSET;
-        final float z0 = INSET;
-        final float z1 = 1f - INSET;
-        final float yBottom = INSET * (1f - state.bottomExtend);
-        final float yTop    = 1f - INSET * (1f - state.topExtend);
-        final float yFluid  = state.hasFuel
-                ? yBottom + (yTop - yBottom) * Math.max(0f, Math.min(1f, state.fillFraction))
-                : yBottom;
-        if (yFluid <= yBottom) return;
-
-        final boolean hideTopCap    = state.aboveHasFuel && state.topExtend > 0.95f
-                && state.fillFraction > 0.95f;
-        final boolean hideBottomCap = state.belowHasFuel && state.bottomExtend > 0.95f;
-
-        collector.submitCustomGeometry(poseStack,
-                RenderTypes.entityTranslucent(sprite.atlasLocation()),
-                (pose, buffer) -> drawColumn(pose, buffer, sprite,
-                        x0, yBottom, z0, x1, yFluid, z1,
-                        state.colorArgb,
-                        hideTopCap,
-                        hideBottomCap));
     }
 
     private static void drawColumn(PoseStack.Pose pose, VertexConsumer buf,
@@ -299,11 +249,12 @@ public class ForgeFuelPortRenderer
                                    int r, int g, int b, int a,
                                    float u, float v,
                                    float nx, float ny, float nz) {
-        buf.addVertex(m, x, y, z)
-                .setColor(r, g, b, a)
-                .setUv(u, v)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(FULL_BRIGHT)
-                .setNormal(pose, nx, ny, nz);
+        buf.vertex(m, x, y, z)
+                .color(r, g, b, a)
+                .uv(u, v)
+                .overlayCoords(OverlayTexture.NO_OVERLAY)
+                .uv2(FULL_BRIGHT)
+                .normal(pose.normal(), nx, ny, nz)
+                .endVertex();
     }
 }

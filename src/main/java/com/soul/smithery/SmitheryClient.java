@@ -3,61 +3,56 @@ package com.soul.smithery;
 import com.soul.smithery.client.CastingTableRenderer;
 import com.soul.smithery.client.FluidPipeRenderer;
 import com.soul.smithery.client.ForgeControllerRenderer;
-import com.soul.smithery.client.MoltenBucketTintSource;
-import com.soul.smithery.client.PartMaterialTintSource;
+import com.soul.smithery.client.ForgeFuelPortRenderer;
 import com.soul.smithery.client.PartPressRenderer;
-import com.soul.smithery.client.SmitheryFluidsClient;
-import com.soul.smithery.client.ToolPrimaryMaterialTintSource;
-import com.soul.smithery.client.ToolSlotMaterialTintSource;
+import com.soul.smithery.client.SmitheryItemColors;
 import com.soul.smithery.gui.ForgeControllerScreen;
 import com.soul.smithery.registry.SmitheryBlockEntities;
+import com.soul.smithery.registry.SmitheryEntityTypes;
+import com.soul.smithery.registry.SmitheryItems;
 import com.soul.smithery.registry.SmitheryMenus;
+import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.renderer.entity.ThrownItemRenderer;
+import net.minecraft.client.renderer.entity.TippableArrowRenderer;
+import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModContainer;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.client.event.RegisterColorHandlersEvent;
-import net.minecraftforge.client.event.RegisterFluidModelsEvent;
-import net.minecraftforge.client.event.RegisterMenuScreensEvent;
-import net.minecraftforge.client.gui.ConfigurationScreen;
-import net.minecraftforge.client.gui.IConfigScreenFactory;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 /**
- * Client-only mod entry point.
+ * Client-only bootstrap.
  *
- * <p>Registers block-entity renderers, menu screens, fluid models, and the item tint sources that
- * apply per-material color to grayscale part textures. Loaded only on {@link Dist#CLIENT}.
+ * <p>Registers block-entity renderers, the controller menu screen, item color handlers that
+ * apply per-material color to grayscale textures, and the bow's pull model predicates. Every
+ * handler here runs on the mod bus, restricted to {@link Dist#CLIENT}.
  */
-@Mod(value = Smithery.MODID, dist = Dist.CLIENT)
-@Mod.EventBusSubscriber(modid = Smithery.MODID, value = Dist.CLIENT)
-public class SmitheryClient {
-    /** Tint-source id read from part-item definition JSONs to color a single PartItem. */
-    public static final ResourceLocation PART_MATERIAL_TINT_ID =
-            new ResourceLocation(Smithery.MODID, "part_material");
+@Mod.EventBusSubscriber(modid = Smithery.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
+public final class SmitheryClient {
 
-    /** Tint-source id for a composed tool's primary (lookup-driven) material layer. */
-    public static final ResourceLocation TOOL_PRIMARY_MATERIAL_TINT_ID =
-            new ResourceLocation(Smithery.MODID, "tool_primary_material");
-
-    /** Tint-source id for a per-slot material layer on a composed tool. */
-    public static final ResourceLocation TOOL_SLOT_MATERIAL_TINT_ID =
-            new ResourceLocation(Smithery.MODID, "tool_slot_material");
-
-    /** Tint-source id for a molten-material bucket item. */
-    public static final ResourceLocation MOLTEN_BUCKET_TINT_ID =
-            new ResourceLocation(Smithery.MODID, "molten_bucket");
-
-    /** Registers the NeoForge mod-config screen factory for Smithery. */
-    public SmitheryClient(ModContainer container) {
-        container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
-    }
+    private SmitheryClient() {}
 
     @SubscribeEvent
     static void onClientSetup(FMLClientSetupEvent event) {
+        event.enqueueWork(() -> {
+            MenuScreens.register(SmitheryMenus.FORGE_CONTROLLER.get(), ForgeControllerScreen::new);
+
+            // Vanilla-style pull predicates drive the generated bow model's overrides.
+            ItemProperties.register(SmitheryItems.BOW.get(),
+                    new ResourceLocation("pull"),
+                    (stack, level, entity, seed) -> {
+                        if (entity == null || entity.getUseItem() != stack) return 0.0f;
+                        return (stack.getUseDuration() - entity.getUseItemRemainingTicks()) / 20.0f;
+                    });
+            ItemProperties.register(SmitheryItems.BOW.get(),
+                    new ResourceLocation("pulling"),
+                    (stack, level, entity, seed) ->
+                            entity != null && entity.isUsingItem() && entity.getUseItem() == stack
+                                    ? 1.0f : 0.0f);
+        });
         Smithery.LOGGER.info("Smithery client setup complete.");
     }
 
@@ -67,29 +62,13 @@ public class SmitheryClient {
         event.registerBlockEntityRenderer(SmitheryBlockEntities.CASTING_TABLE.get(), CastingTableRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FLUID_PIPE.get(), FluidPipeRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.PART_PRESS.get(), PartPressRenderer::new);
-        event.registerBlockEntityRenderer(SmitheryBlockEntities.FORGE_FUEL_PORT.get(),
-                com.soul.smithery.client.ForgeFuelPortRenderer::new);
-        event.registerEntityRenderer(com.soul.smithery.registry.SmitheryEntityTypes.ARROW.get(),
-                net.minecraft.client.renderer.entity.TippableArrowRenderer::new);
-        event.registerEntityRenderer(com.soul.smithery.registry.SmitheryEntityTypes.SHURIKEN.get(),
-                net.minecraft.client.renderer.entity.ThrownItemRenderer::new);
+        event.registerBlockEntityRenderer(SmitheryBlockEntities.FORGE_FUEL_PORT.get(), ForgeFuelPortRenderer::new);
+        event.registerEntityRenderer(SmitheryEntityTypes.ARROW.get(), TippableArrowRenderer::new);
+        event.registerEntityRenderer(SmitheryEntityTypes.SHURIKEN.get(), ThrownItemRenderer::new);
     }
 
     @SubscribeEvent
-    static void onRegisterScreens(RegisterMenuScreensEvent event) {
-        event.register(SmitheryMenus.FORGE_CONTROLLER.get(), ForgeControllerScreen::new);
-    }
-
-    @SubscribeEvent
-    static void onRegisterFluidModels(RegisterFluidModelsEvent event) {
-        SmitheryFluidsClient.onRegisterFluidModels(event);
-    }
-
-    @SubscribeEvent
-    static void onRegisterTintSources(RegisterColorHandlersEvent.ItemTintSources event) {
-        event.register(PART_MATERIAL_TINT_ID, PartMaterialTintSource.MAP_CODEC);
-        event.register(TOOL_PRIMARY_MATERIAL_TINT_ID, ToolPrimaryMaterialTintSource.MAP_CODEC);
-        event.register(TOOL_SLOT_MATERIAL_TINT_ID, ToolSlotMaterialTintSource.MAP_CODEC);
-        event.register(MOLTEN_BUCKET_TINT_ID, MoltenBucketTintSource.MAP_CODEC);
+    static void onRegisterItemColors(RegisterColorHandlersEvent.Item event) {
+        SmitheryItemColors.onRegisterItemColors(event);
     }
 }

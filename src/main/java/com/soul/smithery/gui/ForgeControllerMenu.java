@@ -5,7 +5,7 @@ import com.soul.smithery.api.material.Material;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
 import com.soul.smithery.registry.SmitheryMenus;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
@@ -65,13 +65,13 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     private final int[] syncData;
 
     /**
-     * Client-side network constructor invoked by NeoForge with the server-supplied buf.
+     * Client-side network constructor invoked by Forge with the server-supplied buf.
      *
      * @param id assigned menu id
      * @param playerInv local player's inventory
      * @param buf payload containing the controller position followed by a varint slot count
      */
-    public ForgeControllerMenu(int id, Inventory playerInv, RegistryFriendlyByteBuf buf) {
+    public ForgeControllerMenu(int id, Inventory playerInv, FriendlyByteBuf buf) {
         this(id, playerInv, buf.readBlockPos(), buf.readVarInt());
     }
 

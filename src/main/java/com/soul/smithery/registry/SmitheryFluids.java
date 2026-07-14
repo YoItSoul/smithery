@@ -146,14 +146,58 @@ public final class SmitheryFluids {
         }
     }
 
+    private static final ResourceLocation MOLTEN_STILL =
+            new ResourceLocation(Smithery.MODID, "block/molten_still");
+    private static final ResourceLocation MOLTEN_FLOW =
+            new ResourceLocation(Smithery.MODID, "block/molten_flow");
+    private static final ResourceLocation WATER_STILL =
+            new ResourceLocation("minecraft", "block/water_still");
+    private static final ResourceLocation WATER_FLOW =
+            new ResourceLocation("minecraft", "block/water_flow");
+
+    /**
+     * FluidType whose client extensions pick one of two animated base sprites — the
+     * lava-style smithery molten pair (default) or vanilla water's rippling stills (for
+     * water-base materials such as blood) — tinted per-material from
+     * {@link MaterialStats#moltenColor()}. The {@code initializeClient} consumer pattern
+     * keeps this class safe to construct on the dedicated server.
+     */
+    private static final class MoltenFluidType extends FluidType {
+        private final boolean waterBase;
+        private final int tintColor;
+
+        MoltenFluidType(Properties properties, boolean waterBase, int tintColor) {
+            super(properties);
+            this.waterBase = waterBase;
+            this.tintColor = tintColor;
+        }
+
+        @Override
+        public void initializeClient(java.util.function.Consumer<net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions> consumer) {
+            consumer.accept(new net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions() {
+                @Override public ResourceLocation getStillTexture() {
+                    return waterBase ? WATER_STILL : MOLTEN_STILL;
+                }
+                @Override public ResourceLocation getFlowingTexture() {
+                    return waterBase ? WATER_FLOW : MOLTEN_FLOW;
+                }
+                @Override public int getTintColor() {
+                    return tintColor;
+                }
+            });
+        }
+    }
+
     private static void registerOne(Material material) {
         ResourceLocation matId = material.id();
         String name = "molten_" + matId.getPath();
         MaterialStats stats = material.stats();
         int tempCelsius = (int) stats.meltingTemp();
+        boolean waterBase = stats.fluidBase() == MaterialStats.FluidBase.WATER;
+        int tintColor = stats.moltenColor() | 0xFF000000;
 
         RegistryObject<FluidType> type = FLUID_TYPES.register(name,
-                () -> new FluidType(FluidType.Properties.create()
+                () -> new MoltenFluidType(FluidType.Properties.create()
                         .descriptionId("fluid." + Smithery.MODID + "." + name)
                         .lightLevel(15)
                         .density(7000)
@@ -165,7 +209,8 @@ public final class SmitheryFluids {
                         .canHydrate(false)
                         .canExtinguish(false)
                         .canConvertToSource(false)
-                        .supportsBoating(false)));
+                        .supportsBoating(false),
+                        waterBase, tintColor));
 
         // The fluid properties reference source/flowing/block/bucket before those registry
         // objects exist, so single-element arrays break the circular dependency lazily.
