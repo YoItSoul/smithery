@@ -14,11 +14,12 @@ import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.LevelAccessor;
-import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -70,9 +71,8 @@ public class ForgeFuelPortBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected BlockState updateShape(BlockState state, LevelReader level, net.minecraft.world.level.ScheduledTickAccess ticks,
-                                     BlockPos pos, Direction direction, BlockPos neighborPos, BlockState neighborState,
-                                     net.minecraft.util.RandomSource random) {
+    public BlockState updateShape(BlockState state, Direction direction, BlockState neighborState,
+                                  LevelAccessor level, BlockPos pos, BlockPos neighborPos) {
         if (direction == Direction.UP) {
             state = state.setValue(CONNECTED_UP, neighborState.getBlock() instanceof ForgeFuelPortBlock);
         } else if (direction == Direction.DOWN) {
@@ -82,7 +82,7 @@ public class ForgeFuelPortBlock extends Block implements EntityBlock {
     }
 
     @Override
-    public @Nullable BlockState getStateForPlacement(net.minecraft.world.item.context.BlockPlaceContext ctx) {
+    public @Nullable BlockState getStateForPlacement(BlockPlaceContext ctx) {
         Level level = ctx.getLevel();
         BlockPos pos = ctx.getClickedPos();
         boolean up   = level.getBlockState(pos.above()).getBlock() instanceof ForgeFuelPortBlock;
@@ -91,7 +91,7 @@ public class ForgeFuelPortBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+    public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
         super.onPlace(state, level, pos, oldState, movedByPiston);
         if (level.isClientSide()) return;
         ForgeFuelPortBlockEntity.settleStack(level, pos);
@@ -99,16 +99,25 @@ public class ForgeFuelPortBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
-                                          Player player, InteractionHand hand, BlockHitResult hit) {
+    public InteractionResult use(BlockState state, Level level, BlockPos pos,
+                                 Player player, InteractionHand hand, BlockHitResult hit) {
+        ItemStack stack = player.getItemInHand(hand);
         if (!(level.getBlockEntity(pos) instanceof ForgeFuelPortBlockEntity fp)) {
             return InteractionResult.PASS;
         }
 
-        if (stack.getItem() instanceof BucketItem bucket && bucket.content != null
-                && ForgeFuels.isFuel(bucket.content)) {
+        if (stack.isEmpty()) {
             if (level.isClientSide()) return InteractionResult.SUCCESS;
-            Fluid fluid = bucket.content;
+            player.sendSystemMessage(Component.literal("Fuel: "
+                    + fp.stackFuelMb() + " / " + fp.stackCapacityMb() + " mB")
+                    .withStyle(ChatFormatting.GOLD));
+            return InteractionResult.SUCCESS;
+        }
+
+        if (stack.getItem() instanceof BucketItem bucket && bucket.getFluid() != Fluids.EMPTY
+                && ForgeFuels.isFuel(bucket.getFluid())) {
+            if (level.isClientSide()) return InteractionResult.SUCCESS;
+            Fluid fluid = bucket.getFluid();
             int existing  = fp.stackFuelMb(fluid);
             int totalUsed = fp.stackFuelMb();
             int stackCap  = fp.stackCapacityMb();
@@ -175,15 +184,5 @@ public class ForgeFuelPortBlock extends Block implements EntityBlock {
     private static String fluidName(Fluid fluid) {
         var id = BuiltInRegistries.FLUID.getKey(fluid);
         return id == null ? "fluid" : id.getPath();
-    }
-
-    @Override
-    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        if (level.isClientSide()) return InteractionResult.SUCCESS;
-        if (!(level.getBlockEntity(pos) instanceof ForgeFuelPortBlockEntity fp)) return InteractionResult.PASS;
-        player.sendSystemMessage(Component.literal("Fuel: "
-                + fp.stackFuelMb() + " / " + fp.stackCapacityMb() + " mB")
-                .withStyle(ChatFormatting.GOLD));
-        return InteractionResult.SUCCESS;
     }
 }

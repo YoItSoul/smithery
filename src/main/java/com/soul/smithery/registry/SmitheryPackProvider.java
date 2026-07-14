@@ -2,7 +2,6 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
@@ -31,17 +30,7 @@ public final class SmitheryPackProvider {
     public static void onAddPackFinders(AddPackFindersEvent event) {
         if (event.getPackType() != PackType.CLIENT_RESOURCES) return;
 
-        Pack.ResourcesSupplier supplier = new Pack.ResourcesSupplier() {
-            @Override
-            public PackResources openPrimary(String id) {
-                return new SmitheryGeneratedPack();
-            }
-
-            @Override
-            public PackResources openFull(String id, Pack.Info info) {
-                return new SmitheryGeneratedPack();
-            }
-        };
+        Pack.ResourcesSupplier supplier = id -> new SmitheryGeneratedPack();
 
         event.addRepositorySource(consumer -> {
             Pack pack = Pack.readMetaAndCreate(

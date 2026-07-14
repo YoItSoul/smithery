@@ -1,6 +1,5 @@
 package com.soul.smithery.block;
 
-import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockGetter;
@@ -14,10 +13,6 @@ import net.minecraft.world.level.block.state.BlockState;
  * unchanged; only the {@code is/get*Signal} overrides add the constant power source.
  */
 public class RedSlimeBlock extends SlimeBlock {
-    /** Block codec for serialization; re-uses the parent SlimeBlock codec since Java return-type
-     *  covariance forbids narrowing the parameterized type. */
-    public static final MapCodec<RedSlimeBlock> CODEC = simpleCodec(RedSlimeBlock::new);
-
     /**
      * Constructs the red slime block with the given block properties.
      */

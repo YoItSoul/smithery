@@ -1,35 +1,36 @@
 package com.soul.smithery.block.entity;
 
-import com.geckolib.animatable.GeoBlockEntity;
-import com.geckolib.animatable.instance.AnimatableInstanceCache;
-import com.geckolib.animatable.manager.AnimatableManager;
-import com.geckolib.animation.AnimationController;
-import com.geckolib.animation.RawAnimation;
-import com.geckolib.util.GeckoLibUtil;
+import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.content.SmitheryMaterials;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import com.soul.smithery.registry.SmitheryItems;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
-import net.minecraft.core.Direction;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.transaction.TransactionContext;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import software.bernie.geckolib.animatable.GeoBlockEntity;
+import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.core.animation.AnimatableManager;
+import software.bernie.geckolib.core.animation.AnimationController;
+import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
 
@@ -49,6 +50,8 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
     private static final RawAnimation IDLE_CLOSE = RawAnimation.begin().thenPlay(ANIM_CLOSE);
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
+
+    private final LazyOptional<IItemHandler> itemCap = LazyOptional.of(PressItemHandler::new);
 
     private int selectedPartIndex = 0;
     private ItemStack input  = ItemStack.EMPTY;
@@ -91,7 +94,7 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         if (all.isEmpty()) return;
         selectedPartIndex = Math.floorMod(selectedPartIndex + 1, all.size());
         markDirtyAndSync();
-        com.soul.smithery.Smithery.LOGGER.info("[PartPress @{}] cycled to index {} ({})",
+        Smithery.LOGGER.info("[PartPress @{}] cycled to index {} ({})",
                 worldPosition, selectedPartIndex,
                 selectedPartType() != null ? selectedPartType().id() : "null");
     }
@@ -110,33 +113,34 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
 
     /**
      * Resolves an input item to the smithery material id it should produce a part of.
-     * The press handles only non-meltable inputs (logs, flint, slime, resin, coral,
-     * red slime); meltables go through the forge/cast pipeline instead. Returns null
-     * for unsupported items.
+     * The press handles only non-meltable inputs (logs, flint, slime, coral, red
+     * slime); meltables go through the forge/cast pipeline instead. Returns null for
+     * unsupported items.
+     *
+     * <p>1.20.1 has no resin item, so the resin material has no press input on this
+     * branch.
      */
     public static @Nullable ResourceLocation resolveMaterialFor(ItemStack stack) {
-        if (stack.is(net.minecraft.tags.ItemTags.LOGS))   return SmitheryMaterials.WOOD;
-        if (stack.is(net.minecraft.world.item.Items.FLINT))        return SmitheryMaterials.FLINT;
-        if (stack.is(net.minecraft.world.item.Items.SLIME_BALL))   return SmitheryMaterials.SLIME;
-        if (stack.is(net.minecraft.world.item.Items.RESIN_CLUMP))  return SmitheryMaterials.RESIN;
-        if (isCoralBlockItem(stack)) return SmitheryMaterials.CORAL;
-        if (stack.is(com.soul.smithery.registry.SmitheryItems.RED_SLIME.get()))
-            return SmitheryMaterials.RED_SLIME;
+        if (stack.is(ItemTags.LOGS))        return SmitheryMaterials.WOOD;
+        if (stack.is(Items.FLINT))          return SmitheryMaterials.FLINT;
+        if (stack.is(Items.SLIME_BALL))     return SmitheryMaterials.SLIME;
+        if (isCoralBlockItem(stack))        return SmitheryMaterials.CORAL;
+        if (stack.is(SmitheryItems.RED_SLIME.get())) return SmitheryMaterials.RED_SLIME;
         return null;
     }
 
     private static boolean isCoralBlockItem(ItemStack stack) {
         var it = stack.getItem();
-        return it == net.minecraft.world.item.Items.TUBE_CORAL_BLOCK
-            || it == net.minecraft.world.item.Items.BRAIN_CORAL_BLOCK
-            || it == net.minecraft.world.item.Items.BUBBLE_CORAL_BLOCK
-            || it == net.minecraft.world.item.Items.FIRE_CORAL_BLOCK
-            || it == net.minecraft.world.item.Items.HORN_CORAL_BLOCK
-            || it == net.minecraft.world.item.Items.DEAD_TUBE_CORAL_BLOCK
-            || it == net.minecraft.world.item.Items.DEAD_BRAIN_CORAL_BLOCK
-            || it == net.minecraft.world.item.Items.DEAD_BUBBLE_CORAL_BLOCK
-            || it == net.minecraft.world.item.Items.DEAD_FIRE_CORAL_BLOCK
-            || it == net.minecraft.world.item.Items.DEAD_HORN_CORAL_BLOCK;
+        return it == Items.TUBE_CORAL_BLOCK
+            || it == Items.BRAIN_CORAL_BLOCK
+            || it == Items.BUBBLE_CORAL_BLOCK
+            || it == Items.FIRE_CORAL_BLOCK
+            || it == Items.HORN_CORAL_BLOCK
+            || it == Items.DEAD_TUBE_CORAL_BLOCK
+            || it == Items.DEAD_BRAIN_CORAL_BLOCK
+            || it == Items.DEAD_BUBBLE_CORAL_BLOCK
+            || it == Items.DEAD_FIRE_CORAL_BLOCK
+            || it == Items.DEAD_HORN_CORAL_BLOCK;
     }
 
     /**
@@ -196,7 +200,7 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
 
         ItemStack produced = new ItemStack(partItem.get());
         if (!output.isEmpty()) {
-            if (!ItemStack.isSameItemSameComponents(output, produced)) return;
+            if (!ItemStack.isSameItemSameTags(output, produced)) return;
             if (output.getCount() >= output.getMaxStackSize()) return;
             output.grow(1);
         } else {
@@ -207,28 +211,27 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
     }
 
     @Override
-    protected void saveAdditional(ValueOutput out) {
-        super.saveAdditional(out);
-        out.putInt("selectedPartIndex", selectedPartIndex);
-        out.putBoolean("closed", closed);
-        if (!input.isEmpty())  out.store("input",  ItemStack.OPTIONAL_CODEC, input);
-        if (!output.isEmpty()) out.store("output", ItemStack.OPTIONAL_CODEC, output);
+    protected void saveAdditional(CompoundTag tag) {
+        super.saveAdditional(tag);
+        tag.putInt("selectedPartIndex", selectedPartIndex);
+        tag.putBoolean("closed", closed);
+        if (!input.isEmpty())  tag.put("input",  input.save(new CompoundTag()));
+        if (!output.isEmpty()) tag.put("output", output.save(new CompoundTag()));
     }
 
     @Override
-    protected void loadAdditional(ValueInput in) {
-        super.loadAdditional(in);
-        int newIndex = in.getIntOr("selectedPartIndex", 0);
+    public void load(CompoundTag tag) {
+        super.load(tag);
+        int newIndex = tag.getInt("selectedPartIndex");
         if (newIndex != selectedPartIndex) {
-            com.soul.smithery.Smithery.LOGGER.info(
-                    "[PartPress @{}] loadAdditional: index {} -> {} (side={})",
+            Smithery.LOGGER.info("[PartPress @{}] load: index {} -> {} (side={})",
                     worldPosition, selectedPartIndex, newIndex,
                     level != null && level.isClientSide() ? "client" : "server");
         }
         selectedPartIndex = newIndex;
-        closed = in.getBooleanOr("closed", false);
-        input  = in.read("input",  ItemStack.OPTIONAL_CODEC).orElse(ItemStack.EMPTY);
-        output = in.read("output", ItemStack.OPTIONAL_CODEC).orElse(ItemStack.EMPTY);
+        closed = tag.getBoolean("closed");
+        input  = tag.contains("input")  ? ItemStack.of(tag.getCompound("input"))  : ItemStack.EMPTY;
+        output = tag.contains("output") ? ItemStack.of(tag.getCompound("output")) : ItemStack.EMPTY;
     }
 
     private void markDirtyAndSync() {
@@ -244,14 +247,16 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
     }
 
     @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        return saveCustomOnly(registries);
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = super.getUpdateTag();
+        saveAdditional(tag);
+        return tag;
     }
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         AnimationController<PartPressBlockEntity> ctrl = new AnimationController<>(
-                CONTROLLER, 0, state -> state.setAndContinue(closed ? IDLE_CLOSE : IDLE_OPEN));
+                this, CONTROLLER, 0, state -> state.setAndContinue(closed ? IDLE_CLOSE : IDLE_OPEN));
         ctrl.triggerableAnim(ANIM_OPEN,  IDLE_OPEN)
             .triggerableAnim(ANIM_CLOSE, IDLE_CLOSE);
         controllers.add(ctrl);
@@ -262,58 +267,73 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         return cache;
     }
 
+    @Override
+    public <T> @NotNull LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
+        if (cap == ForgeCapabilities.ITEM_HANDLER) {
+            return itemCap.cast();
+        }
+        return super.getCapability(cap, side);
+    }
+
+    @Override
+    public void invalidateCaps() {
+        super.invalidateCaps();
+        itemCap.invalidate();
+    }
+
     /**
-     * Returns the press's item capability: slot 0 is the input (insert-only while open),
+     * Returns the press's item handler: slot 0 is the input (insert-only while open),
      * slot 1 is the output (extract-only while open). Both lock when the press is closed.
      */
-    public ResourceHandler<ItemResource> itemHandlerFor(@Nullable Direction side) {
+    public IItemHandler itemHandlerFor(@Nullable Direction side) {
         return new PressItemHandler();
     }
 
-    private final class PressItemHandler implements ResourceHandler<ItemResource> {
-        @Override public int size() { return 2; }
+    /** Two-slot view: input slot accepts one pressable item while open, output extracts while open. */
+    private final class PressItemHandler implements IItemHandler {
+        @Override public int getSlots() { return 2; }
 
-        @Override public ItemResource getResource(int slot) {
-            ItemStack s = slot == 0 ? input : (slot == 1 ? output : ItemStack.EMPTY);
-            return s.isEmpty() ? ItemResource.EMPTY : ItemResource.of(s);
+        @Override
+        public @NotNull ItemStack getStackInSlot(int slot) {
+            return slot == 0 ? input : (slot == 1 ? output : ItemStack.EMPTY);
         }
 
-        @Override public long getAmountAsLong(int slot) {
-            ItemStack s = slot == 0 ? input : (slot == 1 ? output : ItemStack.EMPTY);
-            return s.getCount();
+        @Override
+        public int getSlotLimit(int slot) {
+            return slot == 0 ? 1 : 64;
         }
 
-        @Override public long getCapacityAsLong(int slot, ItemResource resource) {
-            if (slot == 0) return 1L;
-            if (slot == 1) return resource.isEmpty() ? 64L : resource.getItem().getDefaultMaxStackSize();
-            return 0L;
-        }
-
-        @Override public boolean isValid(int slot, ItemResource resource) {
-            if (resource.isEmpty() || closed) return false;
-            if (slot == 0) return canAcceptInput(resource.toStack(1));
+        @Override
+        public boolean isItemValid(int slot, @NotNull ItemStack stack) {
+            if (stack.isEmpty() || closed) return false;
+            if (slot == 0) return canAcceptInput(stack.copyWithCount(1));
             return false;
         }
 
         @Override
-        public int insert(int slot, ItemResource resource, int amount, TransactionContext tx) {
-            if (slot != 0 || closed || resource.isEmpty() || amount <= 0) return 0;
-            if (!input.isEmpty()) return 0;
-            if (!canAcceptInput(resource.toStack(1))) return 0;
-            input = resource.toStack(1);
-            markDirtyAndSync();
-            return 1;
+        public @NotNull ItemStack insertItem(int slot, @NotNull ItemStack stack, boolean simulate) {
+            if (slot != 0 || closed || stack.isEmpty()) return stack;
+            if (!input.isEmpty()) return stack;
+            if (!canAcceptInput(stack.copyWithCount(1))) return stack;
+            if (!simulate) {
+                input = stack.copyWithCount(1);
+                markDirtyAndSync();
+            }
+            return stack.copyWithCount(stack.getCount() - 1);
         }
 
         @Override
-        public int extract(int slot, ItemResource resource, int amount, TransactionContext tx) {
-            if (slot != 1 || closed || resource.isEmpty() || amount <= 0) return 0;
-            if (output.isEmpty() || resource.getItem() != output.getItem()) return 0;
+        public @NotNull ItemStack extractItem(int slot, int amount, boolean simulate) {
+            if (slot != 1 || closed || amount <= 0) return ItemStack.EMPTY;
+            if (output.isEmpty()) return ItemStack.EMPTY;
             int extracted = Math.min(amount, output.getCount());
-            output.shrink(extracted);
-            if (output.isEmpty()) output = ItemStack.EMPTY;
-            markDirtyAndSync();
-            return extracted;
+            ItemStack result = output.copyWithCount(extracted);
+            if (!simulate) {
+                output.shrink(extracted);
+                if (output.isEmpty()) output = ItemStack.EMPTY;
+                markDirtyAndSync();
+            }
+            return result;
         }
     }
 

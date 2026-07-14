@@ -10,6 +10,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -30,8 +33,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
@@ -787,52 +788,47 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     }
 
     @Override
-    protected void loadAdditional(ValueInput input) {
-        super.loadAdditional(input);
-        temperatureC = input.getFloatOr("temperatureC", HEAT_AMBIENT_C);
-        alloyEnabled = input.getBooleanOr("alloyEnabled", true);
+    public void load(CompoundTag tag) {
+        super.load(tag);
+        temperatureC = tag.contains("temperatureC") ? tag.getFloat("temperatureC") : HEAT_AMBIENT_C;
+        alloyEnabled = !tag.contains("alloyEnabled") || tag.getBoolean("alloyEnabled");
 
         fluidStorage.clear();
-        Optional<ValueInput.ValueInputList> fluids = input.childrenList("fluids");
-        if (fluids.isPresent()) {
-            for (ValueInput entry : fluids.get()) {
-                Optional<String> idStr = entry.getString("id");
-                int mb = entry.getInt("mb").orElse(0);
-                if (idStr.isEmpty() || mb <= 0) continue;
-                ResourceLocation id = ResourceLocation.tryParse(idStr.get());
-                if (id == null) continue;
-                ResourceLocation resolvedFluidId = resolveSavedFluidId(id);
-                if (resolvedFluidId != null) {
-                    fluidStorage.merge(resolvedFluidId, mb, Integer::sum);
-                }
+        ListTag fluids = tag.getList("fluids", Tag.TAG_COMPOUND);
+        for (int i = 0; i < fluids.size(); i++) {
+            CompoundTag entry = fluids.getCompound(i);
+            int mb = entry.getInt("mb");
+            if (!entry.contains("id") || mb <= 0) continue;
+            ResourceLocation id = ResourceLocation.tryParse(entry.getString("id"));
+            if (id == null) continue;
+            ResourceLocation resolvedFluidId = resolveSavedFluidId(id);
+            if (resolvedFluidId != null) {
+                fluidStorage.merge(resolvedFluidId, mb, Integer::sum);
             }
         }
 
-        outputFluidId = input.getString("outputFluidId").map(ResourceLocation::tryParse).orElse(null);
+        outputFluidId = tag.contains("outputFluidId")
+                ? ResourceLocation.tryParse(tag.getString("outputFluidId"))
+                : null;
         if (outputFluidId != null && !fluidStorage.containsKey(outputFluidId)) {
             outputFluidId = null;
         }
 
         pendingSlotItems.clear();
         pendingProgress.clear();
-        Optional<ValueInput.ValueInputList> slotsIn = input.childrenList("slots");
-        if (slotsIn.isPresent()) {
-            for (ValueInput entry : slotsIn.get()) {
-                int x = entry.getInt("x").orElse(0);
-                int y = entry.getInt("y").orElse(0);
-                int z = entry.getInt("z").orElse(0);
-                Optional<String> itemStr = entry.getString("item");
-                int count = entry.getInt("count").orElse(1);
-                float progress = entry.getFloatOr("progress", 0f);
-                if (itemStr.isEmpty()) continue;
-                ResourceLocation itemId = ResourceLocation.tryParse(itemStr.get());
-                if (itemId == null) continue;
-                Item item = BuiltInRegistries.ITEM.get(itemId).<Item>map(r -> r.value()).orElse(null);
-                if (item == null || item == Items.AIR) continue;
-                BlockPos pos = new BlockPos(x, y, z);
-                pendingSlotItems.put(pos, new ItemStack(item, Math.max(1, count)));
-                if (progress > 0f) pendingProgress.put(pos, progress);
-            }
+        ListTag slotsIn = tag.getList("slots", Tag.TAG_COMPOUND);
+        for (int i = 0; i < slotsIn.size(); i++) {
+            CompoundTag entry = slotsIn.getCompound(i);
+            if (!entry.contains("item")) continue;
+            int count = entry.contains("count") ? entry.getInt("count") : 1;
+            float progress = entry.getFloat("progress");
+            ResourceLocation itemId = ResourceLocation.tryParse(entry.getString("item"));
+            if (itemId == null) continue;
+            Item item = BuiltInRegistries.ITEM.get(itemId);
+            if (item == Items.AIR) continue;
+            BlockPos pos = new BlockPos(entry.getInt("x"), entry.getInt("y"), entry.getInt("z"));
+            pendingSlotItems.put(pos, new ItemStack(item, Math.max(1, count)));
+            if (progress > 0f) pendingProgress.put(pos, progress);
         }
 
         if (level != null && level.isClientSide()) {
@@ -855,31 +851,33 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     }
 
     @Override
-    protected void saveAdditional(ValueOutput output) {
-        super.saveAdditional(output);
-        output.putFloat("temperatureC", temperatureC);
-        output.putBoolean("alloyEnabled", alloyEnabled);
+    protected void saveAdditional(CompoundTag tag) {
+        super.saveAdditional(tag);
+        tag.putFloat("temperatureC", temperatureC);
+        tag.putBoolean("alloyEnabled", alloyEnabled);
 
-        ValueOutput.ValueOutputList fluids = output.childrenList("fluids");
+        ListTag fluids = new ListTag();
         for (Map.Entry<ResourceLocation, Integer> e : fluidStorage.entrySet()) {
             if (e.getValue() <= 0) continue;
-            ValueOutput entry = fluids.addChild();
+            CompoundTag entry = new CompoundTag();
             entry.putString("id", e.getKey().toString());
             entry.putInt("mb", e.getValue());
+            fluids.add(entry);
         }
+        tag.put("fluids", fluids);
 
         if (outputFluidId != null) {
-            output.putString("outputFluidId", outputFluidId.toString());
+            tag.putString("outputFluidId", outputFluidId.toString());
         }
 
-        ValueOutput.ValueOutputList slotsOut = output.childrenList("slots");
+        ListTag slotsOut = new ListTag();
         for (int i = 0; i < slotPositions.size(); i++) {
             ItemStack stack = slots.get(i);
             if (stack.isEmpty()) continue;
             ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
             if (key == null) continue;
             BlockPos pos = slotPositions.get(i);
-            ValueOutput entry = slotsOut.addChild();
+            CompoundTag entry = new CompoundTag();
             entry.putInt("x", pos.getX());
             entry.putInt("y", pos.getY());
             entry.putInt("z", pos.getZ());
@@ -888,7 +886,9 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             if (i < meltProgressPerSlot.length && meltProgressPerSlot[i] > 0f) {
                 entry.putFloat("progress", meltProgressPerSlot[i]);
             }
+            slotsOut.add(entry);
         }
+        tag.put("slots", slotsOut);
     }
 
     @Override
@@ -897,8 +897,10 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     }
 
     @Override
-    public net.minecraft.nbt.CompoundTag getUpdateTag(net.minecraft.core.HolderLookup.Provider registries) {
-        return saveCustomOnly(registries);
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = super.getUpdateTag();
+        saveAdditional(tag);
+        return tag;
     }
 
     /**

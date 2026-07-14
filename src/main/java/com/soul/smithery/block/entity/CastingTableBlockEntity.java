@@ -1,40 +1,42 @@
 package com.soul.smithery.block.entity;
 
 import com.soul.smithery.api.SmitheryAPI;
+import com.soul.smithery.api.cast.CastResults;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.registry.SmitheryBlockEntities;
+import com.soul.smithery.registry.SmitheryFluids;
+import com.soul.smithery.registry.SmitheryItems;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
-import net.minecraft.core.Direction;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.fluid.FluidResource;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.transaction.TransactionContext;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.capability.IFluidHandler;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.registries.ForgeRegistries;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.Optional;
 
 /**
  * State and behaviour for a sand-casting workbench. Drives the EMPTY -> SAND ->
  * IMPRESSED -> FILLING -> COOLING -> READY cycle, persisting per-state data
  * (impressed part type, required mB, poured fluid, fill amount, cooling progress)
  * and exposing both a write-only fluid sink and a READY-gated item source via
- * NeoForge capabilities.
+ * Forge capabilities.
  */
 public class CastingTableBlockEntity extends BlockEntity {
 
@@ -254,16 +256,13 @@ public class CastingTableBlockEntity extends BlockEntity {
 
     private ItemStack resolvePartItem() {
         if (impressedPartTypeId == null || pouredFluid == Fluids.EMPTY) return ItemStack.EMPTY;
-        com.soul.smithery.registry.SmitheryFluids.Entry entry =
-                com.soul.smithery.registry.SmitheryFluids.forFluid(pouredFluid);
+        SmitheryFluids.Entry entry = SmitheryFluids.forFluid(pouredFluid);
         if (entry == null) return ItemStack.EMPTY;
 
-        net.minecraft.world.item.Item explicit =
-                com.soul.smithery.api.cast.CastResults.resolve(entry.materialId, impressedPartTypeId);
+        Item explicit = CastResults.resolve(entry.materialId, impressedPartTypeId);
         if (explicit != null) return new ItemStack(explicit);
 
-        var partItem = com.soul.smithery.registry.SmitheryItems.getBuiltInPart(
-                entry.materialId, impressedPartTypeId);
+        var partItem = SmitheryItems.getBuiltInPart(entry.materialId, impressedPartTypeId);
         if (partItem == null) return ItemStack.EMPTY;
         return new ItemStack(partItem.get());
     }
@@ -310,50 +309,49 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(ValueOutput output) {
-        super.saveAdditional(output);
-        output.putString("state", state.name());
+    protected void saveAdditional(CompoundTag tag) {
+        super.saveAdditional(tag);
+        tag.putString("state", state.name());
         if (impressedPartTypeId != null) {
-            output.putString("impressedPartType", impressedPartTypeId.toString());
+            tag.putString("impressedPartType", impressedPartTypeId.toString());
         }
         if (requiredMb > 0) {
-            output.putInt("requiredMb", requiredMb);
+            tag.putInt("requiredMb", requiredMb);
         }
         if (brushProgress > 0) {
-            output.putInt("brushProgress", brushProgress);
+            tag.putInt("brushProgress", brushProgress);
         }
         if (pouredFluid != Fluids.EMPTY) {
-            ResourceLocation fluidId = BuiltInRegistries.FLUID.getKey(pouredFluid);
-            if (fluidId != null) output.putString("pouredFluid", fluidId.toString());
+            ResourceLocation fluidId = ForgeRegistries.FLUIDS.getKey(pouredFluid);
+            if (fluidId != null) tag.putString("pouredFluid", fluidId.toString());
         }
         if (filledMb > 0) {
-            output.putInt("filledMb", filledMb);
+            tag.putInt("filledMb", filledMb);
         }
         if (coolingTicksRemaining > 0) {
-            output.putInt("coolingTicks", coolingTicksRemaining);
+            tag.putInt("coolingTicks", coolingTicksRemaining);
         }
     }
 
     @Override
-    protected void loadAdditional(ValueInput input) {
-        super.loadAdditional(input);
-        state = input.getString("state").map(State::byName).orElse(State.EMPTY);
-        Optional<String> ptStr = input.getString("impressedPartType");
-        impressedPartTypeId = ptStr.map(ResourceLocation::tryParse).orElse(null);
-        requiredMb = input.getInt("requiredMb").orElse(0);
-        brushProgress = input.getInt("brushProgress").orElse(0);
+    public void load(CompoundTag tag) {
+        super.load(tag);
+        state = State.byName(tag.getString("state"));
+        impressedPartTypeId = tag.contains("impressedPartType")
+                ? ResourceLocation.tryParse(tag.getString("impressedPartType"))
+                : null;
+        requiredMb = tag.getInt("requiredMb");
+        brushProgress = tag.getInt("brushProgress");
 
-        Optional<String> fluidStr = input.getString("pouredFluid");
-        if (fluidStr.isPresent()) {
-            ResourceLocation fluidId = ResourceLocation.tryParse(fluidStr.get());
-            pouredFluid = fluidId == null
-                    ? Fluids.EMPTY
-                    : BuiltInRegistries.FLUID.get(fluidId).<Fluid>map(r -> r.value()).orElse(Fluids.EMPTY);
+        if (tag.contains("pouredFluid")) {
+            ResourceLocation fluidId = ResourceLocation.tryParse(tag.getString("pouredFluid"));
+            Fluid loaded = fluidId == null ? null : ForgeRegistries.FLUIDS.getValue(fluidId);
+            pouredFluid = loaded == null ? Fluids.EMPTY : loaded;
         } else {
             pouredFluid = Fluids.EMPTY;
         }
-        filledMb = input.getInt("filledMb").orElse(0);
-        coolingTicksRemaining = input.getInt("coolingTicks").orElse(0);
+        filledMb = tag.getInt("filledMb");
+        coolingTicksRemaining = tag.getInt("coolingTicks");
     }
 
     private void markDirtyAndSync() {
@@ -369,94 +367,116 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        return saveCustomOnly(registries);
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = super.getUpdateTag();
+        saveAdditional(tag);
+        return tag;
+    }
+
+    private final LazyOptional<IFluidHandler> fluidCapUp = LazyOptional.of(TableFluidHandler::new);
+    private final LazyOptional<IItemHandler>  itemCap    = LazyOptional.of(TableItemHandler::new);
+
+    @Override
+    public <T> @NotNull LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
+        if (cap == ForgeCapabilities.FLUID_HANDLER) {
+            // Top-pour only: non-top sides see no fluid handler, matching the visual model.
+            return (side == null || side == Direction.UP) ? fluidCapUp.cast() : LazyOptional.empty();
+        }
+        if (cap == ForgeCapabilities.ITEM_HANDLER) {
+            return itemCap.cast();
+        }
+        return super.getCapability(cap, side);
+    }
+
+    @Override
+    public void invalidateCaps() {
+        super.invalidateCaps();
+        fluidCapUp.invalidate();
+        itemCap.invalidate();
     }
 
     /**
-     * Returns a write-only fluid capability accessible only from the table's UP face.
+     * Returns a write-only fluid handler accessible only from the table's UP face.
      * Non-top sides see no handler, matching the visual "top-pour only" model.
      */
-    public @Nullable ResourceHandler<FluidResource> fluidHandlerFor(@Nullable Direction side) {
+    public @Nullable IFluidHandler fluidHandlerFor(@Nullable Direction side) {
         if (side != null && side != Direction.UP) return null;
         return new TableFluidHandler();
     }
 
-    private final class TableFluidHandler implements ResourceHandler<FluidResource> {
-        @Override public int size() { return 1; }
+    /** Write-only pour target; the poured fluid is never extractable. */
+    private final class TableFluidHandler implements IFluidHandler {
+        @Override public int getTanks() { return 1; }
 
-        @Override public FluidResource getResource(int slot) {
-            return (pouredFluid == Fluids.EMPTY || filledMb <= 0)
-                    ? FluidResource.EMPTY : FluidResource.of(pouredFluid);
+        @Override
+        public @NotNull FluidStack getFluidInTank(int tank) {
+            return (tank != 0 || pouredFluid == Fluids.EMPTY || filledMb <= 0)
+                    ? FluidStack.EMPTY : new FluidStack(pouredFluid, filledMb);
         }
 
-        @Override public long getAmountAsLong(int slot) { return filledMb; }
+        @Override public int getTankCapacity(int tank) { return Math.max(0, requiredMb); }
 
-        @Override public long getCapacityAsLong(int slot, FluidResource resource) {
-            return Math.max(0, requiredMb);
-        }
-
-        @Override public boolean isValid(int slot, FluidResource resource) {
-            if (!acceptsPour() || resource.isEmpty()) return false;
-            return pouredFluid == Fluids.EMPTY || resource.getFluid() == pouredFluid;
+        @Override
+        public boolean isFluidValid(int tank, @NotNull FluidStack stack) {
+            if (!acceptsPour() || stack.isEmpty()) return false;
+            return pouredFluid == Fluids.EMPTY || stack.getFluid() == pouredFluid;
         }
 
         @Override
-        public int insert(int slot, FluidResource resource, int amount, TransactionContext tx) {
-            if (slot != 0 || !acceptsPour() || resource.isEmpty() || amount <= 0) return 0;
+        public int fill(FluidStack resource, FluidAction action) {
+            if (!acceptsPour() || resource.isEmpty()) return 0;
             if (pouredFluid != Fluids.EMPTY && resource.getFluid() != pouredFluid) return 0;
-            return tryPourFluid(resource.getFluid(), amount);
+            if (action.simulate()) {
+                return Math.min(resource.getAmount(), Math.max(0, requiredMb - filledMb));
+            }
+            return tryPourFluid(resource.getFluid(), resource.getAmount());
         }
 
         @Override
-        public int extract(int slot, FluidResource resource, int amount, TransactionContext tx) {
-            return 0;
+        public @NotNull FluidStack drain(FluidStack resource, FluidAction action) {
+            return FluidStack.EMPTY;
+        }
+
+        @Override
+        public @NotNull FluidStack drain(int maxDrain, FluidAction action) {
+            return FluidStack.EMPTY;
         }
     }
 
     /**
-     * Returns an item capability that surfaces the cooled part at READY for hopper-style
+     * Returns an item handler that surfaces the cooled part at READY for hopper-style
      * extraction. Inserts are always rejected to preserve the sand/impression workflow.
      */
-    public ResourceHandler<ItemResource> itemHandlerFor(@Nullable Direction side) {
+    public IItemHandler itemHandlerFor(@Nullable Direction side) {
         return new TableItemHandler();
     }
 
-    private final class TableItemHandler implements ResourceHandler<ItemResource> {
-        @Override public int size() { return 1; }
+    /** READY-gated single-slot part source; never accepts inserts. */
+    private final class TableItemHandler implements IItemHandler {
+        @Override public int getSlots() { return 1; }
 
-        @Override public ItemResource getResource(int slot) {
-            if (slot != 0 || state != State.READY) return ItemResource.EMPTY;
-            ItemStack stack = peekPartItem();
-            return stack.isEmpty() ? ItemResource.EMPTY : ItemResource.of(stack);
+        @Override
+        public @NotNull ItemStack getStackInSlot(int slot) {
+            if (slot != 0 || state != State.READY) return ItemStack.EMPTY;
+            return peekPartItem();
         }
 
-        @Override public long getAmountAsLong(int slot) {
-            if (slot != 0 || state != State.READY) return 0L;
-            return peekPartItem().isEmpty() ? 0L : 1L;
-        }
+        @Override public int getSlotLimit(int slot) { return 1; }
 
-        @Override public long getCapacityAsLong(int slot, ItemResource resource) {
-            return 1L;
-        }
+        @Override public boolean isItemValid(int slot, @NotNull ItemStack stack) { return false; }
 
-        @Override public boolean isValid(int slot, ItemResource resource) {
-            return false;
+        @Override
+        public @NotNull ItemStack insertItem(int slot, @NotNull ItemStack stack, boolean simulate) {
+            return stack;
         }
 
         @Override
-        public int insert(int slot, ItemResource resource, int amount, TransactionContext tx) {
-            return 0;
-        }
-
-        @Override
-        public int extract(int slot, ItemResource resource, int amount, TransactionContext tx) {
-            if (slot != 0 || state != State.READY || amount <= 0) return 0;
-            if (resource.isEmpty()) return 0;
+        public @NotNull ItemStack extractItem(int slot, int amount, boolean simulate) {
+            if (slot != 0 || state != State.READY || amount <= 0) return ItemStack.EMPTY;
             ItemStack peek = peekPartItem();
-            if (peek.isEmpty() || resource.getItem() != peek.getItem()) return 0;
-            ItemStack retrieved = tryRetrievePart();
-            return retrieved.isEmpty() ? 0 : 1;
+            if (peek.isEmpty()) return ItemStack.EMPTY;
+            if (simulate) return peek;
+            return tryRetrievePart();
         }
     }
 }

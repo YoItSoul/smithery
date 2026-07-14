@@ -37,13 +37,21 @@ public class ForgeItemPortBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
-                                          Player player, InteractionHand hand, BlockHitResult hit) {
-        if (stack.isEmpty()) return InteractionResult.PASS;
+    public InteractionResult use(BlockState state, Level level, BlockPos pos,
+                                 Player player, InteractionHand hand, BlockHitResult hit) {
+        ItemStack stack = player.getItemInHand(hand);
         if (!(level.getBlockEntity(pos) instanceof ForgeItemPortBlockEntity port)) {
             return InteractionResult.PASS;
         }
         if (level.isClientSide()) return InteractionResult.SUCCESS;
+
+        if (stack.isEmpty()) {
+            BlockPos cp = port.controllerPos();
+            player.sendSystemMessage(Component.literal("Item port — controller: "
+                    + (cp == null ? "<unlinked>" : cp.toShortString()))
+                    .withStyle(ChatFormatting.AQUA));
+            return InteractionResult.SUCCESS;
+        }
 
         int wanted = stack.getCount();
         int inserted = port.tryInsert(stack, wanted);
@@ -55,17 +63,6 @@ public class ForgeItemPortBlock extends Block implements EntityBlock {
         if (!player.getAbilities().instabuild) {
             stack.shrink(inserted);
         }
-        return InteractionResult.SUCCESS;
-    }
-
-    @Override
-    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        if (level.isClientSide()) return InteractionResult.SUCCESS;
-        if (!(level.getBlockEntity(pos) instanceof ForgeItemPortBlockEntity port)) return InteractionResult.PASS;
-        BlockPos cp = port.controllerPos();
-        player.sendSystemMessage(Component.literal("Item port — controller: "
-                + (cp == null ? "<unlinked>" : cp.toShortString()))
-                .withStyle(ChatFormatting.AQUA));
         return InteractionResult.SUCCESS;
     }
 }

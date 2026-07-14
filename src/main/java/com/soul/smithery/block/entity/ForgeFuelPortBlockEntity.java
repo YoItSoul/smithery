@@ -5,8 +5,6 @@ import com.soul.smithery.block.ForgeFuelPortBlock;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -19,11 +17,13 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
-import net.neoforged.neoforge.transfer.ResourceHandler;
-import net.neoforged.neoforge.transfer.fluid.FluidResource;
-import net.neoforged.neoforge.transfer.transaction.TransactionContext;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.capability.IFluidHandler;
+import net.minecraftforge.registries.ForgeRegistries;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -46,6 +46,8 @@ public class ForgeFuelPortBlockEntity extends BlockEntity {
     private static final int SYNC_MB_THRESHOLD = 60;
     private int lastSyncedMb = 0;
     private @Nullable Fluid lastSyncedFluid = null;
+
+    private final LazyOptional<IFluidHandler> fluidCap = LazyOptional.of(FuelPortHandler::new);
 
     /**
      * Constructs a fuel port BE bound to the given position and blockstate.
@@ -256,6 +258,18 @@ public class ForgeFuelPortBlockEntity extends BlockEntity {
         return mb - remaining;
     }
 
+    /** Non-mutating preview of {@link #addFuelToStack}: the mB a fill would accept. */
+    public int simulateAddFuelToStack(Fluid fluid, int mb) {
+        if (fluid == null || mb <= 0 || !ForgeFuels.isFuel(fluid)) return 0;
+        int acceptable = 0;
+        for (ForgeFuelPortBlockEntity p : stack()) {
+            if (p.fuelFluid == null || p.fuelFluid == fluid) {
+                acceptable += p.remainingCapacityMb();
+            }
+        }
+        return Math.min(mb, acceptable);
+    }
+
     /**
      * Top-down drain across the logical stack regardless of fluid identity. Returns the
      * mB actually removed.
@@ -343,17 +357,16 @@ public class ForgeFuelPortBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void loadAdditional(ValueInput input) {
-        super.loadAdditional(input);
-        java.util.Optional<String> fluidIdStr = input.getString("fuelFluid");
-        if (fluidIdStr.isPresent()) {
-            ResourceLocation id = ResourceLocation.tryParse(fluidIdStr.get());
-            fuelFluid = id == null ? null
-                    : BuiltInRegistries.FLUID.get(id).<Fluid>map(h -> h.value()).orElse(null);
-            fuelMb = Math.max(0, Math.min(CAPACITY_MB, input.getInt("fuelMb").orElse(0)));
+    public void load(CompoundTag tag) {
+        super.load(tag);
+        if (tag.contains("fuelFluid")) {
+            ResourceLocation id = ResourceLocation.tryParse(tag.getString("fuelFluid"));
+            Fluid loaded = id == null ? null : ForgeRegistries.FLUIDS.getValue(id);
+            fuelFluid = (loaded == null || loaded == Fluids.EMPTY) ? null : loaded;
+            fuelMb = Math.max(0, Math.min(CAPACITY_MB, tag.getInt("fuelMb")));
             if (fuelFluid == null) fuelMb = 0;
         } else {
-            int legacy = input.getInt("lavaMb").orElse(0);
+            int legacy = tag.getInt("lavaMb");
             if (legacy > 0) {
                 fuelFluid = Fluids.LAVA;
                 fuelMb = Math.min(CAPACITY_MB, legacy);
@@ -365,62 +378,93 @@ public class ForgeFuelPortBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(ValueOutput output) {
-        super.saveAdditional(output);
+    protected void saveAdditional(CompoundTag tag) {
+        super.saveAdditional(tag);
         if (fuelFluid != null && fuelMb > 0) {
-            ResourceLocation id = BuiltInRegistries.FLUID.getKey(fuelFluid);
+            ResourceLocation id = ForgeRegistries.FLUIDS.getKey(fuelFluid);
             if (id != null) {
-                output.putString("fuelFluid", id.toString());
-                output.putInt("fuelMb", fuelMb);
+                tag.putString("fuelFluid", id.toString());
+                tag.putInt("fuelMb", fuelMb);
             }
         }
+    }
+
+    @Override
+    public <T> @NotNull LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
+        if (cap == ForgeCapabilities.FLUID_HANDLER) {
+            return fluidCap.cast();
+        }
+        return super.getCapability(cap, side);
+    }
+
+    @Override
+    public void invalidateCaps() {
+        super.invalidateCaps();
+        fluidCap.invalidate();
     }
 
     /**
-     * Returns a fluid capability that surfaces the entire logical stack as a single tank.
+     * Returns a fluid handler that surfaces the entire logical stack as a single tank.
      * Inserts are accepted for any registered forge fuel matching the tank's current
      * identity; extracts can be unfiltered or fluid-specific.
      */
-    public ResourceHandler<FluidResource> fluidHandlerFor(@Nullable Direction side) {
+    public IFluidHandler fluidHandlerFor(@Nullable Direction side) {
         return new FuelPortHandler();
     }
 
-    private final class FuelPortHandler implements ResourceHandler<FluidResource> {
-        @Override public int size() { return 1; }
+    /** Single-tank view over the logical fuel-port stack. */
+    private final class FuelPortHandler implements IFluidHandler {
+        @Override public int getTanks() { return 1; }
 
-        @Override public FluidResource getResource(int slot) {
+        @Override
+        public @NotNull FluidStack getFluidInTank(int tank) {
+            if (tank != 0) return FluidStack.EMPTY;
             for (ForgeFuelPortBlockEntity p : stack()) {
-                if (p.fuelFluid != null && p.fuelMb > 0) return FluidResource.of(p.fuelFluid);
+                if (p.fuelFluid != null && p.fuelMb > 0) {
+                    return new FluidStack(p.fuelFluid, stackFuelMb(p.fuelFluid));
+                }
             }
-            return FluidResource.EMPTY;
+            return FluidStack.EMPTY;
         }
 
-        @Override public long getAmountAsLong(int slot) { return stackFuelMb(); }
+        @Override public int getTankCapacity(int tank) { return stackCapacityMb(); }
 
-        @Override public long getCapacityAsLong(int slot, FluidResource resource) {
-            return stackCapacityMb();
-        }
-
-        @Override public boolean isValid(int slot, FluidResource resource) {
-            if (resource.isEmpty()) return false;
-            if (!ForgeFuels.isFuel(resource.getFluid())) return false;
+        @Override
+        public boolean isFluidValid(int tank, @NotNull FluidStack stack) {
+            if (stack.isEmpty()) return false;
+            if (!ForgeFuels.isFuel(stack.getFluid())) return false;
             for (ForgeFuelPortBlockEntity p : stack()) {
-                if (p.fuelFluid == null || p.fuelFluid == resource.getFluid()) return true;
+                if (p.fuelFluid == null || p.fuelFluid == stack.getFluid()) return true;
             }
             return false;
         }
 
         @Override
-        public int insert(int slot, FluidResource resource, int amount, TransactionContext tx) {
-            if (slot != 0 || resource.isEmpty() || amount <= 0) return 0;
-            return addFuelToStack(resource.getFluid(), amount);
+        public int fill(FluidStack resource, FluidAction action) {
+            if (resource.isEmpty()) return 0;
+            if (action.simulate()) {
+                return simulateAddFuelToStack(resource.getFluid(), resource.getAmount());
+            }
+            return addFuelToStack(resource.getFluid(), resource.getAmount());
         }
 
         @Override
-        public int extract(int slot, FluidResource resource, int amount, TransactionContext tx) {
-            if (slot != 0 || amount <= 0) return 0;
-            if (resource.isEmpty()) return drainFuelFromStack(amount);
-            return drainFuelFromStack(resource.getFluid(), amount);
+        public @NotNull FluidStack drain(FluidStack resource, FluidAction action) {
+            if (resource.isEmpty()) return FluidStack.EMPTY;
+            Fluid fluid = resource.getFluid();
+            if (action.simulate()) {
+                int available = Math.min(resource.getAmount(), stackFuelMb(fluid));
+                return available <= 0 ? FluidStack.EMPTY : new FluidStack(fluid, available);
+            }
+            int drained = drainFuelFromStack(fluid, resource.getAmount());
+            return drained <= 0 ? FluidStack.EMPTY : new FluidStack(fluid, drained);
+        }
+
+        @Override
+        public @NotNull FluidStack drain(int maxDrain, FluidAction action) {
+            Fluid top = topStackFluid();
+            if (top == null || maxDrain <= 0) return FluidStack.EMPTY;
+            return drain(new FluidStack(top, maxDrain), action);
         }
     }
 
@@ -430,7 +474,9 @@ public class ForgeFuelPortBlockEntity extends BlockEntity {
     }
 
     @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        return saveCustomOnly(registries);
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = super.getUpdateTag();
+        saveAdditional(tag);
+        return tag;
     }
 }

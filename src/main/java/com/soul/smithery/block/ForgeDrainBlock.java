@@ -5,7 +5,6 @@ import com.soul.smithery.block.entity.ForgeDrainBlockEntity;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -23,7 +22,9 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -55,8 +56,9 @@ public class ForgeDrainBlock extends Block implements EntityBlock {
     private static final int BUCKET_MB = 1000;
 
     @Override
-    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
-                                          Player player, InteractionHand hand, BlockHitResult hit) {
+    public InteractionResult use(BlockState state, Level level, BlockPos pos,
+                                 Player player, InteractionHand hand, BlockHitResult hit) {
+        ItemStack stack = player.getItemInHand(hand);
         if (!stack.is(Items.BUCKET)) return InteractionResult.PASS;
         if (!(level.getBlockEntity(pos) instanceof ForgeDrainBlockEntity drain)) {
             return InteractionResult.PASS;
@@ -78,8 +80,8 @@ public class ForgeDrainBlock extends Block implements EntityBlock {
                     .withStyle(ChatFormatting.YELLOW));
             return InteractionResult.SUCCESS;
         }
-        Fluid fluid = BuiltInRegistries.FLUID.get(outputFluidId).<Fluid>map(r -> r.value()).orElse(null);
-        if (fluid == null) {
+        Fluid fluid = ForgeRegistries.FLUIDS.getValue(outputFluidId);
+        if (fluid == null || fluid == Fluids.EMPTY) {
             player.sendSystemMessage(Component.literal("Selected output fluid isn't registered")
                     .withStyle(ChatFormatting.YELLOW));
             return InteractionResult.SUCCESS;
