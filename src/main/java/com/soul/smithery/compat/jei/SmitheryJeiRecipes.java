@@ -162,9 +162,8 @@ public final class SmitheryJeiRecipes {
         List<JeiMelting> out = new ArrayList<>();
         for (MeltingRecipe recipe : SmitheryAPI.MELTING_RECIPES.values()) {
             if (isHiddenFromJei(recipe.outputMaterialId())) continue;
-            Item item = BuiltInRegistries.ITEM.get(recipe.inputItemId())
-                    .<Item>map(r -> r.value()).orElse(null);
-            if (item == null || item == Items.AIR) continue;
+            Item item = BuiltInRegistries.ITEM.get(recipe.inputItemId());
+            if (item == Items.AIR) continue;
             Material material = SmitheryAPI.MATERIALS.get(recipe.outputMaterialId());
             if (material == null) continue;
             if (SmitheryFluids.forMaterial(material.id()) == null) continue;
@@ -218,7 +217,7 @@ public final class SmitheryJeiRecipes {
 
     /**
      * Builds the snapshot list of part-press recipes. Mirrors the input-acceptance set of
-     * {@code PartPressBlockEntity} (logs, flint, slime, resin, coral); each accepted input is
+     * {@code PartPressBlockEntity} (logs, flint, slime, coral); each accepted input is
      * paired with every non-synthetic part type.
      *
      * @return list of part-press category rows
@@ -228,7 +227,6 @@ public final class SmitheryJeiRecipes {
         Map<Item, ResourceLocation> simpleInputs = new LinkedHashMap<>();
         simpleInputs.put(Items.FLINT,       SmitheryMaterials.FLINT);
         simpleInputs.put(Items.SLIME_BALL,  SmitheryMaterials.SLIME);
-        simpleInputs.put(Items.RESIN_CLUMP, SmitheryMaterials.RESIN);
 
         Item[] coralBlocks = new Item[] {
                 Items.TUBE_CORAL_BLOCK, Items.BRAIN_CORAL_BLOCK, Items.BUBBLE_CORAL_BLOCK,
@@ -239,7 +237,7 @@ public final class SmitheryJeiRecipes {
         };
 
         List<Item> logItems = new ArrayList<>();
-        BuiltInRegistries.ITEM.getOrThrow(ItemTags.LOGS).forEach(holder -> logItems.add(holder.value()));
+        BuiltInRegistries.ITEM.getTagOrEmpty(ItemTags.LOGS).forEach(holder -> logItems.add(holder.value()));
 
         for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
             if (pt.syntheticCast()) continue;
@@ -276,9 +274,8 @@ public final class SmitheryJeiRecipes {
     public static List<JeiToolAssembly> buildToolAssemblyRecipes() {
         List<JeiToolAssembly> out = new ArrayList<>();
         for (ToolType toolType : SmitheryAPI.TOOL_TYPES.all()) {
-            Item toolItem = BuiltInRegistries.ITEM.get(toolType.id())
-                    .<Item>map(r -> r.value()).orElse(null);
-            if (toolItem == null) continue;
+            Item toolItem = BuiltInRegistries.ITEM.get(toolType.id());
+            if (toolItem == Items.AIR) continue;
 
             List<List<ItemStack>> partsBySlot = new ArrayList<>(toolType.slots().size());
             for (int i = 0; i < toolType.slots().size(); i++) partsBySlot.add(new ArrayList<>());
