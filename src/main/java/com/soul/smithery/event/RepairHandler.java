@@ -11,9 +11,9 @@ import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolStats;
 import com.soul.smithery.registry.SmitheryDataComponents;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.AnvilUpdateEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.AnvilUpdateEvent;
 
 /**
  * Vanilla anvil hook that repairs smithery gear with cast stone parts: sharpening stones for
@@ -26,7 +26,7 @@ import net.neoforged.neoforge.event.AnvilUpdateEvent;
  * revives automatically once repaired because its attribute strip is computed live from the
  * damage value.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class RepairHandler {
     private RepairHandler() {}
 

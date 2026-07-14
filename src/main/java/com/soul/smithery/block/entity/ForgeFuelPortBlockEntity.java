@@ -11,7 +11,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -347,7 +347,7 @@ public class ForgeFuelPortBlockEntity extends BlockEntity {
         super.loadAdditional(input);
         java.util.Optional<String> fluidIdStr = input.getString("fuelFluid");
         if (fluidIdStr.isPresent()) {
-            Identifier id = Identifier.tryParse(fluidIdStr.get());
+            ResourceLocation id = ResourceLocation.tryParse(fluidIdStr.get());
             fuelFluid = id == null ? null
                     : BuiltInRegistries.FLUID.get(id).<Fluid>map(h -> h.value()).orElse(null);
             fuelMb = Math.max(0, Math.min(CAPACITY_MB, input.getInt("fuelMb").orElse(0)));
@@ -368,7 +368,7 @@ public class ForgeFuelPortBlockEntity extends BlockEntity {
     protected void saveAdditional(ValueOutput output) {
         super.saveAdditional(output);
         if (fuelFluid != null && fuelMb > 0) {
-            Identifier id = BuiltInRegistries.FLUID.getKey(fuelFluid);
+            ResourceLocation id = BuiltInRegistries.FLUID.getKey(fuelFluid);
             if (id != null) {
                 output.putString("fuelFluid", id.toString());
                 output.putInt("fuelMb", fuelMb);

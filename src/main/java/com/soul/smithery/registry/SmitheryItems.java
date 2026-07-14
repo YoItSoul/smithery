@@ -3,23 +3,25 @@ package com.soul.smithery.registry;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.part.PartEligibility;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.item.tool.SmitheryArmorItem;
 import com.soul.smithery.item.tool.SmitheryArrowItem;
 import com.soul.smithery.item.tool.SmitheryBowItem;
+import com.soul.smithery.item.tool.SmitheryCrossbowItem;
+import com.soul.smithery.item.tool.SmitheryShurikenItem;
 import com.soul.smithery.item.tool.SmitheryToolItem;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.resources.Identifier;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.item.equipment.EquipmentAsset;
-import net.minecraft.world.item.equipment.EquipmentAssets;
-import net.minecraft.world.item.equipment.Equippable;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.registries.DeferredItem;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import com.soul.smithery.item.tool.SmitheryTridentItem;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ArmorItem;
+import net.minecraft.world.item.Item;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -27,136 +29,123 @@ import java.util.Map;
  * Item registration root for Smithery-namespaced items.
  *
  * <p>Auto-generates one {@link PartItem} per (Material × PartType) pair in the
- * {@code smithery:} namespace. Modder mods that contribute their own materials should call
- * {@link #registerPartsFor(Identifier, DeferredRegister.Items)} from their constructor with
+ * {@code smithery:} namespace. Mods that contribute their own materials should call
+ * {@link #registerPartsFor(ResourceLocation, DeferredRegister)} from their constructor with
  * their own item register.
  */
 public final class SmitheryItems {
     /** Deferred register for Smithery-namespaced items. */
-    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(Smithery.MODID);
+    public static final DeferredRegister<Item> ITEMS =
+            DeferredRegister.create(ForgeRegistries.ITEMS, Smithery.MODID);
 
-    private static final Map<String, DeferredItem<PartItem>> BUILT_IN_PART_ITEMS = new LinkedHashMap<>();
+    private static final Map<String, RegistryObject<PartItem>> BUILT_IN_PART_ITEMS = new LinkedHashMap<>();
 
-    /** Shared equipment asset for all smithery armor: grayscale layers dyed by core material. */
-    private static final ResourceKey<EquipmentAsset> ARMOR_ASSET =
-            ResourceKey.create(EquipmentAssets.ROOT_ID, id("armor"));
-
-    private static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(Smithery.MODID, path);
+    private static ResourceLocation id(String path) {
+        return new ResourceLocation(Smithery.MODID, path);
     }
 
     /**
      * Registers a non-stacking {@link SmitheryToolItem} whose item name doubles as its
      * ToolType path — the invariant the assembly recipe's item lookup relies on.
      */
-    private static DeferredItem<SmitheryToolItem> registerTool(String name) {
-        return ITEMS.registerItem(name,
-                props -> new SmitheryToolItem(props, id(name)),
-                p -> p.stacksTo(1));
+    private static RegistryObject<SmitheryToolItem> registerTool(String name) {
+        return ITEMS.register(name,
+                () -> new SmitheryToolItem(new Item.Properties().stacksTo(1), id(name)));
     }
 
     /**
-     * Registers a {@link SmitheryArmorItem} bound to the shared {@link #ARMOR_ASSET} so the
-     * worn model renders; per-material color arrives via the stack's DYED_COLOR component,
-     * written at compose time.
+     * Registers a {@link SmitheryArmorItem} for the given armor slot. Per-material color and
+     * per-stack defense values arrive via the stack's NBT, written at compose time.
      */
-    private static DeferredItem<SmitheryArmorItem> registerArmor(String name, EquipmentSlot slot) {
-        return ITEMS.registerItem(name,
-                props -> new SmitheryArmorItem(props, id(name)),
-                p -> p.stacksTo(1).component(DataComponents.EQUIPPABLE,
-                        Equippable.builder(slot).setAsset(ARMOR_ASSET).build()));
+    private static RegistryObject<SmitheryArmorItem> registerArmor(String name, ArmorItem.Type type) {
+        return ITEMS.register(name,
+                () -> new SmitheryArmorItem(type, new Item.Properties().stacksTo(1), id(name)));
     }
 
-    /** Smithery sword tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> SWORD = registerTool("sword");
-    /** Smithery pickaxe tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> PICKAXE = registerTool("pickaxe");
-    /** Smithery axe tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> AXE = registerTool("axe");
-    /** Smithery shovel tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> SHOVEL = registerTool("shovel");
-    /** Smithery hoe tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> HOE = registerTool("hoe");
-    /** Smithery spear tool item; per-stack composition lives in the {@code tool_composition} component. */
-    public static final DeferredItem<SmitheryToolItem> SPEAR = registerTool("spear");
+    /** Smithery sword tool item; per-stack composition lives in the stack's {@code tool_composition} NBT. */
+    public static final RegistryObject<SmitheryToolItem> SWORD = registerTool("sword");
+    /** Smithery pickaxe tool item; per-stack composition lives in the stack's {@code tool_composition} NBT. */
+    public static final RegistryObject<SmitheryToolItem> PICKAXE = registerTool("pickaxe");
+    /** Smithery axe tool item; per-stack composition lives in the stack's {@code tool_composition} NBT. */
+    public static final RegistryObject<SmitheryToolItem> AXE = registerTool("axe");
+    /** Smithery shovel tool item; per-stack composition lives in the stack's {@code tool_composition} NBT. */
+    public static final RegistryObject<SmitheryToolItem> SHOVEL = registerTool("shovel");
+    /** Smithery hoe tool item; per-stack composition lives in the stack's {@code tool_composition} NBT. */
+    public static final RegistryObject<SmitheryToolItem> HOE = registerTool("hoe");
+    /** Smithery spear tool item; per-stack composition lives in the stack's {@code tool_composition} NBT. */
+    public static final RegistryObject<SmitheryToolItem> SPEAR = registerTool("spear");
     /** Smithery broadsword; heavy two-hand blade — slow swing, big hits. */
-    public static final DeferredItem<SmitheryToolItem> BROADSWORD = registerTool("broadsword");
+    public static final RegistryObject<SmitheryToolItem> BROADSWORD = registerTool("broadsword");
     /** Smithery rapier; fast thrusts that partially bypass the target's armor. */
-    public static final DeferredItem<SmitheryToolItem> RAPIER = registerTool("rapier");
+    public static final RegistryObject<SmitheryToolItem> RAPIER = registerTool("rapier");
     /** Smithery paxel; pickaxe + axe + shovel + hoe in one head assembly. */
-    public static final DeferredItem<SmitheryToolItem> PAXEL = registerTool("paxel");
+    public static final RegistryObject<SmitheryToolItem> PAXEL = registerTool("paxel");
     /** Smithery mining hammer; breaks a 3x3 face of stone at once. */
-    public static final DeferredItem<SmitheryToolItem> MINING_HAMMER = registerTool("mining_hammer");
+    public static final RegistryObject<SmitheryToolItem> MINING_HAMMER = registerTool("mining_hammer");
 
     /** Smithery bow tool item; uses a {@link SmitheryBowItem} for draw-frame model swaps. */
-    public static final DeferredItem<SmitheryBowItem> BOW = ITEMS.registerItem("bow",
-            props -> new SmitheryBowItem(props, id("bow")),
-            p -> p.stacksTo(1));
+    public static final RegistryObject<SmitheryBowItem> BOW = ITEMS.register("bow",
+            () -> new SmitheryBowItem(new Item.Properties().stacksTo(1), id("bow")));
 
     /** Smithery kama; shears abilities plus 3x3 double-yield crop harvesting. */
-    public static final DeferredItem<SmitheryToolItem> KAMA = registerTool("kama");
+    public static final RegistryObject<SmitheryToolItem> KAMA = registerTool("kama");
     /** Smithery cleaver; slow, massive hits with an innate chance to behead. */
-    public static final DeferredItem<SmitheryToolItem> CLEAVER = registerTool("cleaver");
+    public static final RegistryObject<SmitheryToolItem> CLEAVER = registerTool("cleaver");
     /** Smithery lumberaxe; fells the whole connected tree from one log. */
-    public static final DeferredItem<SmitheryToolItem> LUMBERAXE = registerTool("lumberaxe");
+    public static final RegistryObject<SmitheryToolItem> LUMBERAXE = registerTool("lumberaxe");
     /** Smithery excavator; digs a 3x3 face of shovel material at once. */
-    public static final DeferredItem<SmitheryToolItem> EXCAVATOR = registerTool("excavator");
+    public static final RegistryObject<SmitheryToolItem> EXCAVATOR = registerTool("excavator");
 
     /** Smithery shuriken; stackable thrown weapon assembled from four blades. */
-    public static final DeferredItem<com.soul.smithery.item.tool.SmitheryShurikenItem> SHURIKEN =
-            ITEMS.registerItem("shuriken",
-                    props -> new com.soul.smithery.item.tool.SmitheryShurikenItem(props, id("shuriken")));
+    public static final RegistryObject<SmitheryShurikenItem> SHURIKEN = ITEMS.register("shuriken",
+            () -> new SmitheryShurikenItem(new Item.Properties(), id("shuriken")));
 
     /** Smithery battlesign; a melee weapon that partially blocks while raised. */
-    public static final DeferredItem<SmitheryToolItem> BATTLESIGN = registerTool("battlesign");
+    public static final RegistryObject<SmitheryToolItem> BATTLESIGN = registerTool("battlesign");
 
     /** Smithery trident; vanilla charge/throw pipeline, composition-driven melee stats. */
-    public static final DeferredItem<com.soul.smithery.item.tool.SmitheryTridentItem> TRIDENT =
-            ITEMS.registerItem("trident",
-                    props -> new com.soul.smithery.item.tool.SmitheryTridentItem(props, id("trident")),
-                    p -> p.stacksTo(1));
+    public static final RegistryObject<SmitheryTridentItem> TRIDENT = ITEMS.register("trident",
+            () -> new SmitheryTridentItem(new Item.Properties().stacksTo(1), id("trident")));
 
     /** Smithery crossbow; vanilla charge/store/fire pipeline with smithery arrow scaling. */
-    public static final DeferredItem<com.soul.smithery.item.tool.SmitheryCrossbowItem> CROSSBOW =
-            ITEMS.registerItem("crossbow",
-                    props -> new com.soul.smithery.item.tool.SmitheryCrossbowItem(props, id("crossbow")),
-                    p -> p.stacksTo(1));
+    public static final RegistryObject<SmitheryCrossbowItem> CROSSBOW = ITEMS.register("crossbow",
+            () -> new SmitheryCrossbowItem(new Item.Properties().stacksTo(1), id("crossbow")));
 
-    /** Smithery arrow tool item; stays stackable (default 64) since vanilla forbids stackables from carrying DAMAGE. */
-    public static final DeferredItem<SmitheryArrowItem> ARROW = ITEMS.registerItem("arrow",
-            props -> new SmitheryArrowItem(props, id("arrow")));
+    /** Smithery arrow tool item; stays stackable (default 64) since vanilla forbids stackables from taking damage. */
+    public static final RegistryObject<SmitheryArrowItem> ARROW = ITEMS.register("arrow",
+            () -> new SmitheryArrowItem(new Item.Properties(), id("arrow")));
 
     /** Smithery helmet; HEAD-slot armor item, composition writes per-stack defense/toughness. */
-    public static final DeferredItem<SmitheryArmorItem> HELMET = registerArmor("helmet", EquipmentSlot.HEAD);
+    public static final RegistryObject<SmitheryArmorItem> HELMET = registerArmor("helmet", ArmorItem.Type.HELMET);
     /** Smithery chestplate; CHEST-slot armor item. */
-    public static final DeferredItem<SmitheryArmorItem> CHESTPLATE = registerArmor("chestplate", EquipmentSlot.CHEST);
+    public static final RegistryObject<SmitheryArmorItem> CHESTPLATE = registerArmor("chestplate", ArmorItem.Type.CHESTPLATE);
     /** Smithery leggings; LEGS-slot armor item. */
-    public static final DeferredItem<SmitheryArmorItem> LEGGINGS = registerArmor("leggings", EquipmentSlot.LEGS);
+    public static final RegistryObject<SmitheryArmorItem> LEGGINGS = registerArmor("leggings", ArmorItem.Type.LEGGINGS);
     /** Smithery boots; FEET-slot armor item. */
-    public static final DeferredItem<SmitheryArmorItem> BOOTS = registerArmor("boots", EquipmentSlot.FEET);
+    public static final RegistryObject<SmitheryArmorItem> BOOTS = registerArmor("boots", ArmorItem.Type.BOOTS);
 
     /** Flame-string crafting item; part-press input that produces flamestring material parts. */
-    public static final DeferredItem<net.minecraft.world.item.Item> FLAMESTRING =
-            ITEMS.registerItem("flamestring", net.minecraft.world.item.Item::new);
+    public static final RegistryObject<Item> FLAMESTRING =
+            ITEMS.register("flamestring", () -> new Item(new Item.Properties()));
     /** Breeze-string crafting item; part-press input that produces breezestring material parts. */
-    public static final DeferredItem<net.minecraft.world.item.Item> BREEZESTRING =
-            ITEMS.registerItem("breezestring", net.minecraft.world.item.Item::new);
+    public static final RegistryObject<Item> BREEZESTRING =
+            ITEMS.register("breezestring", () -> new Item(new Item.Properties()));
     /** Red slime crafting item; part-press input that produces red_slime material parts. */
-    public static final DeferredItem<net.minecraft.world.item.Item> RED_SLIME =
-            ITEMS.registerItem("red_slime", net.minecraft.world.item.Item::new);
+    public static final RegistryObject<Item> RED_SLIME =
+            ITEMS.register("red_slime", () -> new Item(new Item.Properties()));
     /** Kelp string crafting item; part-press input that produces kelp_string material parts. */
-    public static final DeferredItem<net.minecraft.world.item.Item> KELP_STRING =
-            ITEMS.registerItem("kelp_string", net.minecraft.world.item.Item::new);
+    public static final RegistryObject<Item> KELP_STRING =
+            ITEMS.register("kelp_string", () -> new Item(new Item.Properties()));
 
     /** Unfinished kelp string tier I; first stage of the kelp-string weave progression. */
-    public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING_1 =
-            ITEMS.registerItem("unfinished_kelp_string_1", net.minecraft.world.item.Item::new);
+    public static final RegistryObject<Item> UNFINISHED_KELP_STRING_1 =
+            ITEMS.register("unfinished_kelp_string_1", () -> new Item(new Item.Properties()));
     /** Unfinished kelp string tier II; second stage of the kelp-string weave progression. */
-    public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING_2 =
-            ITEMS.registerItem("unfinished_kelp_string_2", net.minecraft.world.item.Item::new);
+    public static final RegistryObject<Item> UNFINISHED_KELP_STRING_2 =
+            ITEMS.register("unfinished_kelp_string_2", () -> new Item(new Item.Properties()));
     /** Unfinished kelp string tier III; third stage of the kelp-string weave progression. */
-    public static final DeferredItem<net.minecraft.world.item.Item> UNFINISHED_KELP_STRING_3 =
-            ITEMS.registerItem("unfinished_kelp_string_3", net.minecraft.world.item.Item::new);
+    public static final RegistryObject<Item> UNFINISHED_KELP_STRING_3 =
+            ITEMS.register("unfinished_kelp_string_3", () -> new Item(new Item.Properties()));
 
     /**
      * Iterates over all currently-registered Materials × PartTypes (both in the
@@ -179,23 +168,23 @@ public final class SmitheryItems {
      * for the given material id, using the supplied item register.
      *
      * <p>Item path format: {@code "<material_path>_<part_path>"}. Items land in whichever
-     * namespace the supplied {@link DeferredRegister.Items} uses.
+     * namespace the supplied item register uses.
      *
      * @param materialId the {@link Material} the parts should reference
      * @param targetItems the deferred items register that should own the new entries
      */
-    public static void registerPartsFor(Identifier materialId, DeferredRegister.Items targetItems) {
+    public static void registerPartsFor(ResourceLocation materialId, DeferredRegister<Item> targetItems) {
         for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
             if (pt.syntheticCast()) continue;
-            if (!com.soul.smithery.api.part.PartEligibility.isAllowed(pt.id(), materialId)) continue;
-            Identifier ptId = pt.id();
+            if (!PartEligibility.isAllowed(pt.id(), materialId)) continue;
+            ResourceLocation ptId = pt.id();
             String itemPath = materialId.getPath() + "_" + ptId.getPath();
-            DeferredItem<PartItem> di = targetItems.registerItem(
+            RegistryObject<PartItem> item = targetItems.register(
                     itemPath,
-                    props -> new PartItem(props, materialId, ptId)
+                    () -> new PartItem(new Item.Properties(), materialId, ptId)
             );
             if (targetItems == ITEMS) {
-                BUILT_IN_PART_ITEMS.put(itemPath, di);
+                BUILT_IN_PART_ITEMS.put(itemPath, item);
             }
         }
     }
@@ -205,9 +194,9 @@ public final class SmitheryItems {
      *
      * @param materialId id of a Material registered in the {@code smithery:} namespace
      * @param partTypeId id of a {@link PartType}
-     * @return the matching DeferredItem, or null when the pair is not a built-in part
+     * @return the matching registry object, or null when the pair is not a built-in part
      */
-    public static DeferredItem<PartItem> getBuiltInPart(Identifier materialId, Identifier partTypeId) {
+    public static RegistryObject<PartItem> getBuiltInPart(ResourceLocation materialId, ResourceLocation partTypeId) {
         return BUILT_IN_PART_ITEMS.get(materialId.getPath() + "_" + partTypeId.getPath());
     }
 
@@ -216,8 +205,8 @@ public final class SmitheryItems {
      *
      * @return unmodifiable view of the built-in parts map
      */
-    public static Map<String, DeferredItem<PartItem>> builtInParts() {
-        return java.util.Collections.unmodifiableMap(BUILT_IN_PART_ITEMS);
+    public static Map<String, RegistryObject<PartItem>> builtInParts() {
+        return Collections.unmodifiableMap(BUILT_IN_PART_ITEMS);
     }
 
     /**

@@ -3,7 +3,7 @@ package com.soul.smithery.api.material;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.tool.ToolType;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,8 +43,8 @@ public final class MaterialStats {
     private final float binderMultiplier;
     private final boolean castOnly;
     private final FluidBase fluidBase;
-    private final Map<Identifier, Integer> modifierSlots;
-    private final Map<Identifier, List<ModifierEffect>> modifiers;
+    private final Map<ResourceLocation, Integer> modifierSlots;
+    private final Map<ResourceLocation, List<ModifierEffect>> modifiers;
     private final ArmorStats armorStats;
 
     private MaterialStats(Builder b) {
@@ -160,8 +160,8 @@ public final class MaterialStats {
         private float binderMultiplier = 1.0f;
         private boolean castOnly = false;
         private FluidBase fluidBase = FluidBase.MOLTEN;
-        private final Map<Identifier, Integer> modifierSlots = new HashMap<>();
-        private final Map<Identifier, List<ModifierEffect>> modifiers = new HashMap<>();
+        private final Map<ResourceLocation, Integer> modifierSlots = new HashMap<>();
+        private final Map<ResourceLocation, List<ModifierEffect>> modifiers = new HashMap<>();
         private ArmorStats armorStats = null;
 
         /** Sets the vanilla-style harvest level. */
@@ -207,12 +207,12 @@ public final class MaterialStats {
         }
 
         /** Convenience overload that wraps a bare modifier id in a parameterless effect. */
-        public Builder addModifier(ToolType tt, Identifier modifierId) {
+        public Builder addModifier(ToolType tt, ResourceLocation modifierId) {
             return addModifier(tt, ModifierEffect.of(modifierId));
         }
 
         /** Convenience overload that wraps a modifier id and parameter map in an effect. */
-        public Builder addModifier(ToolType tt, Identifier modifierId, Map<String, Object> params) {
+        public Builder addModifier(ToolType tt, ResourceLocation modifierId, Map<String, Object> params) {
             return addModifier(tt, ModifierEffect.of(modifierId, params));
         }
 

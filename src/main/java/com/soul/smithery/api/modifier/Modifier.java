@@ -1,6 +1,6 @@
 package com.soul.smithery.api.modifier;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Objects;
 
@@ -15,7 +15,7 @@ import java.util.Objects;
  * routes events to the callbacks.
  */
 public final class Modifier {
-    private final Identifier id;
+    private final ResourceLocation id;
     private final ModifierCategory category;
     private final int maxLevel;
     private final int levelCost;
@@ -63,8 +63,8 @@ public final class Modifier {
         this.onEquipChange = b.onEquipChange;
     }
 
-    /** Identifier for this modifier. */
-    public Identifier id() { return id; }
+    /** ResourceLocation for this modifier. */
+    public ResourceLocation id() { return id; }
 
     /** Behavior category bucket assigned by the builder. */
     public ModifierCategory category() { return category; }
@@ -180,7 +180,7 @@ public final class Modifier {
     ) {}
 
     /** Begins building a {@link Modifier} with the given id. */
-    public static Builder builder(Identifier id) { return new Builder(id); }
+    public static Builder builder(ResourceLocation id) { return new Builder(id); }
 
     /** Behavior category bucket for a modifier. */
     public enum ModifierCategory {
@@ -562,7 +562,7 @@ public final class Modifier {
 
     /** Fluent builder for {@link Modifier}. */
     public static final class Builder {
-        private final Identifier id;
+        private final ResourceLocation id;
         private ModifierCategory category = ModifierCategory.PASSIVE;
         private int maxLevel = 1;
         private int levelCost = 1;
@@ -585,7 +585,7 @@ public final class Modifier {
         private OnArmorTick onArmorTick;
         private OnEquipChange onEquipChange;
 
-        private Builder(Identifier id) { this.id = id; }
+        private Builder(ResourceLocation id) { this.id = id; }
 
         private Builder active() {
             if (category == ModifierCategory.PASSIVE) category = ModifierCategory.BOTH;

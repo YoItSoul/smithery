@@ -18,7 +18,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.BlockTags;
@@ -48,8 +48,8 @@ import net.minecraft.world.item.component.Weapon;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.common.ItemAbilities;
-import net.neoforged.neoforge.common.ItemAbility;
+import net.minecraftforge.common.ToolActions;
+import net.minecraftforge.common.ToolAction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,18 +64,18 @@ import java.util.function.Consumer;
  * mining, and attack speed without per-frame work.
  */
 public class SmitheryToolItem extends Item {
-    private final Identifier toolTypeId;
+    private final ResourceLocation toolTypeId;
 
     /**
      * Constructs the tool item bound to the given smithery ToolType id.
      */
-    public SmitheryToolItem(Properties properties, Identifier toolTypeId) {
+    public SmitheryToolItem(Properties properties, ResourceLocation toolTypeId) {
         super(properties);
         this.toolTypeId = toolTypeId;
     }
 
     /** Returns the bound ToolType id (e.g. {@code smithery:sword}). */
-    public Identifier toolTypeId() { return toolTypeId; }
+    public ResourceLocation toolTypeId() { return toolTypeId; }
     /** Resolves the live {@link ToolType} for this tool item, or null if unregistered. */
     public ToolType toolType() { return SmitheryAPI.TOOL_TYPES.get(toolTypeId); }
 
@@ -218,7 +218,7 @@ public class SmitheryToolItem extends Item {
         if (tt == null) return 0;
         int sum = 0;
         List<ToolType.Slot> slots = tt.slots();
-        java.util.List<Identifier> matIds = comp.slotMaterials();
+        java.util.List<ResourceLocation> matIds = comp.slotMaterials();
         for (int i = 0; i < slots.size(); i++) {
             Material m = SmitheryAPI.MATERIALS.get(matIds.get(i));
             if (m == null) continue;
@@ -479,7 +479,7 @@ public class SmitheryToolItem extends Item {
         if (comp == null || !comp.isValid() || tt == null) {
             return Component.translatable(PartItem.toolTypeTranslationKey(toolTypeId));
         }
-        Identifier primaryMat = primaryAdditiveMaterial(comp);
+        ResourceLocation primaryMat = primaryAdditiveMaterial(comp);
         Component matName = primaryMat != null
                 ? Component.translatable(PartItem.materialTranslationKey(primaryMat))
                 : Component.literal("");
@@ -488,7 +488,7 @@ public class SmitheryToolItem extends Item {
                 Component.translatable(PartItem.toolTypeTranslationKey(toolTypeId)));
     }
 
-    private Identifier primaryAdditiveMaterial(ToolComposition comp) {
+    private ResourceLocation primaryAdditiveMaterial(ToolComposition comp) {
         ToolType tt = toolType();
         if (tt == null) return null;
         for (int i = 0; i < tt.slots().size(); i++) {
@@ -603,9 +603,9 @@ public class SmitheryToolItem extends Item {
             }
         }
 
-        java.util.Map<net.minecraft.resources.Identifier, Integer> progress =
+        java.util.Map<net.minecraft.resources.ResourceLocation, Integer> progress =
                 stack.getOrDefault(SmitheryDataComponents.MODIFIER_PROGRESS.get(),
-                        java.util.Map.<net.minecraft.resources.Identifier, Integer>of());
+                        java.util.Map.<net.minecraft.resources.ResourceLocation, Integer>of());
         if (!progress.isEmpty()) {
             tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
                     Component.translatable("tooltip." + Smithery.MODID + ".section.progress")));
@@ -666,42 +666,42 @@ public class SmitheryToolItem extends Item {
     }
 
     /** Local lookup of the material display name for the FULL-tier synergy expansion line. */
-    private static String materialName(Identifier materialId) {
+    private static String materialName(ResourceLocation materialId) {
         return net.minecraft.client.resources.language.I18n.get(PartItem.materialTranslationKey(materialId));
     }
 
     @Override
-    public boolean canPerformAction(ItemInstance stack, ItemAbility ability) {
+    public boolean canPerformAction(ItemInstance stack, ToolAction ability) {
         ToolType tt = toolType();
         if (tt == null) return super.canPerformAction(stack, ability);
         String path = tt.id().getPath();
         switch (path) {
             case "sword" -> {
-                if (ability == ItemAbilities.SWORD_SWEEP) return true;
+                if (ability == ToolActions.SWORD_SWEEP) return true;
             }
             case "axe" -> {
-                if (ItemAbilities.DEFAULT_AXE_ACTIONS.contains(ability)) return true;
+                if (ToolActions.DEFAULT_AXE_ACTIONS.contains(ability)) return true;
             }
             case "shovel" -> {
-                if (ItemAbilities.DEFAULT_SHOVEL_ACTIONS.contains(ability)) return true;
+                if (ToolActions.DEFAULT_SHOVEL_ACTIONS.contains(ability)) return true;
             }
             case "hoe" -> {
-                if (ItemAbilities.DEFAULT_HOE_ACTIONS.contains(ability)) return true;
+                if (ToolActions.DEFAULT_HOE_ACTIONS.contains(ability)) return true;
             }
             case "paxel" -> {
-                if (ItemAbilities.DEFAULT_AXE_ACTIONS.contains(ability)
-                        || ItemAbilities.DEFAULT_SHOVEL_ACTIONS.contains(ability)
-                        || ItemAbilities.DEFAULT_HOE_ACTIONS.contains(ability)) return true;
+                if (ToolActions.DEFAULT_AXE_ACTIONS.contains(ability)
+                        || ToolActions.DEFAULT_SHOVEL_ACTIONS.contains(ability)
+                        || ToolActions.DEFAULT_HOE_ACTIONS.contains(ability)) return true;
             }
             case "kama" -> {
                 // Kamas act as shears everywhere vanilla asks (sheep, pumpkins, tripwire, ...).
-                if (ItemAbilities.DEFAULT_SHEARS_ACTIONS.contains(ability)) return true;
+                if (ToolActions.DEFAULT_SHEARS_ACTIONS.contains(ability)) return true;
             }
             case "lumberaxe" -> {
-                if (ItemAbilities.DEFAULT_AXE_ACTIONS.contains(ability)) return true;
+                if (ToolActions.DEFAULT_AXE_ACTIONS.contains(ability)) return true;
             }
             case "excavator" -> {
-                if (ItemAbilities.DEFAULT_SHOVEL_ACTIONS.contains(ability)) return true;
+                if (ToolActions.DEFAULT_SHOVEL_ACTIONS.contains(ability)) return true;
             }
             default -> {}
         }
@@ -741,7 +741,7 @@ public class SmitheryToolItem extends Item {
     }
 
     /** Translation key shared by synergy display names. */
-    public static String synergyTranslationKey(Identifier synergyId) {
+    public static String synergyTranslationKey(ResourceLocation synergyId) {
         return Smithery.MODID + ".synergy." + synergyId.getNamespace() + "." + synergyId.getPath();
     }
 
@@ -762,7 +762,7 @@ public class SmitheryToolItem extends Item {
         if (tt == null) return 0xFFFFFFFF;
         for (int i = 0; i < tt.slots().size(); i++) {
             if (tt.slots().get(i).role() == com.soul.smithery.api.tool.DurabilityRole.ADDITIVE) {
-                Identifier matId = comp.slotMaterials().get(i);
+                ResourceLocation matId = comp.slotMaterials().get(i);
                 Material m = matId != null ? SmitheryAPI.MATERIALS.get(matId) : null;
                 return m != null ? (m.stats().partColor() | 0xFF000000) : 0xFFFFFFFF;
             }

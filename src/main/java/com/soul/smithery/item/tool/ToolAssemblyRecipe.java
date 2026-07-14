@@ -12,7 +12,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
@@ -38,31 +38,31 @@ import java.util.Map;
  */
 public final class ToolAssemblyRecipe implements CraftingRecipe {
 
-    private final Identifier toolTypeId;
+    private final ResourceLocation toolTypeId;
     private final String group;
 
     /**
      * Constructs the recipe for a given tool type id and crafting-book group.
      */
-    public ToolAssemblyRecipe(Identifier toolTypeId, String group) {
+    public ToolAssemblyRecipe(ResourceLocation toolTypeId, String group) {
         this.toolTypeId = toolTypeId;
         this.group = group;
     }
 
     /** Returns the bound ToolType id. */
-    public Identifier toolTypeId() { return toolTypeId; }
+    public ResourceLocation toolTypeId() { return toolTypeId; }
 
     @Override
     public boolean matches(CraftingInput input, Level level) {
         ToolType tt = SmitheryAPI.TOOL_TYPES.get(toolTypeId);
         if (tt == null) return false;
 
-        Map<Identifier, Integer> required = new HashMap<>();
+        Map<ResourceLocation, Integer> required = new HashMap<>();
         for (ToolType.Slot slot : tt.slots()) {
             required.merge(slot.partType().id(), 1, Integer::sum);
         }
 
-        Map<Identifier, Integer> provided = new HashMap<>();
+        Map<ResourceLocation, Integer> provided = new HashMap<>();
         int nonEmpty = 0;
         for (int i = 0; i < input.size(); i++) {
             ItemStack stack = input.getItem(i);
@@ -83,9 +83,9 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
         if (tt == null) return ItemStack.EMPTY;
 
         boolean[] used = new boolean[input.size()];
-        List<Identifier> materials = new ArrayList<>(tt.slots().size());
+        List<ResourceLocation> materials = new ArrayList<>(tt.slots().size());
         for (ToolType.Slot slot : tt.slots()) {
-            Identifier matched = null;
+            ResourceLocation matched = null;
             for (int i = 0; i < input.size(); i++) {
                 if (used[i]) continue;
                 ItemStack stack = input.getItem(i);
@@ -100,7 +100,7 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
             materials.add(matched);
         }
 
-        Item resultItem = BuiltInRegistries.ITEM.getValue(toolTypeId);
+        Item resultItem = BuiltInRegistries.ITEM.get(toolTypeId);
         if (resultItem == null) return ItemStack.EMPTY;
 
         ToolComposition comp = new ToolComposition(toolTypeId, materials);
@@ -131,13 +131,13 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
     }
 
     private static final MapCodec<ToolAssemblyRecipe> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
-            Identifier.CODEC.fieldOf("tool_type").forGetter(ToolAssemblyRecipe::toolTypeId),
+            ResourceLocation.CODEC.fieldOf("tool_type").forGetter(ToolAssemblyRecipe::toolTypeId),
             Codec.STRING.optionalFieldOf("group", "").forGetter(ToolAssemblyRecipe::group)
     ).apply(i, ToolAssemblyRecipe::new));
 
     private static final StreamCodec<RegistryFriendlyByteBuf, ToolAssemblyRecipe> STREAM_CODEC =
             StreamCodec.composite(
-                    Identifier.STREAM_CODEC, ToolAssemblyRecipe::toolTypeId,
+                    ResourceLocation.STREAM_CODEC, ToolAssemblyRecipe::toolTypeId,
                     ByteBufCodecs.STRING_UTF8, ToolAssemblyRecipe::group,
                     ToolAssemblyRecipe::new
             );
@@ -147,7 +147,7 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
             new RecipeSerializer<>(CODEC, STREAM_CODEC);
 
     /** Returns the fixed {@code smithery:tool_assembly} serializer id. */
-    public static Identifier serializerId() {
-        return Identifier.fromNamespaceAndPath(Smithery.MODID, "tool_assembly");
+    public static ResourceLocation serializerId() {
+        return new ResourceLocation(Smithery.MODID, "tool_assembly");
     }
 }

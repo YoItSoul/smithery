@@ -9,11 +9,11 @@ import com.soul.smithery.item.tool.SmitheryToolItem;
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolCompositions;
 import com.soul.smithery.registry.SmitheryDataComponents;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.AnvilUpdateEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.AnvilUpdateEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,7 +33,7 @@ import java.util.Map;
  * <p>Vanilla enchanted books are rejected so smithery's modifier system remains the only
  * source of behaviour on these tools.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class AnvilModifierHandler {
     private AnvilModifierHandler() {}
 
@@ -68,7 +68,7 @@ public final class AnvilModifierHandler {
 
         List<ModifierEffect> existing = tool.getOrDefault(
                 SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.of());
-        Identifier modifierId = sourceEntry.effect().modifierId();
+        ResourceLocation modifierId = sourceEntry.effect().modifierId();
         int existingIndex = -1;
         int currentLevel = 0;
         for (int i = 0; i < existing.size(); i++) {
@@ -91,7 +91,7 @@ public final class AnvilModifierHandler {
         int levelCost = mod != null ? mod.levelCostFor(currentLevel) : 1;
         int unitValue = Math.max(1, sourceEntry.unitValue());
 
-        Map<Identifier, Integer> progressMap = tool.getOrDefault(
+        Map<ResourceLocation, Integer> progressMap = tool.getOrDefault(
                 SmitheryDataComponents.MODIFIER_PROGRESS.get(), Map.of());
         int currentUnits = Math.max(0, progressMap.getOrDefault(modifierId, 0));
 
@@ -104,7 +104,7 @@ public final class AnvilModifierHandler {
         int newUnits = Math.min(levelCost, currentUnits + addedUnits);
 
         ItemStack output = tool.copy();
-        Map<Identifier, Integer> newProgressMap = new HashMap<>(progressMap);
+        Map<ResourceLocation, Integer> newProgressMap = new HashMap<>(progressMap);
 
         if (newUnits >= levelCost) {
             int newLevel = currentLevel + 1;

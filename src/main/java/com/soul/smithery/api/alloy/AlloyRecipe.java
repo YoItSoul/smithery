@@ -2,7 +2,7 @@ package com.soul.smithery.api.alloy;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
 import java.util.Map;
@@ -40,10 +40,10 @@ public record AlloyRecipe(List<Input> inputs, Output result, float minTemperatur
      * @param material id of the input material's fluid
      * @param mb       milliBuckets of this fluid required per fire
      */
-    public record Input(Identifier material, int mb) {
+    public record Input(ResourceLocation material, int mb) {
         /** Codec for {@link Input}. */
         public static final Codec<Input> CODEC = RecordCodecBuilder.create(i -> i.group(
-                Identifier.CODEC.fieldOf("material").forGetter(Input::material),
+                ResourceLocation.CODEC.fieldOf("material").forGetter(Input::material),
                 Codec.INT.fieldOf("mb").forGetter(Input::mb)
         ).apply(i, Input::new));
     }
@@ -54,10 +54,10 @@ public record AlloyRecipe(List<Input> inputs, Output result, float minTemperatur
      * @param material id of the output material's fluid
      * @param mb       milliBuckets produced per fire
      */
-    public record Output(Identifier material, int mb) {
+    public record Output(ResourceLocation material, int mb) {
         /** Codec for {@link Output}. */
         public static final Codec<Output> CODEC = RecordCodecBuilder.create(i -> i.group(
-                Identifier.CODEC.fieldOf("material").forGetter(Output::material),
+                ResourceLocation.CODEC.fieldOf("material").forGetter(Output::material),
                 Codec.INT.fieldOf("mb").forGetter(Output::mb)
         ).apply(i, Output::new));
     }
@@ -74,7 +74,7 @@ public record AlloyRecipe(List<Input> inputs, Output result, float minTemperatur
      * True if the given forge can fire this alloy right now: temperature high enough and every
      * input fluid present at or above the required mB.
      */
-    public boolean canFire(float temperatureC, Map<Identifier, Integer> fluidStorage) {
+    public boolean canFire(float temperatureC, Map<ResourceLocation, Integer> fluidStorage) {
         if (temperatureC < minTemperatureC) return false;
         for (Input in : inputs) {
             if (fluidStorage.getOrDefault(in.material(), 0) < in.mb()) return false;

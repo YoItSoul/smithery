@@ -5,18 +5,15 @@ import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.tool.ToolType;
+import net.minecraft.SharedConstants;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.PackLocationInfo;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackType;
-import net.minecraft.server.packs.metadata.MetadataSectionType;
-import net.minecraft.server.packs.metadata.pack.PackFormat;
+import net.minecraft.server.packs.metadata.MetadataSectionSerializer;
 import net.minecraft.server.packs.metadata.pack.PackMetadataSection;
-import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.server.packs.resources.IoSupplier;
-import net.minecraft.util.InclusiveRange;
-import org.jspecify.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -44,17 +41,9 @@ public class SmitheryGeneratedPack implements PackResources {
     /** Stable pack id used by {@link SmitheryPackProvider} when registering the pack. */
     public static final String PACK_ID = "smithery_generated";
 
-    private static final PackLocationInfo LOCATION = new PackLocationInfo(
-            PACK_ID,
-            Component.literal("Smithery Generated"),
-            PackSource.BUILT_IN,
-            Optional.empty()
-    );
-
     private static final String MODELS_PREFIX       = "models/item/";
     private static final String BLOCK_MODELS_PREFIX = "models/block/";
     private static final String BLOCKSTATES_PREFIX  = "blockstates/";
-    private static final String ITEMS_PREFIX        = "items/";
     private static final String JSON_SUFFIX         = ".json";
 
     private static final String MOLTEN_PREFIX        = "molten_";
@@ -72,12 +61,12 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static final String SIMPLE_ITEM_TEX_PREFIX = "textures/item/";
 
-    private record SimpleItem(Identifier source, int tintArgb) {}
+    private record SimpleItem(ResourceLocation source, int tintArgb) {}
 
     private static final java.util.Map<String, SimpleItem> SIMPLE_ITEMS;
     static {
-        Identifier vanillaString    = Identifier.fromNamespaceAndPath("minecraft", "item/string");
-        Identifier vanillaSlimeBall = Identifier.fromNamespaceAndPath("minecraft", "item/slime_ball");
+        ResourceLocation vanillaString    = new ResourceLocation("minecraft", "item/string");
+        ResourceLocation vanillaSlimeBall = new ResourceLocation("minecraft", "item/slime_ball");
         SIMPLE_ITEMS = java.util.Map.of(
                 "flamestring",              new SimpleItem(vanillaString,    0xFFFF6622),
                 "breezestring",             new SimpleItem(vanillaString,    0xFFB0E2FF),
@@ -109,7 +98,7 @@ public class SmitheryGeneratedPack implements PackResources {
      * client-resources pack type or that doesn't match a recognized path.
      */
     @Override
-    public @Nullable IoSupplier<InputStream> getResource(PackType type, Identifier location) {
+    public @Nullable IoSupplier<InputStream> getResource(PackType type, ResourceLocation location) {
         if (type != PackType.CLIENT_RESOURCES) return null;
         String path = location.getPath();
         String namespace = location.getNamespace();
@@ -159,10 +148,6 @@ public class SmitheryGeneratedPack implements PackResources {
             String name = path.substring(BLOCKSTATES_PREFIX.length(), path.length() - JSON_SUFFIX.length());
             return resolveBlockstateJson(namespace, name);
         }
-        if (path.startsWith(ITEMS_PREFIX)) {
-            String name = path.substring(ITEMS_PREFIX.length(), path.length() - JSON_SUFFIX.length());
-            return resolveItemDefJson(namespace, name);
-        }
         return null;
     }
 
@@ -187,8 +172,6 @@ public class SmitheryGeneratedPack implements PackResources {
                 String path = tt.id().getPath();
                 emitIfMatches(namespace, MODELS_PREFIX + path + JSON_SUFFIX, prefix,
                         () -> resolveModelJson(namespace, path), output);
-                emitIfMatches(namespace, ITEMS_PREFIX  + path + JSON_SUFFIX, prefix,
-                        () -> resolveItemDefJson(namespace, path), output);
 
                 boolean isBow = "bow".equals(path);
                 int frameCount = isBow ? 3 : 0;
@@ -221,8 +204,6 @@ public class SmitheryGeneratedPack implements PackResources {
                 String itemName = m.id().getPath() + "_" + pt.id().getPath();
                 emitIfMatches(namespace, MODELS_PREFIX + itemName + JSON_SUFFIX, prefix,
                         () -> resolveModelJson(namespace, itemName), output);
-                emitIfMatches(namespace, ITEMS_PREFIX + itemName + JSON_SUFFIX, prefix,
-                        () -> resolveItemDefJson(namespace, itemName), output);
             }
         }
 
@@ -249,8 +230,8 @@ public class SmitheryGeneratedPack implements PackResources {
                         () -> resolveBlockstateJson(namespace, fluidId), output);
                 emitIfMatches(namespace, BLOCK_MODELS_PREFIX + fluidId  + JSON_SUFFIX, prefix,
                         () -> resolveBlockModelJson(namespace, fluidId), output);
-                emitIfMatches(namespace, ITEMS_PREFIX        + bucketId + JSON_SUFFIX, prefix,
-                        () -> resolveItemDefJson(namespace, bucketId), output);
+                emitIfMatches(namespace, MODELS_PREFIX       + bucketId + JSON_SUFFIX, prefix,
+                        () -> resolveModelJson(namespace, bucketId), output);
             }
         }
 
@@ -263,8 +244,6 @@ public class SmitheryGeneratedPack implements PackResources {
                         () -> resolveBlockModelJson(namespace, name), output);
                 emitIfMatches(namespace, MODELS_PREFIX       + name + JSON_SUFFIX, prefix,
                         () -> resolveModelJson(namespace, name), output);
-                emitIfMatches(namespace, ITEMS_PREFIX        + name + JSON_SUFFIX, prefix,
-                        () -> resolveItemDefJson(namespace, name), output);
             }
         }
 
@@ -276,8 +255,6 @@ public class SmitheryGeneratedPack implements PackResources {
                     () -> resolveBlockModelJson(namespace, name), output);
             emitIfMatches(namespace, MODELS_PREFIX       + name + JSON_SUFFIX, prefix,
                     () -> resolveModelJson(namespace, name), output);
-            emitIfMatches(namespace, ITEMS_PREFIX        + name + JSON_SUFFIX, prefix,
-                    () -> resolveItemDefJson(namespace, name), output);
             emitIfMatches(namespace, BLOCK_TEX_PREFIX    + name + PNG_SUFFIX, prefix,
                     () -> {
                         try {
@@ -295,8 +272,6 @@ public class SmitheryGeneratedPack implements PackResources {
                 final SimpleItem captured = entry.getValue();
                 emitIfMatches(namespace, MODELS_PREFIX       + name + JSON_SUFFIX, prefix,
                         () -> resolveModelJson(namespace, name), output);
-                emitIfMatches(namespace, ITEMS_PREFIX        + name + JSON_SUFFIX, prefix,
-                        () -> resolveItemDefJson(namespace, name), output);
                 emitIfMatches(namespace, SIMPLE_ITEM_TEX_PREFIX + name + PNG_SUFFIX, prefix,
                         () -> () -> {
                             try { return emitPng(synthesizeSimpleItemTexture(captured)); }
@@ -312,7 +287,7 @@ public class SmitheryGeneratedPack implements PackResources {
         if (!fullPath.startsWith(requestedPrefix)) return;
         IoSupplier<InputStream> content = contentSupplier.get();
         if (content == null) return;
-        output.accept(Identifier.fromNamespaceAndPath(namespace, fullPath), content);
+        output.accept(new ResourceLocation(namespace, fullPath), content);
     }
 
     private void emitToolLayerTexture(String namespace, String texName, String requestedPrefix,
@@ -341,17 +316,17 @@ public class SmitheryGeneratedPack implements PackResources {
     /**
      * {@inheritDoc}
      *
-     * <p>Serves a synthesized {@code pack.mcmeta} that targets all pack formats from 0 to the
-     * maximum so the pack never becomes incompatible with a Minecraft update.
+     * <p>Serves a synthesized {@code pack.mcmeta} that always reports the running game's
+     * current client pack format, so the pack never becomes incompatible with the game version
+     * it is generated inside of.
      */
     @SuppressWarnings("unchecked")
     @Override
-    public <T> @Nullable T getMetadataSection(MetadataSectionType<T> meta) {
-        if (PackMetadataSection.CLIENT_TYPE.equals(meta) || PackMetadataSection.FALLBACK_TYPE.equals(meta)) {
-            PackFormat current = PackFormat.of(Integer.MAX_VALUE);
+    public <T> @Nullable T getMetadataSection(MetadataSectionSerializer<T> deserializer) {
+        if (PackMetadataSection.TYPE.equals(deserializer)) {
             return (T) new PackMetadataSection(
                     Component.literal("Smithery generated resources"),
-                    new InclusiveRange<>(PackFormat.of(0), current)
+                    SharedConstants.getCurrentVersion().getPackVersion(PackType.CLIENT_RESOURCES)
             );
         }
         return null;
@@ -359,7 +334,11 @@ public class SmitheryGeneratedPack implements PackResources {
 
     /** {@inheritDoc} */
     @Override
-    public PackLocationInfo location() { return LOCATION; }
+    public String packId() { return PACK_ID; }
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean isBuiltin() { return true; }
 
     /** {@inheritDoc} */
     @Override
@@ -407,6 +386,19 @@ public class SmitheryGeneratedPack implements PackResources {
                         }
                         """).formatted(Smithery.MODID, itemName));
             }
+            if (itemName.startsWith(MOLTEN_PREFIX) && itemName.endsWith(MOLTEN_BUCKET_SUFFIX)) {
+                String matPath = itemName.substring(MOLTEN_PREFIX.length(),
+                        itemName.length() - MOLTEN_BUCKET_SUFFIX.length());
+                if (isMeltableMaterialPath(matPath)) {
+                    // Shared two-layer bucket model from static resources; layer 1 (the fluid
+                    // window) is tinted per material via the item color handler.
+                    return jsonStream(("""
+                            {
+                              "parent": "%s:item/molten_bucket"
+                            }
+                            """).formatted(Smithery.MODID));
+                }
+            }
         }
         for (Material m : SmitheryAPI.MATERIALS.all()) {
             if (!m.id().getNamespace().equals(namespace)) continue;
@@ -418,69 +410,6 @@ public class SmitheryGeneratedPack implements PackResources {
                 if (pt.syntheticCast()) continue;
                 if (!com.soul.smithery.api.part.PartEligibility.isAllowed(pt.id(), m.id())) continue;
                 return jsonStream(buildPartModelJson(pt));
-            }
-        }
-        return null;
-    }
-
-    private @Nullable IoSupplier<InputStream> resolveItemDefJson(String namespace, String itemName) {
-        if (Smithery.MODID.equals(namespace)) {
-            for (ToolType tt : SmitheryAPI.TOOL_TYPES.all()) {
-                if (tt.id().getPath().equals(itemName)) {
-                    return jsonStream(buildToolItemDefJson(tt));
-                }
-            }
-            if (itemName.startsWith(MOLTEN_PREFIX) && itemName.endsWith(MOLTEN_BUCKET_SUFFIX)) {
-                String matPath = itemName.substring(MOLTEN_PREFIX.length(),
-                        itemName.length() - MOLTEN_BUCKET_SUFFIX.length());
-                if (isMeltableMaterialPath(matPath)) {
-                    return jsonStream(buildMoltenBucketItemDefJson());
-                }
-            }
-            if (itemName.startsWith(IMPRESSED_SAND_PREFIX)) {
-                String partPath = itemName.substring(IMPRESSED_SAND_PREFIX.length());
-                if (isRegisteredPartTypePath(partPath)) {
-                    return jsonStream(("""
-                            {
-                              "model": {
-                                "type": "minecraft:model",
-                                "model": "%s:item/%s"
-                              }
-                            }
-                            """).formatted(Smithery.MODID, itemName));
-                }
-            }
-            if (RED_SLIME_BLOCK.equals(itemName)) {
-                return jsonStream(("""
-                        {
-                          "model": {
-                            "type": "minecraft:model",
-                            "model": "%s:item/%s"
-                          }
-                        }
-                        """).formatted(Smithery.MODID, itemName));
-            }
-            if (SIMPLE_ITEMS.containsKey(itemName)) {
-                return jsonStream(("""
-                        {
-                          "model": {
-                            "type": "minecraft:model",
-                            "model": "%s:item/%s"
-                          }
-                        }
-                        """).formatted(Smithery.MODID, itemName));
-            }
-        }
-        for (Material m : SmitheryAPI.MATERIALS.all()) {
-            if (!m.id().getNamespace().equals(namespace)) continue;
-            String matPath = m.id().getPath();
-            if (!itemName.startsWith(matPath + "_")) continue;
-            String remaining = itemName.substring(matPath.length() + 1);
-            for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
-                if (!pt.id().getPath().equals(remaining)) continue;
-                if (pt.syntheticCast()) continue;
-                if (!com.soul.smithery.api.part.PartEligibility.isAllowed(pt.id(), m.id())) continue;
-                return jsonStream(buildPartItemDefJson(m, pt));
             }
         }
         return null;
@@ -574,7 +503,7 @@ public class SmitheryGeneratedPack implements PackResources {
         PartType pt = findPartTypeByPath(partPath);
         if (pt == null) throw new IOException("No PartType: " + partPath);
 
-        Identifier tmplId = pt.textureTemplate();
+        ResourceLocation tmplId = pt.textureTemplate();
         BufferedImage tmpl = readTemplateTexture(tmplId);
         final int W = 16, H = 16;
 
@@ -642,8 +571,8 @@ public class SmitheryGeneratedPack implements PackResources {
           .append("\"texture\": \"#sand\"}");
     }
 
-    private static BufferedImage readTemplateTexture(Identifier tmplId) throws IOException {
-        Identifier resourceLoc = Identifier.fromNamespaceAndPath(
+    private static BufferedImage readTemplateTexture(ResourceLocation tmplId) throws IOException {
+        ResourceLocation resourceLoc = new ResourceLocation(
                 tmplId.getNamespace(), "textures/" + tmplId.getPath() + ".png");
         net.minecraft.server.packs.resources.ResourceManager rm =
                 net.minecraft.client.Minecraft.getInstance().getResourceManager();
@@ -699,10 +628,6 @@ public class SmitheryGeneratedPack implements PackResources {
         };
     }
 
-    private static BufferedImage synthesizeToolSlotTexture(String toolPath, int slotIndex) throws IOException {
-        return synthesizeToolSlotTextureFrame(toolPath, slotIndex, null);
-    }
-
     private @Nullable IoSupplier<InputStream> resolveSynthesizedPartTemplate(String partName) {
         return switch (partName) {
             case "bow_limb"        -> () -> emitPng(synthesizeBowLimbTemplate());
@@ -727,12 +652,12 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     private static BufferedImage synthesizeBowstringTemplate() throws IOException {
-        return readTemplateTexture(Identifier.fromNamespaceAndPath("minecraft", "item/string"));
+        return readTemplateTexture(new ResourceLocation("minecraft", "item/string"));
     }
 
     private static BufferedImage synthesizeBowLimbTemplate() throws IOException {
         BufferedImage src = readTemplateTexture(
-                Identifier.fromNamespaceAndPath(Smithery.MODID, "item/part/pick_head"));
+                new ResourceLocation(Smithery.MODID, "item/part/pick_head"));
         BufferedImage rotated = rotateAroundCenter(src, -45.0);
         clearLowerHalf(rotated);
         return rotated;
@@ -740,13 +665,13 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static BufferedImage synthesizeArrowShaftTemplate() throws IOException {
         BufferedImage src = readTemplateTexture(
-                Identifier.fromNamespaceAndPath(Smithery.MODID, "item/part/handle"));
+                new ResourceLocation(Smithery.MODID, "item/part/handle"));
         return centeredUpperHalf(src);
     }
 
     private static BufferedImage synthesizeFletchingTemplate() throws IOException {
         BufferedImage src = readTemplateTexture(
-                Identifier.fromNamespaceAndPath("minecraft", "item/feather"));
+                new ResourceLocation("minecraft", "item/feather"));
         return centeredUpperHalf(src);
     }
 
@@ -761,7 +686,7 @@ public class SmitheryGeneratedPack implements PackResources {
      */
     private static BufferedImage synthesizeArmorPartTemplate(String vanillaPath) throws IOException {
         BufferedImage src = readTemplateTexture(
-                Identifier.fromNamespaceAndPath("minecraft", vanillaPath));
+                new ResourceLocation("minecraft", vanillaPath));
         int W = src.getWidth(), H = src.getHeight();
         BufferedImage out = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < H; y++) {
@@ -857,7 +782,7 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static BufferedImage synthesizeRedSlimeTexture() throws IOException {
         BufferedImage src = readTemplateTexture(
-                Identifier.fromNamespaceAndPath("minecraft", "block/slime_block"));
+                new ResourceLocation("minecraft", "block/slime_block"));
         int W = src.getWidth(), H = src.getHeight();
         BufferedImage out = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < H; y++) {
@@ -876,17 +801,6 @@ public class SmitheryGeneratedPack implements PackResources {
             }
         }
         return out;
-    }
-
-    private static BufferedImage rotate90Clockwise(BufferedImage src) {
-        int W = src.getWidth(), H = src.getHeight();
-        BufferedImage dst = new BufferedImage(H, W, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < H; y++) {
-            for (int x = 0; x < W; x++) {
-                dst.setRGB(H - 1 - y, x, src.getRGB(x, y));
-            }
-        }
-        return dst;
     }
 
     private static BufferedImage rotateAroundCenter(BufferedImage src, double angleDegrees) {
@@ -931,37 +845,37 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static BufferedImage synthesizeToolSlotTextureFrame(String toolPath, int slotIndex,
                                                                  @Nullable String frameSuffix) throws IOException {
-        Identifier sourceId = switch (toolPath) {
+        ResourceLocation sourceId = switch (toolPath) {
             case "sword", "broadsword", "rapier"
-                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_sword");
+                           -> new ResourceLocation("minecraft", "item/iron_sword");
             case "paxel", "mining_hammer"
-                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_pickaxe");
+                           -> new ResourceLocation("minecraft", "item/iron_pickaxe");
             case "crossbow"
-                           -> Identifier.fromNamespaceAndPath("minecraft", "item/crossbow_standby");
-            case "kama"    -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_hoe");
-            case "cleaver" -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_axe");
+                           -> new ResourceLocation("minecraft", "item/crossbow_standby");
+            case "kama"    -> new ResourceLocation("minecraft", "item/iron_hoe");
+            case "cleaver" -> new ResourceLocation("minecraft", "item/iron_axe");
             case "lumberaxe"
-                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_axe");
+                           -> new ResourceLocation("minecraft", "item/iron_axe");
             case "excavator"
-                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_shovel");
+                           -> new ResourceLocation("minecraft", "item/iron_shovel");
             case "shuriken"
-                           -> Identifier.fromNamespaceAndPath("minecraft", "item/nether_star");
+                           -> new ResourceLocation("minecraft", "item/nether_star");
             case "trident"
-                           -> Identifier.fromNamespaceAndPath("minecraft", "item/trident");
+                           -> new ResourceLocation("minecraft", "item/trident");
             case "battlesign"
-                           -> Identifier.fromNamespaceAndPath("minecraft", "item/oak_sign");
-            case "pickaxe" -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_pickaxe");
-            case "axe"     -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_axe");
-            case "shovel"  -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_shovel");
-            case "hoe"     -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_hoe");
-            case "spear"   -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_spear");
+                           -> new ResourceLocation("minecraft", "item/oak_sign");
+            case "pickaxe" -> new ResourceLocation("minecraft", "item/iron_pickaxe");
+            case "axe"     -> new ResourceLocation("minecraft", "item/iron_axe");
+            case "shovel"  -> new ResourceLocation("minecraft", "item/iron_shovel");
+            case "hoe"     -> new ResourceLocation("minecraft", "item/iron_hoe");
+            case "spear"   -> new ResourceLocation("minecraft", "item/iron_spear");
             case "bow"     -> {
                 String path = "item/bow" + (frameSuffix == null ? "" : "_" + frameSuffix);
-                yield Identifier.fromNamespaceAndPath("minecraft", path);
+                yield new ResourceLocation("minecraft", path);
             }
-            case "arrow"   -> Identifier.fromNamespaceAndPath("minecraft", "item/arrow");
+            case "arrow"   -> new ResourceLocation("minecraft", "item/arrow");
             case "helmet", "chestplate", "leggings", "boots"
-                           -> Identifier.fromNamespaceAndPath("minecraft", "item/iron_" + toolPath);
+                           -> new ResourceLocation("minecraft", "item/iron_" + toolPath);
             default        -> null;
         };
         if (sourceId == null) {
@@ -1306,7 +1220,7 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     private static String buildPartModelJson(PartType pt) {
-        Identifier tex = pt.textureTemplate();
+        ResourceLocation tex = pt.textureTemplate();
         return """
                 {
                   "parent": "item/generated",
@@ -1317,26 +1231,19 @@ public class SmitheryGeneratedPack implements PackResources {
                 """.formatted(tex);
     }
 
-    private static String buildPartItemDefJson(Material m, PartType pt) {
-        Identifier modelId = Identifier.fromNamespaceAndPath(m.id().getNamespace(),
-                "item/" + m.id().getPath() + "_" + pt.id().getPath());
-        return """
-                {
-                  "model": {
-                    "type": "minecraft:model",
-                    "model": "%s",
-                    "tints": [
-                      { "type": "smithery:part_material" }
-                    ]
-                  }
-                }
-                """.formatted(modelId);
-    }
-
     private static String buildToolModelJson(ToolType tt) {
         return buildToolModelJsonFrame(tt, null);
     }
 
+    /**
+     * Builds a layered {@code item/handheld}-family model for a tool, one texture layer per
+     * composition slot. Layer index doubles as the tint index the client's item color handler
+     * receives, which is how each slot gets its own material color.
+     *
+     * <p>The base bow model additionally carries vanilla-style {@code overrides} with
+     * {@code pulling}/{@code pull} predicates so the draw animation swaps to the generated
+     * {@code bow_pulling_N} frame models.
+     */
     private static String buildToolModelJsonFrame(ToolType tt, @Nullable String frameSuffix) {
         StringBuilder sb = new StringBuilder(512);
         boolean isBow = "bow".equals(tt.id().getPath());
@@ -1355,76 +1262,20 @@ public class SmitheryGeneratedPack implements PackResources {
             if (i < slots.size() - 1) sb.append(",");
             sb.append("\n");
         }
-        sb.append("  }\n");
-        sb.append("}\n");
-        return sb.toString();
-    }
-
-    private static String buildToolItemDefJson(ToolType tt) {
-        if ("bow".equals(tt.id().getPath())) {
-            return buildBowItemDefJson(tt);
+        sb.append("  }");
+        if (isBow && frameSuffix == null) {
+            sb.append(",\n");
+            sb.append("  \"overrides\": [\n");
+            sb.append("    { \"predicate\": { \"pulling\": 1 }, \"model\": \"")
+              .append(Smithery.MODID).append(":item/bow_pulling_0\" },\n");
+            sb.append("    { \"predicate\": { \"pulling\": 1, \"pull\": 0.65 }, \"model\": \"")
+              .append(Smithery.MODID).append(":item/bow_pulling_1\" },\n");
+            sb.append("    { \"predicate\": { \"pulling\": 1, \"pull\": 0.9 }, \"model\": \"")
+              .append(Smithery.MODID).append(":item/bow_pulling_2\" }\n");
+            sb.append("  ]");
         }
-        return buildStaticToolItemDefJson(tt, tt.id().getPath());
-    }
-
-    private static String buildStaticToolItemDefJson(ToolType tt, String modelName) {
-        StringBuilder sb = new StringBuilder(512);
-        sb.append("{\n");
-        sb.append("  \"model\": {\n");
-        appendLayeredModelBlock(sb, tt, modelName, "    ");
-        sb.append("  }\n");
-        sb.append("}\n");
+        sb.append("\n}\n");
         return sb.toString();
-    }
-
-    private static String buildBowItemDefJson(ToolType tt) {
-        StringBuilder sb = new StringBuilder(2048);
-        sb.append("{\n");
-        sb.append("  \"model\": {\n");
-        sb.append("    \"type\": \"minecraft:condition\",\n");
-        sb.append("    \"property\": \"minecraft:using_item\",\n");
-        sb.append("    \"on_false\": {\n");
-        appendLayeredModelBlock(sb, tt, "bow", "      ");
-        sb.append("    },\n");
-        sb.append("    \"on_true\": {\n");
-        sb.append("      \"type\": \"minecraft:range_dispatch\",\n");
-        sb.append("      \"property\": \"minecraft:use_duration\",\n");
-        sb.append("      \"scale\": 0.05,\n");
-        sb.append("      \"fallback\": {\n");
-        appendLayeredModelBlock(sb, tt, "bow_pulling_0", "        ");
-        sb.append("      },\n");
-        sb.append("      \"entries\": [\n");
-        sb.append("        {\n");
-        sb.append("          \"threshold\": 0.65,\n");
-        sb.append("          \"model\": {\n");
-        appendLayeredModelBlock(sb, tt, "bow_pulling_1", "            ");
-        sb.append("          }\n");
-        sb.append("        },\n");
-        sb.append("        {\n");
-        sb.append("          \"threshold\": 0.9,\n");
-        sb.append("          \"model\": {\n");
-        appendLayeredModelBlock(sb, tt, "bow_pulling_2", "            ");
-        sb.append("          }\n");
-        sb.append("        }\n");
-        sb.append("      ]\n");
-        sb.append("    }\n");
-        sb.append("  }\n");
-        sb.append("}\n");
-        return sb.toString();
-    }
-
-    private static void appendLayeredModelBlock(StringBuilder sb, ToolType tt, String modelName, String indent) {
-        sb.append(indent).append("\"type\": \"minecraft:model\",\n");
-        sb.append(indent).append("\"model\": \"").append(Smithery.MODID).append(":item/")
-          .append(modelName).append("\",\n");
-        sb.append(indent).append("\"tints\": [\n");
-        int n = tt.slots().size();
-        for (int i = 0; i < n; i++) {
-            sb.append(indent).append("  { \"type\": \"smithery:tool_slot_material\", \"slot\": ").append(i).append(" }");
-            if (i < n - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append(indent).append("]\n");
     }
 
     private static String buildMoltenBlockstateJson(String blockName) {
@@ -1445,21 +1296,6 @@ public class SmitheryGeneratedPack implements PackResources {
                   }
                 }
                 """.formatted(Smithery.MODID);
-    }
-
-    private static String buildMoltenBucketItemDefJson() {
-        return """
-                {
-                  "model": {
-                    "type": "minecraft:model",
-                    "model": "%s:item/molten_bucket",
-                    "tints": [
-                      { "type": "minecraft:constant", "value": -1 },
-                      { "type": "%s:molten_bucket" }
-                    ]
-                  }
-                }
-                """.formatted(Smithery.MODID, Smithery.MODID);
     }
 
     private static IoSupplier<InputStream> jsonStream(String content) {

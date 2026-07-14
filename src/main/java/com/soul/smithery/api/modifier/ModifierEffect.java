@@ -5,7 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,17 +21,17 @@ import java.util.Objects;
  * boxed map and read via the {@code paramX(name, default)} accessors.
  */
 public final class ModifierEffect {
-    private final Identifier modifierId;
+    private final ResourceLocation modifierId;
     private final Map<String, Object> params;
 
     /** Constructs an effect referencing {@code modifierId} with the given parameter map. */
-    public ModifierEffect(Identifier modifierId, Map<String, Object> params) {
+    public ModifierEffect(ResourceLocation modifierId, Map<String, Object> params) {
         this.modifierId = Objects.requireNonNull(modifierId, "modifierId");
         this.params = params == null ? Map.of() : Collections.unmodifiableMap(new HashMap<>(params));
     }
 
-    /** Identifier of the {@link Modifier} this effect references. */
-    public Identifier modifierId() { return modifierId; }
+    /** ResourceLocation of the {@link Modifier} this effect references. */
+    public ResourceLocation modifierId() { return modifierId; }
 
     /** Unmodifiable view of this effect's parameter map. */
     public Map<String, Object> params() { return params; }
@@ -58,10 +58,10 @@ public final class ModifierEffect {
     }
 
     /** Convenience factory for a parameterless effect. */
-    public static ModifierEffect of(Identifier id) { return new ModifierEffect(id, Map.of()); }
+    public static ModifierEffect of(ResourceLocation id) { return new ModifierEffect(id, Map.of()); }
 
     /** Convenience factory carrying parameters. */
-    public static ModifierEffect of(Identifier id, Map<String, Object> params) { return new ModifierEffect(id, params); }
+    public static ModifierEffect of(ResourceLocation id, Map<String, Object> params) { return new ModifierEffect(id, params); }
 
     @Override public String toString() { return "ModifierEffect[" + modifierId + ", " + params + "]"; }
 
@@ -81,7 +81,7 @@ public final class ModifierEffect {
 
     /** Codec used for persistence (data components) and JSON serialization. Params encode as a string-to-float map. */
     public static final Codec<ModifierEffect> CODEC = RecordCodecBuilder.create(i -> i.group(
-            Identifier.CODEC.fieldOf("id").forGetter(ModifierEffect::modifierId),
+            ResourceLocation.CODEC.fieldOf("id").forGetter(ModifierEffect::modifierId),
             Codec.unboundedMap(Codec.STRING, Codec.FLOAT)
                     .optionalFieldOf("params", Map.of())
                     .forGetter(e -> objectMapToFloatMap(e.params()))
@@ -89,7 +89,7 @@ public final class ModifierEffect {
 
     /** Stream codec used for network sync. */
     public static final StreamCodec<ByteBuf, ModifierEffect> STREAM_CODEC = StreamCodec.composite(
-            Identifier.STREAM_CODEC,                                  ModifierEffect::modifierId,
+            ResourceLocation.STREAM_CODEC,                                  ModifierEffect::modifierId,
             ByteBufCodecs.map(java.util.HashMap::new,
                     ByteBufCodecs.STRING_UTF8, ByteBufCodecs.FLOAT),  e -> objectMapToFloatMap(e.params()),
             (id, params) -> new ModifierEffect(id, floatMapToObjectMap(params))

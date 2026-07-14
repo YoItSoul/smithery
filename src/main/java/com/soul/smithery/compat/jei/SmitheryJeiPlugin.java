@@ -13,7 +13,7 @@ import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -30,10 +30,10 @@ import java.util.List;
  */
 @JeiPlugin
 public class SmitheryJeiPlugin implements IModPlugin {
-    private static final Identifier UID = Identifier.fromNamespaceAndPath(Smithery.MODID, "jei");
+    private static final ResourceLocation UID = new ResourceLocation(Smithery.MODID, "jei");
 
     @Override
-    public Identifier getPluginUid() {
+    public ResourceLocation getPluginUid() {
         return UID;
     }
 

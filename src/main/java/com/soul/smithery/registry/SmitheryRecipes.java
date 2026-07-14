@@ -2,11 +2,11 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.item.tool.ToolAssemblyRecipe;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.crafting.RecipeSerializer;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
+import net.minecraftforge.registries.DeferredRegister;
 
 /**
  * Registry for Smithery's custom recipe serializers.
@@ -17,10 +17,10 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public final class SmitheryRecipes {
     /** Deferred register for Smithery-namespaced recipe serializers. */
     public static final DeferredRegister<RecipeSerializer<?>> SERIALIZERS =
-            DeferredRegister.create(BuiltInRegistries.RECIPE_SERIALIZER, Smithery.MODID);
+            DeferredRegister.create(ForgeRegistries.RECIPE_SERIALIZERS, Smithery.MODID);
 
     /** Serializer for {@link ToolAssemblyRecipe}; assembles a Smithery tool from its parts. */
-    public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<ToolAssemblyRecipe>>
+    public static final RegistryObject<RecipeSerializer<ToolAssemblyRecipe>>
             TOOL_ASSEMBLY = SERIALIZERS.register("tool_assembly", () -> ToolAssemblyRecipe.SERIALIZER);
 
     /**

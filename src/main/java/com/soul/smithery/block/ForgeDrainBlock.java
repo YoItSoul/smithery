@@ -7,7 +7,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -72,7 +72,7 @@ public class ForgeDrainBlock extends Block implements EntityBlock {
             return InteractionResult.SUCCESS;
         }
 
-        Identifier outputFluidId = controller.outputFluidId();
+        ResourceLocation outputFluidId = controller.outputFluidId();
         if (outputFluidId == null) {
             player.sendSystemMessage(Component.literal("No output fluid selected — pick one in the controller GUI")
                     .withStyle(ChatFormatting.YELLOW));
@@ -112,7 +112,7 @@ public class ForgeDrainBlock extends Block implements EntityBlock {
         return InteractionResult.SUCCESS;
     }
 
-    private static String fluidName(Identifier id) {
+    private static String fluidName(ResourceLocation id) {
         return id == null ? "fluid" : id.getPath();
     }
 }

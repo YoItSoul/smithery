@@ -11,7 +11,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
@@ -69,11 +69,11 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     private static final int TANK_H       = TANK_BOTTOM - TANK_Y;
     private static final int COL_TANK_EMPTY = 0xFF1A1A1A;
 
-    private static final net.minecraft.resources.Identifier MOLTEN_FLOW_TEXTURE =
-            net.minecraft.resources.Identifier.fromNamespaceAndPath(
+    private static final net.minecraft.resources.ResourceLocation MOLTEN_FLOW_TEXTURE =
+            net.minecraft.resources.new ResourceLocation(
                     com.soul.smithery.Smithery.MODID, "textures/gui/molten_flow.png");
-    private static final net.minecraft.resources.Identifier WATER_FLOW_TEXTURE =
-            net.minecraft.resources.Identifier.fromNamespaceAndPath(
+    private static final net.minecraft.resources.ResourceLocation WATER_FLOW_TEXTURE =
+            net.minecraft.resources.new ResourceLocation(
                     com.soul.smithery.Smithery.MODID, "textures/gui/water_flow.png");
     private static final int FLOW_FRAME_W      = 32;
     private static final int FLOW_FRAME_H      = 32;
@@ -167,7 +167,7 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         MeltState ms = new MeltState();
         ms.progressMb = menu.getMeltProgressMb(slotIdx);
 
-        Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
         MeltingRecipe recipe = SmitheryAPI.MELTING_RECIPES.get(itemId);
         if (recipe == null) {
             ms.status   = MeltState.Status.NOT_MELTABLE;
@@ -377,7 +377,7 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         for (FluidLayer layer : layers) {
             int color = layer.material.stats().moltenColor() | 0xFF000000;
             int layerH = layer.bottomY - layer.topY;
-            net.minecraft.resources.Identifier flowTex =
+            net.minecraft.resources.ResourceLocation flowTex =
                     layer.material.stats().fluidBase()
                             == com.soul.smithery.api.material.MaterialStats.FluidBase.WATER
                     ? WATER_FLOW_TEXTURE : MOLTEN_FLOW_TEXTURE;
@@ -465,7 +465,7 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
 
     private static void drawTiledMolten(GuiGraphicsExtractor g, int destX, int destY,
                                         int w, int h, float baseV, int tintArgb,
-                                        net.minecraft.resources.Identifier flowTexture) {
+                                        net.minecraft.resources.ResourceLocation flowTexture) {
         int yRemaining = h;
         int dy = destY;
         while (yRemaining > 0) {
@@ -572,11 +572,11 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     }
 
     private void sendOutputFluidSelection(FluidLayer layer) {
-        net.minecraft.resources.Identifier matId = layer.material.id();
+        net.minecraft.resources.ResourceLocation matId = layer.material.id();
         com.soul.smithery.registry.SmitheryFluids.Entry entry =
                 com.soul.smithery.registry.SmitheryFluids.forMaterial(matId);
         if (entry == null) return;
-        net.minecraft.resources.Identifier fluidId =
+        net.minecraft.resources.ResourceLocation fluidId =
                 net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(entry.source.get());
         if (fluidId == null) return;
         net.minecraft.client.multiplayer.ClientPacketListener conn =

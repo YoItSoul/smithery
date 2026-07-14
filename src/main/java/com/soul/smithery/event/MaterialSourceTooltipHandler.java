@@ -13,14 +13,14 @@ import com.soul.smithery.registry.SmitheryItems;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.entity.player.ItemTooltipEvent;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -35,7 +35,7 @@ import java.util.Set;
  * {@link PartEligibility}, and a "can be melted into" line (optionally followed by a "used in
  * alloys" list) driven by {@link MeltingRecipe} + {@link AlloyRecipe} lookups.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class MaterialSourceTooltipHandler {
 
     private MaterialSourceTooltipHandler() {}
@@ -55,7 +55,7 @@ public final class MaterialSourceTooltipHandler {
         appendMeltingTooltip(stack, tooltip);
     }
 
-    private static @Nullable Identifier resolveMaterialForTooltip(ItemStack stack) {
+    private static @Nullable ResourceLocation resolveMaterialForTooltip(ItemStack stack) {
         if (stack.is(ItemTags.LOGS))         return SmitheryMaterials.WOOD;
         if (stack.is(Items.FLINT))           return SmitheryMaterials.FLINT;
         if (stack.is(Items.SLIME_BALL))      return SmitheryMaterials.SLIME;
@@ -81,7 +81,7 @@ public final class MaterialSourceTooltipHandler {
     }
 
     private static void appendPartSourceTooltip(ItemStack stack, List<Component> tooltip) {
-        Identifier matId = resolveMaterialForTooltip(stack);
+        ResourceLocation matId = resolveMaterialForTooltip(stack);
         if (matId == null) return;
 
         List<PartType> eligible = new ArrayList<>();
@@ -101,16 +101,16 @@ public final class MaterialSourceTooltipHandler {
     }
 
     private static void appendMeltingTooltip(ItemStack stack, List<Component> tooltip) {
-        Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
         MeltingRecipe recipe = SmitheryAPI.MELTING_RECIPES.get(itemId);
         if (recipe == null) return;
 
-        Identifier outMat = recipe.outputMaterialId();
+        ResourceLocation outMat = recipe.outputMaterialId();
         tooltip.add(Component.translatable("tooltip." + Smithery.MODID + ".source.melt",
                 Component.translatable(moltenFluidLangKey(outMat)))
                 .withStyle(ChatFormatting.GRAY));
 
-        Set<Identifier> producedAlloys = new LinkedHashSet<>();
+        Set<ResourceLocation> producedAlloys = new LinkedHashSet<>();
         for (AlloyRecipe ar : AlloyRecipes.all()) {
             for (AlloyRecipe.Input in : ar.inputs()) {
                 if (outMat.equals(in.material())) {
@@ -123,14 +123,14 @@ public final class MaterialSourceTooltipHandler {
 
         tooltip.add(Component.translatable("tooltip." + Smithery.MODID + ".source.alloys_header")
                 .withStyle(ChatFormatting.GRAY));
-        for (Identifier alloyMat : producedAlloys) {
+        for (ResourceLocation alloyMat : producedAlloys) {
             tooltip.add(Component.literal(" • ")
                     .append(Component.translatable(PartItem.materialTranslationKey(alloyMat)))
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
     }
 
-    private static String moltenFluidLangKey(Identifier materialId) {
+    private static String moltenFluidLangKey(ResourceLocation materialId) {
         return "fluid." + materialId.getNamespace() + ".molten_" + materialId.getPath();
     }
 }

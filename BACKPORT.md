@@ -7,8 +7,8 @@ This branch backports Smithery from NeoForge 26.1.2 to **MinecraftForge 47.4.10 
 - ForgeGradle `[6.0,6.2)` replaces ModDevGradle (Gradle wrapper downgraded 9.2.1 → 8.8; configuration cache disabled — FG6 does not support it).
 - Java toolchain 17 (what 1.20.1 ships to players).
 - `META-INF/mods.toml` template replaces `neoforge.mods.toml`; `pack.mcmeta` added (`pack_format` 15, required again on 1.20.1).
-- Dependencies re-pinned to their 1.20.1 lines and wrapped in `fg.deobf`:
-  - Modonomicon `1.79.3` (`modonomicon-1.20.1-forge`)
+- Dependencies re-pinned to their 1.20.1 lines and wrapped in `fg.deobf` (versions match the target modpack):
+  - **Patchouli `1.20.1-85-FORGE` replaces Modonomicon** on this branch — the book becomes JSON under `assets/smithery/patchouli_books/` instead of Java datagen providers
   - Geckolib `4.8.4` (`software.bernie.geckolib:geckolib-forge-1.20.1` — note the group change from `com.geckolib`)
   - JEI `15.20.0.134` (`jei-1.20.1-common-api` / `-forge-api` / `-forge`)
 
@@ -25,7 +25,7 @@ The Java sources are still the NeoForge 26.1 code and will not compile yet. Majo
 7. **Recipes** — 1.20.1 recipe serializers have no codec support; `fromJson`/`fromNetwork` must be hand-written for forge melting / press recipes.
 8. **Attributes & tiers** — `ItemAttributeModifiers`-style component data → `getAttributeModifiers` multimap; tool tiers/armor materials use the 1.20.1 `Tier`/`ArmorMaterial` interfaces.
 9. **Client rendering** — no equipment-asset system in 1.20.1: dyed armor rendering goes through `HumanoidArmorLayer`/`IClientItemExtensions.getGenericArmorModel` + layered textures; fluid rendering uses `IClientFluidTypeExtensions`; check every `GuiGraphics` call against the 1.20.1 signatures (the fluid-atlas vs GUI blit split still applies).
-10. **Third-party APIs** — Geckolib 5 → 4 (different package roots and animation controller API), Modonomicon 1.142 → 1.79 (book datagen API differences), JEI 29 → 15 (`IRecipeCategory` and ingredient API differences).
+10. **Third-party APIs** — Geckolib 5 → 4 (different package roots and animation controller API), Modonomicon → Patchouli (delete `book/*` Java providers, author the book as Patchouli JSON), JEI 29 → 15 (`IRecipeCategory` and ingredient API differences).
 11. **Datagen** — 1.20.1 providers take `PackOutput` + lookup providers with different signatures; regenerate `src/generated/resources` on this branch rather than hand-editing.
 12. **Gametests** — `forge.enabledGameTestNamespaces` + `@GameTestHolder`/`@PrefixGameTestTemplate` replace the NeoForge gametest registration.
 

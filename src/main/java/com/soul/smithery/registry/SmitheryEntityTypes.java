@@ -2,58 +2,49 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.entity.SmitheryArrow;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
-import net.minecraft.resources.ResourceKey;
+import com.soul.smithery.entity.SmitheryShuriken;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.function.Supplier;
 
 /**
  * Entity-type registrations owned by Smithery.
  *
- * <p>Currently just the Smithery arrow; dimensions and client tracking values mirror
- * vanilla {@code EntityType.ARROW} so collision and rendering match vanilla arrows.
+ * <p>Currently the Smithery arrow and thrown shuriken; dimensions and client tracking values
+ * mirror vanilla {@code EntityType.ARROW} / {@code EntityType.SNOWBALL} so collision and
+ * rendering match their vanilla counterparts.
  */
 public final class SmitheryEntityTypes {
     /** Deferred register for Smithery-namespaced entity types. */
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES =
-            DeferredRegister.create(Registries.ENTITY_TYPE, Smithery.MODID);
+            DeferredRegister.create(ForgeRegistries.ENTITY_TYPES, Smithery.MODID);
 
     /** Smithery's modular arrow entity type; parallels vanilla arrow dimensions and tracking. */
     public static final Supplier<EntityType<SmitheryArrow>> ARROW =
             registerEntity("arrow", () -> EntityType.Builder
                     .<SmitheryArrow>of(SmitheryArrow::new, MobCategory.MISC)
-                    .noLootTable()
                     .sized(0.5f, 0.5f)
-                    .eyeHeight(0.13f)
                     .clientTrackingRange(4)
                     .updateInterval(20)
-                    .build(arrowKey()));
+                    .build(dataFixerKey("arrow")));
 
     /** Thrown shuriken entity type; snowball-sized, renders as its item. */
-    public static final Supplier<EntityType<com.soul.smithery.entity.SmitheryShuriken>> SHURIKEN =
+    public static final Supplier<EntityType<SmitheryShuriken>> SHURIKEN =
             registerEntity("shuriken", () -> EntityType.Builder
-                    .<com.soul.smithery.entity.SmitheryShuriken>of(
-                            com.soul.smithery.entity.SmitheryShuriken::new, MobCategory.MISC)
-                    .noLootTable()
+                    .<SmitheryShuriken>of(SmitheryShuriken::new, MobCategory.MISC)
                     .sized(0.25f, 0.25f)
                     .clientTrackingRange(4)
                     .updateInterval(10)
-                    .build(entityKey("shuriken")));
+                    .build(dataFixerKey("shuriken")));
 
-    private static ResourceKey<EntityType<?>> entityKey(String path) {
-        return ResourceKey.create(Registries.ENTITY_TYPE,
-                Identifier.fromNamespaceAndPath(Smithery.MODID, path));
-    }
-
-    private static ResourceKey<EntityType<?>> arrowKey() {
-        return ResourceKey.create(Registries.ENTITY_TYPE,
-                Identifier.fromNamespaceAndPath(Smithery.MODID, "arrow"));
+    /** Namespaced id string handed to {@link EntityType.Builder#build(String)} for datafixer keys. */
+    private static String dataFixerKey(String path) {
+        return Smithery.MODID + ":" + path;
     }
 
     private static <T extends Entity> Supplier<EntityType<T>> registerEntity(

@@ -7,7 +7,7 @@ import com.soul.smithery.block.ForgeFuelPortBlock;
 import com.soul.smithery.block.entity.ForgeFuelPortBlockEntity;
 import com.soul.smithery.registry.SmitheryFluids;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
@@ -170,13 +170,13 @@ public class ForgeFuelPortRenderer
         return lerped;
     }
 
-    private static final Identifier VANILLA_LAVA_STILL =
-            Identifier.fromNamespaceAndPath("minecraft", "block/lava_still");
-    private static final Identifier SMITHERY_MOLTEN_STILL =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "block/molten_still");
+    private static final ResourceLocation VANILLA_LAVA_STILL =
+            new ResourceLocation("minecraft", "block/lava_still");
+    private static final ResourceLocation SMITHERY_MOLTEN_STILL =
+            new ResourceLocation(Smithery.MODID, "block/molten_still");
 
     private static @Nullable TextureAtlasSprite spriteForFluid(Fluid fluid) {
-        Identifier path;
+        ResourceLocation path;
         if (fluid == Fluids.LAVA) {
             path = VANILLA_LAVA_STILL;
         } else if (SmitheryFluids.forFluid(fluid) != null) {
@@ -187,7 +187,7 @@ public class ForgeFuelPortRenderer
         return lookupSprite(path);
     }
 
-    private static TextureAtlasSprite lookupSprite(Identifier path) {
+    private static TextureAtlasSprite lookupSprite(ResourceLocation path) {
         return Minecraft.getInstance()
                 .getAtlasManager()
                 .get(new SpriteId(TextureAtlas.LOCATION_BLOCKS, path));

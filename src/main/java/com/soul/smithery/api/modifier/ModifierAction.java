@@ -2,7 +2,7 @@ package com.soul.smithery.api.modifier;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -29,7 +29,7 @@ import java.util.Map;
 public interface ModifierAction {
 
     /** The action type id, matching the {@code "type"} field of its JSON entry. */
-    Identifier type();
+    ResourceLocation type();
 
     /** Marker for actions invoked at tool-compose time to adjust passive stats. */
     interface Passive extends ModifierAction {
@@ -94,9 +94,9 @@ public interface ModifierAction {
      * @param id    the action type id (matches the JSON {@code "type"} field)
      * @param codec the {@link MapCodec} used to parse the remainder of the JSON object
      */
-    record ActionType<A extends ModifierAction>(Identifier id, MapCodec<A> codec) {
+    record ActionType<A extends ModifierAction>(ResourceLocation id, MapCodec<A> codec) {
         /** Convenience constructor wrapping a type id and codec into an {@link ActionType}. */
-        public static <A extends ModifierAction> ActionType<A> of(Identifier id, MapCodec<A> codec) {
+        public static <A extends ModifierAction> ActionType<A> of(ResourceLocation id, MapCodec<A> codec) {
             return new ActionType<>(id, codec);
         }
     }
@@ -108,12 +108,12 @@ public interface ModifierAction {
      * @param <A> the marker sub-interface this registry handles
      */
     final class Registry<A extends ModifierAction> {
-        private final Map<Identifier, ActionType<? extends A>> entries = new LinkedHashMap<>();
+        private final Map<ResourceLocation, ActionType<? extends A>> entries = new LinkedHashMap<>();
         private final Codec<A> dispatchCodec;
 
         @SuppressWarnings("unchecked")
         Registry() {
-            this.dispatchCodec = Identifier.CODEC.dispatch(
+            this.dispatchCodec = ResourceLocation.CODEC.dispatch(
                     "type",
                     ModifierAction::type,
                     typeId -> {
@@ -132,7 +132,7 @@ public interface ModifierAction {
         public Codec<A> dispatchCodec() { return dispatchCodec; }
 
         /** Unmodifiable view of every registered (id to action type) entry. */
-        public Map<Identifier, ActionType<? extends A>> all() {
+        public Map<ResourceLocation, ActionType<? extends A>> all() {
             return Collections.unmodifiableMap(entries);
         }
     }

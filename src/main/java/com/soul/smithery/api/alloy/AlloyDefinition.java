@@ -1,6 +1,6 @@
 package com.soul.smithery.api.alloy;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,7 +25,7 @@ public final class AlloyDefinition {
     /** mB produced per ratio unit (1 unit = 144 mB, one ingot's worth). */
     public static final int MB_PER_RATIO_UNIT = 144;
 
-    private final Identifier resultMaterialId;
+    private final ResourceLocation resultMaterialId;
     private final List<AlloyComponent> components;
     private final float minTemp;
 
@@ -41,7 +41,7 @@ public final class AlloyDefinition {
     }
 
     /** Id of the material produced by this alloy. */
-    public Identifier resultMaterialId() { return resultMaterialId; }
+    public ResourceLocation resultMaterialId() { return resultMaterialId; }
 
     /** Unmodifiable view of the alloy's input components. */
     public List<AlloyComponent> components() { return components; }
@@ -62,25 +62,25 @@ public final class AlloyDefinition {
     }
 
     /** Begins building an alloy producing the given result material. */
-    public static Builder builder(Identifier result) { return new Builder(result); }
+    public static Builder builder(ResourceLocation result) { return new Builder(result); }
 
     /** Fluent builder for {@link AlloyDefinition}. */
     public static final class Builder {
-        private final Identifier result;
+        private final ResourceLocation result;
         private final List<AlloyComponent> components = new ArrayList<>();
         private float minTemp = 0f;
 
-        private Builder(Identifier result) { this.result = result; }
+        private Builder(ResourceLocation result) { this.result = result; }
 
         /** Appends an {@link AlloyComponent} with the given material id and ratio. */
-        public Builder addComponent(Identifier material, int ratio) {
+        public Builder addComponent(ResourceLocation material, int ratio) {
             components.add(new AlloyComponent(material, ratio));
             return this;
         }
 
-        /** String-id overload of {@link #addComponent(Identifier, int)}. */
+        /** String-id overload of {@link #addComponent(ResourceLocation, int)}. */
         public Builder addComponent(String material, int ratio) {
-            return addComponent(Identifier.parse(material), ratio);
+            return addComponent(new ResourceLocation(material), ratio);
         }
 
         /** Sets the minimum forge temperature required for this alloy to fire. */

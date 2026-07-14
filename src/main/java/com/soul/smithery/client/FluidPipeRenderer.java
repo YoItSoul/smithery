@@ -18,7 +18,7 @@ import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -34,8 +34,8 @@ import org.joml.Matrix4f;
 public class FluidPipeRenderer
         implements BlockEntityRenderer<FluidPipeBlockEntity, FluidPipeRenderer.RenderState> {
 
-    private static final Identifier MOLTEN_STILL_TEXTURE =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "textures/block/molten_still.png");
+    private static final ResourceLocation MOLTEN_STILL_TEXTURE =
+            new ResourceLocation(Smithery.MODID, "textures/block/molten_still.png");
 
     private static final int FRAME_COUNT = 16;
     private static final long FRAME_DURATION_MS = 150L;
@@ -74,7 +74,7 @@ public class FluidPipeRenderer
         BlockEntityRenderState.extractBase(be, state, crumbling);
         state.hasFlow = false;
 
-        Identifier fluidId = be.transientFluidId();
+        ResourceLocation fluidId = be.transientFluidId();
         if (fluidId == null) return;
 
         Fluid fluid = BuiltInRegistries.FLUID.get(fluidId).<Fluid>map(r -> r.value()).orElse(null);

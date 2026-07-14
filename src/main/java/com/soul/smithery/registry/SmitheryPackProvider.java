@@ -2,27 +2,23 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.packs.PackLocationInfo;
 import net.minecraft.server.packs.PackResources;
-import net.minecraft.server.packs.PackSelectionConfig;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.AddPackFindersEvent;
-
-import java.util.Optional;
+import net.minecraftforge.event.AddPackFindersEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 /**
- * Installs the runtime {@link SmitheryGeneratedPack} as a top-priority always-on hidden
- * built-in client resource pack.
+ * Installs the runtime {@link SmitheryGeneratedPack} as a top-priority always-on built-in
+ * client resource pack.
  *
  * <p>The pack is reopened on every resource reload, so its served JSON reflects the live
  * Smithery registry state — adding a material via datapack at runtime gets its part and
  * tool models generated on the next reload with no game restart needed.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public final class SmitheryPackProvider {
     private SmitheryPackProvider() {}
 
@@ -35,27 +31,27 @@ public final class SmitheryPackProvider {
     public static void onAddPackFinders(AddPackFindersEvent event) {
         if (event.getPackType() != PackType.CLIENT_RESOURCES) return;
 
-        PackLocationInfo location = new PackLocationInfo(
-                SmitheryGeneratedPack.PACK_ID,
-                Component.literal("Smithery Generated"),
-                PackSource.BUILT_IN,
-                Optional.empty()
-        );
-
         Pack.ResourcesSupplier supplier = new Pack.ResourcesSupplier() {
             @Override
-            public PackResources openPrimary(PackLocationInfo loc) { return new SmitheryGeneratedPack(); }
+            public PackResources openPrimary(String id) {
+                return new SmitheryGeneratedPack();
+            }
 
             @Override
-            public PackResources openFull(PackLocationInfo loc, Pack.Metadata metadata) { return new SmitheryGeneratedPack(); }
+            public PackResources openFull(String id, Pack.Info info) {
+                return new SmitheryGeneratedPack();
+            }
         };
 
         event.addRepositorySource(consumer -> {
             Pack pack = Pack.readMetaAndCreate(
-                    location,
+                    SmitheryGeneratedPack.PACK_ID,
+                    Component.literal("Smithery Generated"),
+                    true,
                     supplier,
                     PackType.CLIENT_RESOURCES,
-                    new PackSelectionConfig(true, Pack.Position.TOP, false)
+                    Pack.Position.TOP,
+                    PackSource.BUILT_IN
             );
             if (pack != null) consumer.accept(pack);
         });

@@ -2,9 +2,9 @@ package com.soul.smithery.event;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.item.tool.SmitheryArmorItem;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.ItemAttributeModifierEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.ItemAttributeModifierEvent;
 
 /**
  * Strips every attribute modifier from broken smithery armor (see
@@ -13,7 +13,7 @@ import net.neoforged.neoforge.event.ItemAttributeModifierEvent;
  * repair path — anvil, future polishing stones, creative — restores stats with no
  * bookkeeping.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class BrokenArmorHandler {
     private BrokenArmorHandler() {}
 

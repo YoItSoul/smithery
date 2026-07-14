@@ -1,6 +1,6 @@
 package com.soul.smithery.api.forge;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import org.jspecify.annotations.Nullable;
 
@@ -24,11 +24,11 @@ import java.util.Objects;
 public final class ForgeMobDrops {
     private ForgeMobDrops() {}
 
-    private static final Map<Class<? extends LivingEntity>, Identifier> REGISTRY = new LinkedHashMap<>();
-    private static @Nullable Identifier defaultMaterial = null;
+    private static final Map<Class<? extends LivingEntity>, ResourceLocation> REGISTRY = new LinkedHashMap<>();
+    private static @Nullable ResourceLocation defaultMaterial = null;
 
     /** Registers (or replaces) the fluid material dripped by entities of {@code entityClass}. */
-    public static void register(Class<? extends LivingEntity> entityClass, Identifier materialId) {
+    public static void register(Class<? extends LivingEntity> entityClass, ResourceLocation materialId) {
         Objects.requireNonNull(entityClass, "entityClass");
         Objects.requireNonNull(materialId, "materialId");
         REGISTRY.put(entityClass, materialId);
@@ -43,12 +43,12 @@ public final class ForgeMobDrops {
      * Sets the fluid used when no specific entity-class mapping matches. {@code null} disables the
      * default so unmatched entities drip nothing.
      */
-    public static void setDefault(@Nullable Identifier materialId) {
+    public static void setDefault(@Nullable ResourceLocation materialId) {
         defaultMaterial = materialId;
     }
 
     /** Returns the fallback material id used when no specific mapping matches. */
-    public static @Nullable Identifier getDefault() {
+    public static @Nullable ResourceLocation getDefault() {
         return defaultMaterial;
     }
 
@@ -56,16 +56,16 @@ public final class ForgeMobDrops {
      * Returns the material id this entity drips. Walks the registry in insertion order
      * (first {@code isInstance} match wins) and falls back to {@link #getDefault()}.
      */
-    public static @Nullable Identifier materialFor(LivingEntity entity) {
+    public static @Nullable ResourceLocation materialFor(LivingEntity entity) {
         if (entity == null) return null;
-        for (Map.Entry<Class<? extends LivingEntity>, Identifier> e : REGISTRY.entrySet()) {
+        for (Map.Entry<Class<? extends LivingEntity>, ResourceLocation> e : REGISTRY.entrySet()) {
             if (e.getKey().isInstance(entity)) return e.getValue();
         }
         return defaultMaterial;
     }
 
     /** Unmodifiable view of every registered (entity class to material id) mapping. */
-    public static Map<Class<? extends LivingEntity>, Identifier> all() {
+    public static Map<Class<? extends LivingEntity>, ResourceLocation> all() {
         return Collections.unmodifiableMap(REGISTRY);
     }
 }

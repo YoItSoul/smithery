@@ -10,9 +10,9 @@ import com.soul.smithery.block.entity.ForgeItemPortBlockEntity;
 import com.soul.smithery.block.entity.PartPressBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.RegistryObject;
+import net.minecraftforge.registries.DeferredRegister;
 
 /**
  * Registry of every {@link BlockEntityType} owned by Smithery.
@@ -27,46 +27,39 @@ public final class SmitheryBlockEntities {
             DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, Smithery.MODID);
 
     /** Block entity type for the Forge multiblock controller. */
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ForgeControllerBlockEntity>>
+    public static final RegistryObject<BlockEntityType<ForgeControllerBlockEntity>>
             FORGE_CONTROLLER = BLOCK_ENTITIES.register("forge_controller",
-                    () -> new BlockEntityType<>(ForgeControllerBlockEntity::new,
-                            SmitheryBlocks.FORGE_CONTROLLER.get()));
+                    () -> BlockEntityType.Builder.of(ForgeControllerBlockEntity::new, SmitheryBlocks.FORGE_CONTROLLER.get()).build(null));
 
     /** Block entity type for the Forge fuel port; holds molten fuel and forms vertical stack groups. */
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ForgeFuelPortBlockEntity>>
+    public static final RegistryObject<BlockEntityType<ForgeFuelPortBlockEntity>>
             FORGE_FUEL_PORT = BLOCK_ENTITIES.register("forge_fuel_port",
-                    () -> new BlockEntityType<>(ForgeFuelPortBlockEntity::new,
-                            SmitheryBlocks.FORGE_FUEL_PORT.get()));
+                    () -> BlockEntityType.Builder.of(ForgeFuelPortBlockEntity::new, SmitheryBlocks.FORGE_FUEL_PORT.get()).build(null));
 
     /** Block entity type for the Forge drain; pumps molten output toward fluid sinks. */
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ForgeDrainBlockEntity>>
+    public static final RegistryObject<BlockEntityType<ForgeDrainBlockEntity>>
             FORGE_DRAIN = BLOCK_ENTITIES.register("forge_drain",
-                    () -> new BlockEntityType<>(ForgeDrainBlockEntity::new,
-                            SmitheryBlocks.FORGE_DRAIN.get()));
+                    () -> BlockEntityType.Builder.of(ForgeDrainBlockEntity::new, SmitheryBlocks.FORGE_DRAIN.get()).build(null));
 
     /** Block entity type for the Forge item-input port; forwards inserted items into the connected forge. */
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ForgeItemPortBlockEntity>>
+    public static final RegistryObject<BlockEntityType<ForgeItemPortBlockEntity>>
             FORGE_ITEM_PORT = BLOCK_ENTITIES.register("forge_item_port",
-                    () -> new BlockEntityType<>(ForgeItemPortBlockEntity::new,
-                            SmitheryBlocks.FORGE_ITEM_PORT.get()));
+                    () -> BlockEntityType.Builder.of(ForgeItemPortBlockEntity::new, SmitheryBlocks.FORGE_ITEM_PORT.get()).build(null));
 
     /** Block entity type for the fluid pipe; carries one fluid with per-face mode and visual state. */
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<FluidPipeBlockEntity>>
+    public static final RegistryObject<BlockEntityType<FluidPipeBlockEntity>>
             FLUID_PIPE = BLOCK_ENTITIES.register("fluid_pipe",
-                    () -> new BlockEntityType<>(FluidPipeBlockEntity::new,
-                            SmitheryBlocks.FLUID_PIPE.get()));
+                    () -> BlockEntityType.Builder.of(FluidPipeBlockEntity::new, SmitheryBlocks.FLUID_PIPE.get()).build(null));
 
     /** Block entity type for the Casting Table; drives the sand-cast state machine. */
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<CastingTableBlockEntity>>
+    public static final RegistryObject<BlockEntityType<CastingTableBlockEntity>>
             CASTING_TABLE = BLOCK_ENTITIES.register("casting_table",
-                    () -> new BlockEntityType<>(CastingTableBlockEntity::new,
-                            SmitheryBlocks.CASTING_TABLE.get()));
+                    () -> BlockEntityType.Builder.of(CastingTableBlockEntity::new, SmitheryBlocks.CASTING_TABLE.get()).build(null));
 
     /** Block entity type for the Part Press; cuts non-meltable inputs into parts. */
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<PartPressBlockEntity>>
+    public static final RegistryObject<BlockEntityType<PartPressBlockEntity>>
             PART_PRESS = BLOCK_ENTITIES.register("part_press",
-                    () -> new BlockEntityType<>(PartPressBlockEntity::new,
-                            SmitheryBlocks.PART_PRESS.get()));
+                    () -> BlockEntityType.Builder.of(PartPressBlockEntity::new, SmitheryBlocks.PART_PRESS.get()).build(null));
 
 
     /**

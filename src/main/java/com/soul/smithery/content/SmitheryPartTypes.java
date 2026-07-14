@@ -5,7 +5,7 @@ import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.cast.CastResults;
 import com.soul.smithery.api.cast.CastTemplates;
 import com.soul.smithery.api.part.PartType;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Items;
 
 /**
@@ -205,7 +205,7 @@ public final class SmitheryPartTypes {
                 .durabilityScalar(0.0f)
                 .partColorTint(false)
                 .castMb(144)
-                .textureTemplate(Identifier.fromNamespaceAndPath("minecraft", "item/iron_ingot"))
+                .textureTemplate(new ResourceLocation("minecraft", "item/iron_ingot"))
                 .syntheticCast(true)
                 .build());
 
@@ -213,7 +213,7 @@ public final class SmitheryPartTypes {
                 .durabilityScalar(0.0f)
                 .partColorTint(false)
                 .castMb(16)
-                .textureTemplate(Identifier.fromNamespaceAndPath("minecraft", "item/iron_nugget"))
+                .textureTemplate(new ResourceLocation("minecraft", "item/iron_nugget"))
                 .syntheticCast(true)
                 .build());
 
@@ -263,9 +263,9 @@ public final class SmitheryPartTypes {
     }
 
     private static void registerBuiltInCastMappings() {
-        Identifier iron   = id("iron");
-        Identifier gold   = id("gold");
-        Identifier copper = id("copper");
+        ResourceLocation iron   = id("iron");
+        ResourceLocation gold   = id("gold");
+        ResourceLocation copper = id("copper");
 
         CastResults.register(iron,   INGOT.id(),  () -> Items.IRON_INGOT);
         CastResults.register(gold,   INGOT.id(),  () -> Items.GOLD_INGOT);
@@ -283,8 +283,8 @@ public final class SmitheryPartTypes {
         CastTemplates.register(Items.BRICK, POLISHING_STONE.id());
     }
 
-    private static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(Smithery.MODID, path);
+    private static ResourceLocation id(String path) {
+        return new ResourceLocation(Smithery.MODID, path);
     }
 
     private SmitheryPartTypes() {}

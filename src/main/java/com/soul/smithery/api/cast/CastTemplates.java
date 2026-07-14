@@ -1,6 +1,6 @@
 package com.soul.smithery.api.cast;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -19,12 +19,12 @@ import java.util.Objects;
  * iron/gold/copper ingot and iron/gold nugget shapes.
  */
 public final class CastTemplates {
-    private static final Map<Item, Identifier> ENTRIES = new HashMap<>();
+    private static final Map<Item, ResourceLocation> ENTRIES = new HashMap<>();
 
     private CastTemplates() {}
 
     /** Registers {@code templateItem} as a valid impression template for cast type {@code partTypeId}. */
-    public static void register(Item templateItem, Identifier partTypeId) {
+    public static void register(Item templateItem, ResourceLocation partTypeId) {
         Objects.requireNonNull(templateItem, "templateItem");
         Objects.requireNonNull(partTypeId, "partTypeId");
         ENTRIES.put(templateItem, partTypeId);
@@ -34,7 +34,7 @@ public final class CastTemplates {
      * Returns the cast-target PartType id for the held stack, or {@code null} if the stack's item
      * isn't a registered template.
      */
-    public static @Nullable Identifier resolve(ItemStack stack) {
+    public static @Nullable ResourceLocation resolve(ItemStack stack) {
         return stack.isEmpty() ? null : ENTRIES.get(stack.getItem());
     }
 }

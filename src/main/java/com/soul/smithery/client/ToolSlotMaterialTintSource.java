@@ -9,7 +9,7 @@ import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.registry.SmitheryDataComponents;
 import net.minecraft.client.color.item.ItemTintSource;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -38,7 +38,7 @@ public record ToolSlotMaterialTintSource(int slot) implements ItemTintSource {
         ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
         if (comp == null) return 0xFFFFFFFF;
         if (slot < 0 || slot >= comp.slotMaterials().size()) return 0xFFFFFFFF;
-        Identifier matId = comp.slotMaterials().get(slot);
+        ResourceLocation matId = comp.slotMaterials().get(slot);
         if (matId == null) return 0xFFFFFFFF;
         Material mat = SmitheryAPI.MATERIALS.get(matId);
         if (mat == null) return 0xFFFFFFFF;

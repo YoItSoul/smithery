@@ -9,7 +9,7 @@ import com.soul.smithery.item.tool.SmitheryArmorItem;
 import com.soul.smithery.item.tool.SmitheryToolItem;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -42,88 +42,88 @@ public final class SmitheryModifiers {
     private static final Map<UUID, Long> LAST_LUNGE_TICK = new WeakHashMap<>();
     private static final long LUNGE_COOLDOWN_TICKS = 10L;
 
-    /** Identifier of the SHARP passive damage-bonus modifier. */
-    public static Identifier SHARP;
-    /** Identifier of the MAGNETIZED drop-pulling modifier. */
-    public static Identifier MAGNETIZED;
-    /** Identifier of the VERDANT chance-to-poison modifier. */
-    public static Identifier VERDANT;
-    /** Identifier of the CORROSIVE chance-to-weaken modifier. */
-    public static Identifier CORROSIVE;
-    /** Identifier of the LUCKY_STRIKE kill-XP-multiplier modifier. */
-    public static Identifier LUCKY_STRIKE;
-    /** Identifier of the GILDED block-XP-multiplier modifier. */
-    public static Identifier GILDED;
-    /** Identifier of the NETHER_SHARPENED anvil-applied damage-bonus modifier. */
-    public static Identifier NETHER_SHARPENED;
-    /** Identifier of the LUNGE spear-exclusive forward-impulse modifier. */
-    public static Identifier LUNGE;
-    /** Identifier of the BOUNCY armor fall-damage-negation modifier. */
-    public static Identifier BOUNCY;
-    /** Identifier of the SPINY armor thorns-retaliation modifier. */
-    public static Identifier SPINY;
-    /** Identifier of the REINFORCED anvil-applied durability-multiplier modifier. */
-    public static Identifier REINFORCED;
-    /** Identifier of the SPEEDY anvil-applied movement-speed modifier. */
-    public static Identifier SPEEDY;
-    /** Identifier of the RESISTANT anvil-applied all-damage-reduction armor modifier. */
-    public static Identifier RESISTANT;
-    /** Identifier of the FIRE_RESISTANT typed armor damage-reduction modifier. */
-    public static Identifier FIRE_RESISTANT;
-    /** Identifier of the BLAST_RESISTANT typed armor damage-reduction modifier. */
-    public static Identifier BLAST_RESISTANT;
-    /** Identifier of the PROJECTILE_RESISTANT typed armor damage-reduction modifier. */
-    public static Identifier PROJECTILE_RESISTANT;
-    /** Identifier of the SOULBOUND keep-on-death modifier (handled by {@code SoulboundHandler}). */
-    public static Identifier SOULBOUND;
-    /** Identifier of the ECOLOGICAL slow self-repair armor modifier. */
-    public static Identifier ECOLOGICAL;
-    /** Identifier of the CONDUCTIVE lightning-damage-reduction armor modifier. */
-    public static Identifier CONDUCTIVE;
-    /** Identifier of the ALLURING XP-orb-pulling armor modifier. */
-    public static Identifier ALLURING;
-    /** Identifier of the STALWART knockback-resistance armor modifier. */
-    public static Identifier STALWART;
-    /** Identifier of the WARDED magic-damage-reduction armor modifier. */
-    public static Identifier WARDED;
-    /** Identifier of the AQUADYNAMIC swim-speed armor modifier. */
-    public static Identifier AQUADYNAMIC;
-    /** Identifier of the NIMBLE fall-distance-reduction armor modifier. */
-    public static Identifier NIMBLE;
-    /** Identifier of the STICKY attacker-slowing armor modifier. */
-    public static Identifier STICKY;
-    /** Identifier of the FIREWARD innate fire-damage-reduction trait (blaze armor). */
-    public static Identifier FIREWARD;
-    /** Identifier of the CRYSTALLINE innate all-damage-reduction trait (amethyst armor). */
-    public static Identifier CRYSTALLINE;
-    /** Identifier of the IMMOVABLE innate all-damage-reduction trait (bedrock armor). */
-    public static Identifier IMMOVABLE;
-    /** Identifier of the ENERGIZED innate movement-speed trait (redstone armor). */
-    public static Identifier ENERGIZED;
-    /** Identifier of the RESTORING XP-fed self-repair armor modifier (mending analog). */
-    public static Identifier RESTORING;
-    /** Identifier of the HIGH_STRIDE step-height armor modifier. */
-    public static Identifier HIGH_STRIDE;
-    /** Identifier of the AMPHIBIOUS oxygen-bonus armor modifier. */
-    public static Identifier AMPHIBIOUS;
-    /** Identifier of the POWERFUL attack-damage armor modifier (gauntlet trio). */
-    public static Identifier POWERFUL;
-    /** Identifier of the DEXTEROUS attack-speed armor modifier (gauntlet trio). */
-    public static Identifier DEXTEROUS;
-    /** Identifier of the TELEKINETIC reach armor modifier (gauntlet trio). */
-    public static Identifier TELEKINETIC;
-    /** Identifier of the MOMENTUM chained-mining haste trait. */
-    public static Identifier MOMENTUM;
-    /** Identifier of the JAGGED wear-scaled bonus-damage trait. */
-    public static Identifier JAGGED;
-    /** Identifier of the STONEBOUND wear-scaled mining-speed trait. */
-    public static Identifier STONEBOUND;
-    /** Identifier of the AUTOSMELT smelt-drops-on-break trait. */
-    public static Identifier AUTOSMELT;
-    /** Identifier of the FIERY ignite-on-hit modifier. */
-    public static Identifier FIERY;
-    /** Identifier of the EXCAVATING mining-hammer radius modifier (read by AoeMiningHandler). */
-    public static Identifier EXCAVATING;
+    /** ResourceLocation of the SHARP passive damage-bonus modifier. */
+    public static ResourceLocation SHARP;
+    /** ResourceLocation of the MAGNETIZED drop-pulling modifier. */
+    public static ResourceLocation MAGNETIZED;
+    /** ResourceLocation of the VERDANT chance-to-poison modifier. */
+    public static ResourceLocation VERDANT;
+    /** ResourceLocation of the CORROSIVE chance-to-weaken modifier. */
+    public static ResourceLocation CORROSIVE;
+    /** ResourceLocation of the LUCKY_STRIKE kill-XP-multiplier modifier. */
+    public static ResourceLocation LUCKY_STRIKE;
+    /** ResourceLocation of the GILDED block-XP-multiplier modifier. */
+    public static ResourceLocation GILDED;
+    /** ResourceLocation of the NETHER_SHARPENED anvil-applied damage-bonus modifier. */
+    public static ResourceLocation NETHER_SHARPENED;
+    /** ResourceLocation of the LUNGE spear-exclusive forward-impulse modifier. */
+    public static ResourceLocation LUNGE;
+    /** ResourceLocation of the BOUNCY armor fall-damage-negation modifier. */
+    public static ResourceLocation BOUNCY;
+    /** ResourceLocation of the SPINY armor thorns-retaliation modifier. */
+    public static ResourceLocation SPINY;
+    /** ResourceLocation of the REINFORCED anvil-applied durability-multiplier modifier. */
+    public static ResourceLocation REINFORCED;
+    /** ResourceLocation of the SPEEDY anvil-applied movement-speed modifier. */
+    public static ResourceLocation SPEEDY;
+    /** ResourceLocation of the RESISTANT anvil-applied all-damage-reduction armor modifier. */
+    public static ResourceLocation RESISTANT;
+    /** ResourceLocation of the FIRE_RESISTANT typed armor damage-reduction modifier. */
+    public static ResourceLocation FIRE_RESISTANT;
+    /** ResourceLocation of the BLAST_RESISTANT typed armor damage-reduction modifier. */
+    public static ResourceLocation BLAST_RESISTANT;
+    /** ResourceLocation of the PROJECTILE_RESISTANT typed armor damage-reduction modifier. */
+    public static ResourceLocation PROJECTILE_RESISTANT;
+    /** ResourceLocation of the SOULBOUND keep-on-death modifier (handled by {@code SoulboundHandler}). */
+    public static ResourceLocation SOULBOUND;
+    /** ResourceLocation of the ECOLOGICAL slow self-repair armor modifier. */
+    public static ResourceLocation ECOLOGICAL;
+    /** ResourceLocation of the CONDUCTIVE lightning-damage-reduction armor modifier. */
+    public static ResourceLocation CONDUCTIVE;
+    /** ResourceLocation of the ALLURING XP-orb-pulling armor modifier. */
+    public static ResourceLocation ALLURING;
+    /** ResourceLocation of the STALWART knockback-resistance armor modifier. */
+    public static ResourceLocation STALWART;
+    /** ResourceLocation of the WARDED magic-damage-reduction armor modifier. */
+    public static ResourceLocation WARDED;
+    /** ResourceLocation of the AQUADYNAMIC swim-speed armor modifier. */
+    public static ResourceLocation AQUADYNAMIC;
+    /** ResourceLocation of the NIMBLE fall-distance-reduction armor modifier. */
+    public static ResourceLocation NIMBLE;
+    /** ResourceLocation of the STICKY attacker-slowing armor modifier. */
+    public static ResourceLocation STICKY;
+    /** ResourceLocation of the FIREWARD innate fire-damage-reduction trait (blaze armor). */
+    public static ResourceLocation FIREWARD;
+    /** ResourceLocation of the CRYSTALLINE innate all-damage-reduction trait (amethyst armor). */
+    public static ResourceLocation CRYSTALLINE;
+    /** ResourceLocation of the IMMOVABLE innate all-damage-reduction trait (bedrock armor). */
+    public static ResourceLocation IMMOVABLE;
+    /** ResourceLocation of the ENERGIZED innate movement-speed trait (redstone armor). */
+    public static ResourceLocation ENERGIZED;
+    /** ResourceLocation of the RESTORING XP-fed self-repair armor modifier (mending analog). */
+    public static ResourceLocation RESTORING;
+    /** ResourceLocation of the HIGH_STRIDE step-height armor modifier. */
+    public static ResourceLocation HIGH_STRIDE;
+    /** ResourceLocation of the AMPHIBIOUS oxygen-bonus armor modifier. */
+    public static ResourceLocation AMPHIBIOUS;
+    /** ResourceLocation of the POWERFUL attack-damage armor modifier (gauntlet trio). */
+    public static ResourceLocation POWERFUL;
+    /** ResourceLocation of the DEXTEROUS attack-speed armor modifier (gauntlet trio). */
+    public static ResourceLocation DEXTEROUS;
+    /** ResourceLocation of the TELEKINETIC reach armor modifier (gauntlet trio). */
+    public static ResourceLocation TELEKINETIC;
+    /** ResourceLocation of the MOMENTUM chained-mining haste trait. */
+    public static ResourceLocation MOMENTUM;
+    /** ResourceLocation of the JAGGED wear-scaled bonus-damage trait. */
+    public static ResourceLocation JAGGED;
+    /** ResourceLocation of the STONEBOUND wear-scaled mining-speed trait. */
+    public static ResourceLocation STONEBOUND;
+    /** ResourceLocation of the AUTOSMELT smelt-drops-on-break trait. */
+    public static ResourceLocation AUTOSMELT;
+    /** ResourceLocation of the FIERY ignite-on-hit modifier. */
+    public static ResourceLocation FIERY;
+    /** ResourceLocation of the EXCAVATING mining-hammer radius modifier (read by AoeMiningHandler). */
+    public static ResourceLocation EXCAVATING;
 
     /**
      * Registers every built-in modifier and its anvil source mapping.
@@ -646,9 +646,9 @@ public final class SmitheryModifiers {
      * piece carrying the modifier (multiplicative across pieces), gated to damage matching
      * {@code typeFilter} — or all damage when the filter is null.
      */
-    private static Identifier registerResistance(
+    private static ResourceLocation registerResistance(
             String path, net.minecraft.tags.TagKey<net.minecraft.world.damagesource.DamageType> typeFilter) {
-        Identifier modId = id(path);
+        ResourceLocation modId = id(path);
         SmitheryAPI.registerModifier(Modifier.builder(modId)
                 .category(Modifier.ModifierCategory.ACTIVE)
                 .appliesTo(Modifier.AppliesTo.ARMOR)
@@ -665,8 +665,8 @@ public final class SmitheryModifiers {
         return modId;
     }
 
-    private static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(Smithery.MODID, path);
+    private static ResourceLocation id(String path) {
+        return new ResourceLocation(Smithery.MODID, path);
     }
 
     private SmitheryModifiers() {}

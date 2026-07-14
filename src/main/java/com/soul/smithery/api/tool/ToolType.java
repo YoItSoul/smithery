@@ -1,7 +1,7 @@
 package com.soul.smithery.api.tool;
 
 import com.soul.smithery.api.part.PartType;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,7 +15,7 @@ import java.util.Objects;
  * matters — slots are consumed in declaration order against the shaped crafting recipe.
  */
 public final class ToolType {
-    private final Identifier id;
+    private final ResourceLocation id;
     private final List<Slot> slots;
 
     private ToolType(Builder b) {
@@ -24,8 +24,8 @@ public final class ToolType {
         if (slots.isEmpty()) throw new IllegalArgumentException("ToolType " + id + " must have at least one slot");
     }
 
-    /** Identifier for this tool type. */
-    public Identifier id() { return id; }
+    /** ResourceLocation for this tool type. */
+    public ResourceLocation id() { return id; }
 
     /** Unmodifiable list of part slots in declaration order. */
     public List<Slot> slots() { return slots; }
@@ -45,7 +45,7 @@ public final class ToolType {
     @Override public String toString() { return "ToolType[" + id + "]"; }
 
     /** Begins building a {@link ToolType} with the given id. */
-    public static Builder builder(Identifier id) { return new Builder(id); }
+    public static Builder builder(ResourceLocation id) { return new Builder(id); }
 
     /**
      * One part slot in a {@link ToolType}.
@@ -57,10 +57,10 @@ public final class ToolType {
 
     /** Fluent builder for {@link ToolType}. */
     public static final class Builder {
-        private final Identifier id;
+        private final ResourceLocation id;
         private final List<Slot> slots = new ArrayList<>();
 
-        private Builder(Identifier id) { this.id = id; }
+        private Builder(ResourceLocation id) { this.id = id; }
 
         /** Appends a single part slot with the given role. */
         public Builder addPart(PartType partType, DurabilityRole role) {

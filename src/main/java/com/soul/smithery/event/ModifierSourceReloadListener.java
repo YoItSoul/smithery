@@ -4,14 +4,14 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.api.modifier.ModifierSources;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.FileToIdConverter;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.item.Item;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.AddReloadListenerEvent;
 
 import java.util.Map;
 
@@ -28,7 +28,7 @@ import java.util.Map;
  * <p>Files with unresolvable source items are skipped with a warning; unknown modifier ids are
  * accepted at load time and surface at apply time as the anvil hook rejects them.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class ModifierSourceReloadListener
         extends SimpleJsonResourceReloadListener<ModifierSources.JsonEntry> {
 
@@ -38,11 +38,11 @@ public final class ModifierSourceReloadListener
     }
 
     @Override
-    protected void apply(Map<Identifier, ModifierSources.JsonEntry> entries,
+    protected void apply(Map<ResourceLocation, ModifierSources.JsonEntry> entries,
                           ResourceManager manager, ProfilerFiller profiler) {
         ModifierSources.clearDataEntries();
         int registered = 0;
-        for (Map.Entry<Identifier, ModifierSources.JsonEntry> e : entries.entrySet()) {
+        for (Map.Entry<ResourceLocation, ModifierSources.JsonEntry> e : entries.entrySet()) {
             ModifierSources.JsonEntry parsed = e.getValue();
             Item item = BuiltInRegistries.ITEM.get(parsed.sourceItem())
                     .<Item>map(holder -> holder.value()).orElse(null);
@@ -66,9 +66,9 @@ public final class ModifierSourceReloadListener
      * @param event the NeoForge add-reload-listeners event
      */
     @SubscribeEvent
-    public static void onAddReloadListeners(AddServerReloadListenersEvent event) {
+    public static void onAddReloadListeners(AddReloadListenerEvent event) {
         event.addListener(
-                Identifier.fromNamespaceAndPath(Smithery.MODID, "modifier_sources"),
+                new ResourceLocation(Smithery.MODID, "modifier_sources"),
                 new ModifierSourceReloadListener());
     }
 }

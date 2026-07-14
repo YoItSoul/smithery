@@ -3,7 +3,7 @@ package com.soul.smithery.client;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.part.PartType;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 
 import javax.imageio.ImageIO;
@@ -26,7 +26,7 @@ public final class PartSilhouetteCache {
     /** Grid resolution per axis. */
     public static final int GRID = 12;
 
-    private static final Map<Identifier, float[][]> CACHE = new HashMap<>();
+    private static final Map<ResourceLocation, float[][]> CACHE = new HashMap<>();
     private static final float[][] EMPTY = new float[GRID][GRID];
 
     private PartSilhouetteCache() {}
@@ -39,7 +39,7 @@ public final class PartSilhouetteCache {
      */
     public static float[][] forPartType(PartType pt) {
         if (pt == null) return EMPTY;
-        Identifier tmpl = pt.textureTemplate();
+        ResourceLocation tmpl = pt.textureTemplate();
         if (tmpl == null) return EMPTY;
         return CACHE.computeIfAbsent(pt.id(), id -> readAlphaGrid(tmpl));
     }
@@ -51,7 +51,7 @@ public final class PartSilhouetteCache {
      * @param id part type identifier
      * @return alpha grid for the resolved part type, or an all-zero grid if not registered
      */
-    public static float[][] forPartTypeId(Identifier id) {
+    public static float[][] forPartTypeId(ResourceLocation id) {
         PartType pt = SmitheryAPI.PART_TYPES.get(id);
         return forPartType(pt);
     }
@@ -64,8 +64,8 @@ public final class PartSilhouetteCache {
         CACHE.clear();
     }
 
-    private static float[][] readAlphaGrid(Identifier tmpl) {
-        Identifier resourceLoc = Identifier.fromNamespaceAndPath(
+    private static float[][] readAlphaGrid(ResourceLocation tmpl) {
+        ResourceLocation resourceLoc = new ResourceLocation(
                 tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
         try {
             Optional<Resource> resource =

@@ -2,12 +2,12 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.gui.ForgeControllerMenu;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.RegistryObject;
+import net.minecraftforge.registries.DeferredRegister;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.inventory.MenuType;
-import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
+import net.minecraftforge.common.extensions.IForgeMenuType;
 
 /**
  * Menu (container) type registrations for Smithery's UI surfaces.
@@ -21,9 +21,9 @@ public final class SmitheryMenus {
             DeferredRegister.create(Registries.MENU, Smithery.MODID);
 
     /** Menu type for the Forge controller GUI screen. */
-    public static final DeferredHolder<MenuType<?>, MenuType<ForgeControllerMenu>> FORGE_CONTROLLER =
+    public static final RegistryObject<MenuType<ForgeControllerMenu>> FORGE_CONTROLLER =
             MENUS.register("forge_controller",
-                    () -> IMenuTypeExtension.create(ForgeControllerMenu::new));
+                    () -> IForgeMenuType.create(ForgeControllerMenu::new));
 
     /**
      * Binds the deferred register to the mod event bus.

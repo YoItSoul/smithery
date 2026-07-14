@@ -5,7 +5,7 @@ import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.tool.DurabilityRole;
 import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.item.tool.ToolComposition;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 /**
  * Built-in tool-type registrations.
@@ -221,8 +221,8 @@ public final class SmitheryToolTypes {
                 .build());
     }
 
-    private static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(Smithery.MODID, path);
+    private static ResourceLocation id(String path) {
+        return new ResourceLocation(Smithery.MODID, path);
     }
 
     private SmitheryToolTypes() {}

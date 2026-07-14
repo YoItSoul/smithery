@@ -278,13 +278,13 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     }
 
     private int computeOutputFluidIndex(ForgeControllerBlockEntity be) {
-        net.minecraft.resources.Identifier fluidId = be.outputFluidId();
+        net.minecraft.resources.ResourceLocation fluidId = be.outputFluidId();
         if (fluidId == null) return -1;
         for (int i = 0; i < materialList.size(); i++) {
             com.soul.smithery.registry.SmitheryFluids.Entry entry =
                     com.soul.smithery.registry.SmitheryFluids.forMaterial(materialList.get(i).id());
             if (entry == null) continue;
-            net.minecraft.resources.Identifier matFluidId =
+            net.minecraft.resources.ResourceLocation matFluidId =
                     net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(entry.source.get());
             if (fluidId.equals(matFluidId)) return i;
         }

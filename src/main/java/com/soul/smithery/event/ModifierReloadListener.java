@@ -7,13 +7,13 @@ import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.modifier.ModifierAction;
 import net.minecraft.resources.FileToIdConverter;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.AddReloadListenerEvent;
 
 import java.util.HashSet;
 import java.util.List;
@@ -33,7 +33,7 @@ import java.util.Set;
  * modifiers are untouched unless a JSON file shadows them by id. Files that reference unknown
  * action types fail to parse with a logged warning and are skipped.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class ModifierReloadListener
         extends SimpleJsonResourceReloadListener<ModifierReloadListener.ModifierJson> {
 
@@ -102,7 +102,7 @@ public final class ModifierReloadListener
          * @param id the identifier to register the resulting modifier under
          * @return the assembled modifier
          */
-        public Modifier toModifier(Identifier id) {
+        public Modifier toModifier(ResourceLocation id) {
             Modifier.Builder b = Modifier.builder(id)
                     .durabilityMultiplier(durabilityMultiplier)
                     .maxLevel(maxLevel)
@@ -194,21 +194,21 @@ public final class ModifierReloadListener
         }
     }
 
-    private static final Set<Identifier> DATA_LOADED_IDS = new HashSet<>();
+    private static final Set<ResourceLocation> DATA_LOADED_IDS = new HashSet<>();
 
     private ModifierReloadListener() {
         super(ModifierJson.CODEC, FileToIdConverter.json("smithery/modifier"));
     }
 
     @Override
-    protected void apply(Map<Identifier, ModifierJson> entries,
+    protected void apply(Map<ResourceLocation, ModifierJson> entries,
                           ResourceManager manager, ProfilerFiller profiler) {
-        for (Identifier id : DATA_LOADED_IDS) SmitheryAPI.MODIFIERS.remove(id);
+        for (ResourceLocation id : DATA_LOADED_IDS) SmitheryAPI.MODIFIERS.remove(id);
         DATA_LOADED_IDS.clear();
 
         int registered = 0;
-        for (Map.Entry<Identifier, ModifierJson> e : entries.entrySet()) {
-            Identifier id = e.getKey();
+        for (Map.Entry<ResourceLocation, ModifierJson> e : entries.entrySet()) {
+            ResourceLocation id = e.getKey();
             ModifierJson parsed = e.getValue();
             Modifier mod = parsed.toModifier(id);
             SmitheryAPI.registerModifier(mod);
@@ -225,9 +225,9 @@ public final class ModifierReloadListener
      * @param event the NeoForge add-reload-listeners event
      */
     @SubscribeEvent
-    public static void onAddReloadListeners(AddServerReloadListenersEvent event) {
+    public static void onAddReloadListeners(AddReloadListenerEvent event) {
         event.addListener(
-                Identifier.fromNamespaceAndPath(Smithery.MODID, "modifiers"),
+                new ResourceLocation(Smithery.MODID, "modifiers"),
                 new ModifierReloadListener());
     }
 }

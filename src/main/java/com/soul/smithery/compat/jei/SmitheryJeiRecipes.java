@@ -21,7 +21,7 @@ import com.soul.smithery.registry.SmitheryBlocks;
 import com.soul.smithery.registry.SmitheryFluids;
 import com.soul.smithery.registry.SmitheryItems;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -146,7 +146,7 @@ public final class SmitheryJeiRecipes {
      * @param materialId material identifier to check
      * @return {@code true} if the material should not appear anywhere in JEI
      */
-    public static boolean isHiddenFromJei(net.minecraft.resources.Identifier materialId) {
+    public static boolean isHiddenFromJei(net.minecraft.resources.ResourceLocation materialId) {
         if (materialId == null) return false;
         return Smithery.MODID.equals(materialId.getNamespace())
                 && "neoforgium".equals(materialId.getPath());
@@ -225,7 +225,7 @@ public final class SmitheryJeiRecipes {
      */
     public static List<JeiPartPress> buildPartPressRecipes() {
         List<JeiPartPress> out = new ArrayList<>();
-        Map<Item, Identifier> simpleInputs = new LinkedHashMap<>();
+        Map<Item, ResourceLocation> simpleInputs = new LinkedHashMap<>();
         simpleInputs.put(Items.FLINT,       SmitheryMaterials.FLINT);
         simpleInputs.put(Items.SLIME_BALL,  SmitheryMaterials.SLIME);
         simpleInputs.put(Items.RESIN_CLUMP, SmitheryMaterials.RESIN);
@@ -256,7 +256,7 @@ public final class SmitheryJeiRecipes {
         return out;
     }
 
-    private static void addPressEntry(List<JeiPartPress> out, ItemStack input, Identifier materialId, PartType pt) {
+    private static void addPressEntry(List<JeiPartPress> out, ItemStack input, ResourceLocation materialId, PartType pt) {
         if (materialId == null) return;
         Material material = SmitheryAPI.MATERIALS.get(materialId);
         if (material == null) return;
@@ -329,7 +329,7 @@ public final class SmitheryJeiRecipes {
     public static List<JeiModifier> buildModifierRecipes() {
         List<JeiModifier> out = new ArrayList<>();
         for (Modifier modifier : SmitheryAPI.MODIFIERS.all()) {
-            Identifier modId = modifier.id();
+            ResourceLocation modId = modifier.id();
 
             List<JeiAnvilSource> anvilSources = new ArrayList<>();
             for (Map.Entry<Item, ModifierSources.Entry> entry : ModifierSources.all().entrySet()) {
@@ -356,7 +356,7 @@ public final class SmitheryJeiRecipes {
 
             List<JeiSynergyGrant> synergies = new ArrayList<>();
             for (SynergyDefinition synergy : SmitheryAPI.SYNERGIES.all()) {
-                for (Map.Entry<Identifier, ModifierEffect> e : synergy.effectsPerToolType().entrySet()) {
+                for (Map.Entry<ResourceLocation, ModifierEffect> e : synergy.effectsPerToolType().entrySet()) {
                     ModifierEffect effect = e.getValue();
                     if (!modId.equals(effect.modifierId())) continue;
                     ToolType toolType = SmitheryAPI.TOOL_TYPES.get(e.getKey());
@@ -398,7 +398,7 @@ public final class SmitheryJeiRecipes {
      * the material's binder part item, then to any built-in part item. Returns {@link ItemStack#EMPTY}
      * if nothing usable exists.
      */
-    private static ItemStack representativeMaterialItem(Identifier materialId) {
+    private static ItemStack representativeMaterialItem(ResourceLocation materialId) {
         Item ingot = CastResults.resolve(materialId, SmitheryPartTypes.INGOT.id());
         if (ingot != null) return new ItemStack(ingot);
         var binder = SmitheryItems.getBuiltInPart(materialId, SmitheryPartTypes.BINDER.id());
