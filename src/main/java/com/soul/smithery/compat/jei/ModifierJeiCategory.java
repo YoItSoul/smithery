@@ -9,14 +9,12 @@ import com.soul.smithery.compat.jei.SmitheryJeiRecipes.JeiModifier;
 import com.soul.smithery.compat.jei.SmitheryJeiRecipes.JeiSynergyGrant;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.builder.IRecipeSlotBuilder;
-import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusGroup;
-import mezz.jei.api.recipe.category.AbstractRecipeCategory;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
@@ -37,7 +35,7 @@ import java.util.List;
  * durability multiplier). The category icon is a vanilla anvil because that is the only block
  * a player physically interacts with to apply modifiers.
  */
-public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
+public class ModifierJeiCategory extends SmitheryJeiCategory<JeiModifier> {
     /** Width of the category background in GUI pixels. */
     public static final int WIDTH = 188;
     /** Height of the category background in GUI pixels. */
@@ -78,13 +76,12 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
      * @param guiHelper JEI gui helper used to build the icon drawable
      */
     public ModifierJeiCategory(IGuiHelper guiHelper) {
-        super(
+        super(guiHelper,
                 SmitheryJeiTypes.MODIFIER,
                 Component.translatable("jei." + Smithery.MODID + ".category.modifier"),
-                guiHelper.createDrawableItemStack(new ItemStack(Items.ANVIL)),
+                new ItemStack(Items.ANVIL),
                 WIDTH,
-                HEIGHT
-        );
+                HEIGHT);
     }
 
     @Override
@@ -93,34 +90,34 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
 
         int x = SLOTS_X;
         for (JeiAnvilSource src : recipe.anvilSources()) {
-            IRecipeSlotBuilder slot = builder.addInputSlot(x, ANVIL_SLOTS_Y).setStandardSlotBackground();
-            slot.add(src.item());
+            IRecipeSlotBuilder slot = builder.addSlot(mezz.jei.api.recipe.RecipeIngredientRole.INPUT, x, ANVIL_SLOTS_Y).setBackground(guiHelper.getSlotDrawable(), -1, -1);
+            slot.addItemStack(src.item());
             final JeiAnvilSource captured = src;
-            slot.addRichTooltipCallback((view, tooltip) -> appendAnvilTooltip(tooltip, modifier, captured));
+            slot.addTooltipCallback((view, tooltip) -> appendAnvilTooltip(tooltip, modifier, captured));
             x += SLOT_W;
         }
 
         x = SLOTS_X;
         for (JeiMaterialGrant grant : recipe.materialGrants()) {
-            IRecipeSlotBuilder slot = builder.addInputSlot(x, MATERIAL_SLOTS_Y).setStandardSlotBackground();
-            slot.add(grant.displayItem());
+            IRecipeSlotBuilder slot = builder.addSlot(mezz.jei.api.recipe.RecipeIngredientRole.INPUT, x, MATERIAL_SLOTS_Y).setBackground(guiHelper.getSlotDrawable(), -1, -1);
+            slot.addItemStack(grant.displayItem());
             final JeiMaterialGrant captured = grant;
-            slot.addRichTooltipCallback((view, tooltip) -> appendGrantTooltip(tooltip, captured));
+            slot.addTooltipCallback((view, tooltip) -> appendGrantTooltip(tooltip, captured));
             x += SLOT_W;
         }
 
         x = SLOTS_X;
         for (JeiSynergyGrant syn : recipe.synergies()) {
-            IRecipeSlotBuilder slotA = builder.addInputSlot(x, SYNERGY_SLOTS_Y).setStandardSlotBackground();
-            slotA.add(syn.itemA());
+            IRecipeSlotBuilder slotA = builder.addSlot(mezz.jei.api.recipe.RecipeIngredientRole.INPUT, x, SYNERGY_SLOTS_Y).setBackground(guiHelper.getSlotDrawable(), -1, -1);
+            slotA.addItemStack(syn.itemA());
             final JeiSynergyGrant capturedA = syn;
-            slotA.addRichTooltipCallback((view, tooltip) -> appendSynergyTooltip(tooltip, capturedA));
+            slotA.addTooltipCallback((view, tooltip) -> appendSynergyTooltip(tooltip, capturedA));
             x += SLOT_W;
 
-            IRecipeSlotBuilder slotB = builder.addInputSlot(x, SYNERGY_SLOTS_Y).setStandardSlotBackground();
-            slotB.add(syn.itemB());
+            IRecipeSlotBuilder slotB = builder.addSlot(mezz.jei.api.recipe.RecipeIngredientRole.INPUT, x, SYNERGY_SLOTS_Y).setBackground(guiHelper.getSlotDrawable(), -1, -1);
+            slotB.addItemStack(syn.itemB());
             final JeiSynergyGrant capturedB = syn;
-            slotB.addRichTooltipCallback((view, tooltip) -> appendSynergyTooltip(tooltip, capturedB));
+            slotB.addTooltipCallback((view, tooltip) -> appendSynergyTooltip(tooltip, capturedB));
             x += SLOT_W + 2;
         }
     }
@@ -128,21 +125,21 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
     @Override
     public void draw(JeiModifier recipe,
                      mezz.jei.api.gui.ingredient.IRecipeSlotsView recipeSlotsView,
-                     GuiGraphicsExtractor guiGraphics,
+                     GuiGraphics guiGraphics,
                      double mouseX, double mouseY) {
         Font font = Minecraft.getInstance().font;
         Modifier modifier = recipe.modifier();
 
         Component name = nameOf(modifier.id()).copy().withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD);
         int nameW = font.width(name);
-        guiGraphics.text(font, name, (WIDTH - nameW) / 2, NAME_Y, 0xFFFFFFFF, false);
+        guiGraphics.drawString(font, name, (WIDTH - nameW) / 2, NAME_Y, 0xFFFFFF, false);
 
         Component desc = descriptionOf(modifier.id()).copy().withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
         List<net.minecraft.util.FormattedCharSequence> wrapped = font.split(desc, WIDTH - 8);
         int dy = DESC_Y;
         for (int i = 0; i < Math.min(2, wrapped.size()); i++) {
             int lineW = font.width(wrapped.get(i));
-            guiGraphics.text(font, wrapped.get(i), (WIDTH - lineW) / 2, dy, 0xFFFFFFFF, false);
+            guiGraphics.drawString(font, wrapped.get(i), (WIDTH - lineW) / 2, dy, 0xFFFFFF, false);
             dy += 9;
         }
 
@@ -159,7 +156,7 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
         Component footer = footerComponent(modifier).withStyle(ChatFormatting.DARK_GRAY);
         List<net.minecraft.util.FormattedCharSequence> footerLines = font.split(footer, WIDTH - 8);
         if (!footerLines.isEmpty()) {
-            guiGraphics.text(font, footerLines.get(0), 4, FOOTER_Y, 0xFFFFFFFF, false);
+            guiGraphics.drawString(font, footerLines.get(0), 4, FOOTER_Y, 0xFFFFFF, false);
         }
     }
 
@@ -168,15 +165,15 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
      * "(none)" so the player still sees that the section was considered and intentionally empty
      * rather than missing.
      */
-    private static void drawRow(GuiGraphicsExtractor guiGraphics, Font font, int y,
+    private static void drawRow(GuiGraphics guiGraphics, Font font, int y,
                                 ChatFormatting accent, String key, boolean populated) {
         Component label = Component.translatable("jei." + Smithery.MODID + ".modifier." + key)
                 .copy().withStyle(accent, ChatFormatting.BOLD);
-        guiGraphics.text(font, label, LABEL_X, y, 0xFFFFFFFF, false);
+        guiGraphics.drawString(font, label, LABEL_X, y, 0xFFFFFF, false);
         if (!populated) {
             Component none = Component.translatable("jei." + Smithery.MODID + ".modifier.none")
                     .copy().withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC);
-            guiGraphics.text(font, none, SLOTS_X + 2, y, 0xFFFFFFFF, false);
+            guiGraphics.drawString(font, none, SLOTS_X + 2, y, 0xFFFFFF, false);
         }
     }
 
@@ -221,7 +218,7 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
         return out;
     }
 
-    private static void appendAnvilTooltip(ITooltipBuilder tooltip, Modifier modifier, JeiAnvilSource src) {
+    private static void appendAnvilTooltip(java.util.List<Component> tooltip, Modifier modifier, JeiAnvilSource src) {
         tooltip.add(Component.translatable("jei." + Smithery.MODID + ".modifier.anvil_header")
                 .withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
         tooltip.add(Component.translatable(
@@ -239,7 +236,7 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
         appendParams(tooltip, src.effect());
     }
 
-    private static void appendGrantTooltip(ITooltipBuilder tooltip, JeiMaterialGrant grant) {
+    private static void appendGrantTooltip(java.util.List<Component> tooltip, JeiMaterialGrant grant) {
         tooltip.add(Component.translatable("jei." + Smithery.MODID + ".modifier.grant_header")
                 .withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD));
         tooltip.add(Component.translatable(
@@ -250,7 +247,7 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
         appendParams(tooltip, grant.effect());
     }
 
-    private static void appendSynergyTooltip(ITooltipBuilder tooltip, JeiSynergyGrant syn) {
+    private static void appendSynergyTooltip(java.util.List<Component> tooltip, JeiSynergyGrant syn) {
         tooltip.add(Component.translatable("jei." + Smithery.MODID + ".modifier.synergy_header")
                 .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD));
         tooltip.add(Component.translatable(
@@ -268,7 +265,7 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
      * {@code chance}, {@code radius}), so verbatim {@code key=value} lines are clearer than
      * trying to translate each key.
      */
-    private static void appendParams(ITooltipBuilder tooltip, ModifierEffect effect) {
+    private static void appendParams(java.util.List<Component> tooltip, ModifierEffect effect) {
         if (effect.params().isEmpty()) return;
         tooltip.add(Component.literal(""));
         tooltip.add(Component.translatable("jei." + Smithery.MODID + ".modifier.params_header")

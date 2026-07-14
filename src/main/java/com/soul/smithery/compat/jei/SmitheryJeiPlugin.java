@@ -60,11 +60,11 @@ public class SmitheryJeiPlugin implements IModPlugin {
 
     @Override
     public void registerRecipeCatalysts(IRecipeCatalystRegistration registration) {
-        registration.addCraftingStation(SmitheryJeiTypes.MELTING,       SmitheryBlocks.FORGE_CONTROLLER_ITEM.get());
-        registration.addCraftingStation(SmitheryJeiTypes.CASTING,       SmitheryBlocks.CASTING_TABLE_ITEM.get());
-        registration.addCraftingStation(SmitheryJeiTypes.PART_PRESS,    SmitheryBlocks.PART_PRESS_ITEM.get());
-        registration.addCraftingStation(SmitheryJeiTypes.TOOL_ASSEMBLY, Items.CRAFTING_TABLE);
-        registration.addCraftingStation(SmitheryJeiTypes.MODIFIER,      Items.ANVIL);
+        registration.addRecipeCatalyst(new ItemStack(SmitheryBlocks.FORGE_CONTROLLER_ITEM.get()), SmitheryJeiTypes.MELTING);
+        registration.addRecipeCatalyst(new ItemStack(SmitheryBlocks.CASTING_TABLE_ITEM.get()),    SmitheryJeiTypes.CASTING);
+        registration.addRecipeCatalyst(new ItemStack(SmitheryBlocks.PART_PRESS_ITEM.get()),       SmitheryJeiTypes.PART_PRESS);
+        registration.addRecipeCatalyst(new ItemStack(Items.CRAFTING_TABLE),                       SmitheryJeiTypes.TOOL_ASSEMBLY);
+        registration.addRecipeCatalyst(new ItemStack(Items.ANVIL),                                SmitheryJeiTypes.MODIFIER);
     }
 
     @Override

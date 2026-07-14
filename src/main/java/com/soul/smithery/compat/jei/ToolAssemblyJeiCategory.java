@@ -1,23 +1,17 @@
 package com.soul.smithery.compat.jei;
 
 import com.soul.smithery.Smithery;
-import com.soul.smithery.item.PartItem;
-import com.soul.smithery.item.tool.ToolComposition;
-import com.soul.smithery.item.tool.ToolCompositions;
+import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.builder.IRecipeSlotBuilder;
-import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
-import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.recipe.category.AbstractRecipeCategory;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -28,14 +22,13 @@ import java.util.List;
  * JEI category for tool assembly: a set of part items crafts into an assembled tool on the
  * vanilla crafting table.
  *
- * <p>Each input slot's displayed ingredient is overridden every cycle to a different material's
- * part, and the output slot's displayed ingredient is the tool composed from whatever parts
- * are currently shown — never a single all-same-material tool. Pre-composed tools are
- * intentionally absent from the output ingredient list so JEI's natural cycler does not fight
- * the override; the vanilla crafting category continues to surface per-material tool lookups
- * via the JSON {@code ToolAssemblyRecipe}. Shift-to-pause is honoured by JEI's own ticker.
+ * <p>Each input slot lists one part per material and the output slot lists the matching
+ * composed tools, all joined with a focus link so JEI cycles every slot in lockstep — each
+ * cycle reads as one all-of-a-material composition. Mixed-material tools remain craftable in
+ * game; the vanilla crafting category surfaces per-material tool lookups via the JSON
+ * {@code ToolAssemblyRecipe}.
  */
-public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiRecipes.JeiToolAssembly> {
+public class ToolAssemblyJeiCategory extends SmitheryJeiCategory<SmitheryJeiRecipes.JeiToolAssembly> {
     /** Width of the category background in GUI pixels. */
     public static final int WIDTH = 150;
     /** Height of the category background in GUI pixels. */
@@ -52,99 +45,45 @@ public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiR
      * @param guiHelper JEI gui helper used to build the icon drawable
      */
     public ToolAssemblyJeiCategory(IGuiHelper guiHelper) {
-        super(
+        super(guiHelper,
                 SmitheryJeiTypes.TOOL_ASSEMBLY,
                 Component.translatable("jei." + Smithery.MODID + ".category.tool_assembly"),
-                guiHelper.createDrawableItemStack(new ItemStack(Items.CRAFTING_TABLE)),
+                new ItemStack(Items.CRAFTING_TABLE),
                 WIDTH,
-                HEIGHT
-        );
+                HEIGHT);
     }
 
     @Override
     public void setRecipe(IRecipeLayoutBuilder builder, SmitheryJeiRecipes.JeiToolAssembly recipe, IFocusGroup focuses) {
+        List<IRecipeSlotBuilder> linked = new ArrayList<>();
         int x = PART_X;
         for (List<ItemStack> stacksForSlot : recipe.partsBySlot()) {
-            IRecipeSlotBuilder slot = builder.addInputSlot(x, PART_Y).setStandardSlotBackground();
-            for (ItemStack stack : stacksForSlot) slot.add(stack);
+            IRecipeSlotBuilder slot = builder.addSlot(RecipeIngredientRole.INPUT, x, PART_Y)
+                    .setBackground(guiHelper.getSlotDrawable(), -1, -1)
+                    .addItemStacks(stacksForSlot);
+            linked.add(slot);
             x += 18;
         }
 
-        IRecipeSlotBuilder output = builder.addOutputSlot(OUTPUT_X, OUTPUT_Y).setStandardSlotBackground();
-        Item toolItem = BuiltInRegistries.ITEM.get(recipe.toolType().id())
-                .<Item>map(r -> r.value())
-                .orElse(null);
-        if (toolItem != null) output.add(new ItemStack(toolItem));
+        IRecipeSlotBuilder output = builder.addSlot(RecipeIngredientRole.OUTPUT, OUTPUT_X, OUTPUT_Y)
+                .setBackground(guiHelper.getSlotDrawable(), -1, -1)
+                .addIngredients(VanillaTypes.ITEM_STACK, recipe.tools());
+        linked.add(output);
+
+        // Every slot lists exactly one variant per material (see buildToolAssemblyRecipes),
+        // so a focus link cycles them in lockstep as coherent compositions.
+        builder.createFocusLink(linked.toArray(new IRecipeSlotBuilder[0]));
     }
 
     @Override
-    public void createRecipeExtras(IRecipeExtrasBuilder builder, SmitheryJeiRecipes.JeiToolAssembly recipe, IFocusGroup focuses) {
-        applyRandomMixOverrides(recipe, builder.getRecipeSlots().getSlots());
-    }
-
-    @Override
-    public void onDisplayedIngredientsUpdate(SmitheryJeiRecipes.JeiToolAssembly recipe,
-                                             List<IRecipeSlotDrawable> recipeSlots,
-                                             IFocusGroup focuses) {
-        applyRandomMixOverrides(recipe, recipeSlots);
-    }
-
-    private static void applyRandomMixOverrides(SmitheryJeiRecipes.JeiToolAssembly recipe,
-                                                List<IRecipeSlotDrawable> slots) {
-        List<IRecipeSlotDrawable> inputs = new ArrayList<>();
-        IRecipeSlotDrawable output = null;
-        for (IRecipeSlotDrawable s : slots) {
-            if (s.getRole() == RecipeIngredientRole.INPUT) inputs.add(s);
-            else if (s.getRole() == RecipeIngredientRole.OUTPUT) output = s;
-        }
-        if (output == null || inputs.isEmpty()) return;
-        if (inputs.size() != recipe.partsBySlot().size()) return;
-
-        long tick = System.currentTimeMillis() / 1000L;
-
-        List<ResourceLocation> matIds = new ArrayList<>(inputs.size());
-        for (int i = 0; i < inputs.size(); i++) {
-            IRecipeSlotDrawable slot = inputs.get(i);
-            List<ItemStack> slotParts = recipe.partsBySlot().get(i);
-            if (slotParts.isEmpty()) return;
-            int materialIdx = (int) Math.floorMod(tick + i * 37L, slotParts.size());
-            ItemStack part = slotParts.get(materialIdx);
-
-            slot.clearDisplayOverrides();
-            slot.createDisplayOverrides().add(part);
-
-            if (!(part.getItem() instanceof PartItem partItem)) {
-                output.clearDisplayOverrides();
-                return;
-            }
-            matIds.add(partItem.materialId());
-        }
-
-        if (matIds.size() != recipe.toolType().slots().size()) return;
-
-        Item toolItem = BuiltInRegistries.ITEM.get(recipe.toolType().id())
-                .<Item>map(r -> r.value())
-                .orElse(null);
-        if (toolItem == null) return;
-
-        ToolComposition comp = new ToolComposition(recipe.toolType().id(), matIds);
-        ItemStack tool = ToolCompositions.apply(new ItemStack(toolItem), comp);
-
-        output.clearDisplayOverrides();
-        output.createDisplayOverrides().add(tool);
-    }
-
-    @Override
-    public void draw(SmitheryJeiRecipes.JeiToolAssembly recipe,
-                     mezz.jei.api.gui.ingredient.IRecipeSlotsView recipeSlotsView,
-                     GuiGraphicsExtractor guiGraphics,
-                     double mouseX, double mouseY) {
+    public void draw(SmitheryJeiRecipes.JeiToolAssembly recipe, IRecipeSlotsView recipeSlotsView,
+                     GuiGraphics guiGraphics, double mouseX, double mouseY) {
         Component title = Component.translatable("smithery.tool.smithery." + recipe.toolType().id().getPath())
                 .copy()
                 .withStyle(ChatFormatting.GOLD);
 
-        var font = net.minecraft.client.Minecraft.getInstance().font;
+        var font = Minecraft.getInstance().font;
         int textW = font.width(title);
-        guiGraphics.text(font, title, (WIDTH - textW) / 2, 6, 0xFFFFFFFF, false);
+        guiGraphics.drawString(font, title, (WIDTH - textW) / 2, 6, 0xFFFFFF, false);
     }
 }

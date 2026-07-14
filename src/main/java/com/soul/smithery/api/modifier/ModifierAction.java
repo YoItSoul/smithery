@@ -118,7 +118,7 @@ public interface ModifierAction {
                     ModifierAction::type,
                     typeId -> {
                         ActionType<? extends A> at = entries.get(typeId);
-                        return at == null ? null : (MapCodec<A>) at.codec();
+                        return at == null ? null : (Codec<A>) at.codec().codec();
                     });
         }
 
