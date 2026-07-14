@@ -72,6 +72,11 @@ minecraft {
         configureEach {
             workingDirectory project.file('run')
 
+            // Dev-only: remap mixin refmaps of deobfuscated dependency mods (Patchouli) from
+            // SRG to the official names this environment runs with. No effect on the built jar.
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
             // Recommended logging data for a userdev environment
             // The markers can be added/remove as needed separated by commas.
             // "SCAN": For mods scan.

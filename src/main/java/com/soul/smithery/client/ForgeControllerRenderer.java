@@ -48,7 +48,7 @@ public class ForgeControllerRenderer implements BlockEntityRenderer<ForgeControl
     private static final float BLOCK_SIZE  = 0.55f;
 
     private static final ResourceLocation MOLTEN_STILL_TEXTURE =
-            new ResourceLocation(Smithery.MODID, "textures/block/molten_still.png");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "textures/block/molten_still.png");
 
     private static final int  FRAME_COUNT       = 16;
     private static final long FRAME_DURATION_MS = 150L;

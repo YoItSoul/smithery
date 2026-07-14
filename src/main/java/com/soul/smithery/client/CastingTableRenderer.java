@@ -83,12 +83,12 @@ public class CastingTableRenderer implements BlockEntityRenderer<CastingTableBlo
         int baseColor;
         if (isPartItem) {
             ResourceLocation tmpl = pt.textureTemplate();
-            texLoc = new ResourceLocation(tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
+            texLoc = ResourceLocation.fromNamespaceAndPath(tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
             baseColor = entry.material.stats().partColor() | 0xFF000000;
         } else {
             ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(resultStack.getItem());
             if (itemId == null) return;
-            texLoc = new ResourceLocation(itemId.getNamespace(), "textures/item/" + itemId.getPath() + ".png");
+            texLoc = ResourceLocation.fromNamespaceAndPath(itemId.getNamespace(), "textures/item/" + itemId.getPath() + ".png");
             baseColor = 0xFFFFFFFF;
         }
 

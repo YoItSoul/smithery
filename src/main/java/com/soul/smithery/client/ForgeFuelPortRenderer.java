@@ -155,9 +155,9 @@ public class ForgeFuelPortRenderer implements BlockEntityRenderer<ForgeFuelPortB
     }
 
     private static final ResourceLocation VANILLA_LAVA_STILL =
-            new ResourceLocation("minecraft", "block/lava_still");
+            ResourceLocation.fromNamespaceAndPath("minecraft", "block/lava_still");
     private static final ResourceLocation SMITHERY_MOLTEN_STILL =
-            new ResourceLocation(Smithery.MODID, "block/molten_still");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "block/molten_still");
 
     private static @Nullable TextureAtlasSprite spriteForFluid(Fluid fluid) {
         ResourceLocation path;

@@ -31,7 +31,7 @@ import org.joml.Matrix4f;
 public class FluidPipeRenderer implements BlockEntityRenderer<FluidPipeBlockEntity> {
 
     private static final ResourceLocation MOLTEN_STILL_TEXTURE =
-            new ResourceLocation(Smithery.MODID, "textures/block/molten_still.png");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "textures/block/molten_still.png");
 
     private static final int FRAME_COUNT = 16;
     private static final long FRAME_DURATION_MS = 150L;

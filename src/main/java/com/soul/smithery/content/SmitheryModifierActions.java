@@ -307,6 +307,6 @@ public final class SmitheryModifierActions {
     }
 
     private static ResourceLocation id(String path) {
-        return new ResourceLocation(Smithery.MODID, path);
+        return ResourceLocation.fromNamespaceAndPath(Smithery.MODID, path);
     }
 }

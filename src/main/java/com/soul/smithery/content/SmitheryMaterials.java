@@ -138,7 +138,7 @@ public final class SmitheryMaterials {
                 .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.GILDED,
                         Map.of("xp_multiplier", 1.25f))
                 .addModifier(SmitheryToolTypes.PICKAXE,
-                        new ResourceLocation(Smithery.MODID, "golden_touch"))
+                        ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "golden_touch"))
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.ALLURING,
                         Map.of("radius", 6.0f))
                 .armor(32f, 7f, 10f, 0.7f, 0f, 5f)
@@ -522,7 +522,7 @@ public final class SmitheryMaterials {
     }
 
     private static ResourceLocation id(String path) {
-        return new ResourceLocation(Smithery.MODID, path);
+        return ResourceLocation.fromNamespaceAndPath(Smithery.MODID, path);
     }
 
     private SmitheryMaterials() {}

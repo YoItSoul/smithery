@@ -82,7 +82,7 @@ public final class SynergyDefinition {
 
         /** String-id overload of {@link #materials(ResourceLocation, ResourceLocation)}. */
         public Builder materials(String a, String b) {
-            return materials(new ResourceLocation(a), new ResourceLocation(b));
+            return materials(ResourceLocation.parse(a), ResourceLocation.parse(b));
         }
 
         /** Attaches a {@link ModifierEffect} to fire for the given tool type. */

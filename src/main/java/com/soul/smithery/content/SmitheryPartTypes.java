@@ -205,7 +205,7 @@ public final class SmitheryPartTypes {
                 .durabilityScalar(0.0f)
                 .partColorTint(false)
                 .castMb(144)
-                .textureTemplate(new ResourceLocation("minecraft", "item/iron_ingot"))
+                .textureTemplate(ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_ingot"))
                 .syntheticCast(true)
                 .build());
 
@@ -213,7 +213,7 @@ public final class SmitheryPartTypes {
                 .durabilityScalar(0.0f)
                 .partColorTint(false)
                 .castMb(16)
-                .textureTemplate(new ResourceLocation("minecraft", "item/iron_nugget"))
+                .textureTemplate(ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_nugget"))
                 .syntheticCast(true)
                 .build());
 
@@ -284,7 +284,7 @@ public final class SmitheryPartTypes {
     }
 
     private static ResourceLocation id(String path) {
-        return new ResourceLocation(Smithery.MODID, path);
+        return ResourceLocation.fromNamespaceAndPath(Smithery.MODID, path);
     }
 
     private SmitheryPartTypes() {}

@@ -40,7 +40,7 @@ public final class SoulboundStash {
             CapabilityManager.get(new CapabilityToken<>() {});
 
     /** Attachment id for the capability provider. */
-    static final ResourceLocation ID = new ResourceLocation(Smithery.MODID, "soulbound_stash");
+    static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "soulbound_stash");
 
     private List<ItemStack> items = List.of();
 

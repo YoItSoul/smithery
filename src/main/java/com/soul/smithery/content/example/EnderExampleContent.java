@@ -32,13 +32,13 @@ public final class EnderExampleContent {
 
     /** ResourceLocation of the ender material registered by this example. */
     public static final ResourceLocation ENDER_MATERIAL_ID =
-            new ResourceLocation(Smithery.MODID, "ender");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "ender");
     /** ResourceLocation of the synthetic pearl part type registered by this example. */
     public static final ResourceLocation PEARL_PART_TYPE_ID =
-            new ResourceLocation(Smithery.MODID, "pearl");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "pearl");
     /** ResourceLocation of the data-driven ender_affinity modifier referenced by this example. */
     public static final ResourceLocation ENDER_AFFINITY_MODIFIER_ID =
-            new ResourceLocation(Smithery.MODID, "ender_affinity");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "ender_affinity");
 
     /** Cached pearl part-type handle for downstream renderer / capability lookups. */
     public static PartType PEARL;
@@ -52,7 +52,7 @@ public final class EnderExampleContent {
                 .durabilityScalar(0.0f)
                 .partColorTint(false)
                 .castMb(64)
-                .textureTemplate(new ResourceLocation("minecraft", "item/ender_pearl"))
+                .textureTemplate(ResourceLocation.fromNamespaceAndPath("minecraft", "item/ender_pearl"))
                 .syntheticCast(true)
                 .build());
 

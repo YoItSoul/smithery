@@ -42,13 +42,13 @@ public final class SmitheryClient {
 
             // Vanilla-style pull predicates drive the generated bow model's overrides.
             ItemProperties.register(SmitheryItems.BOW.get(),
-                    new ResourceLocation("pull"),
+                    ResourceLocation.parse("pull"),
                     (stack, level, entity, seed) -> {
                         if (entity == null || entity.getUseItem() != stack) return 0.0f;
                         return (stack.getUseDuration() - entity.getUseItemRemainingTicks()) / 20.0f;
                     });
             ItemProperties.register(SmitheryItems.BOW.get(),
-                    new ResourceLocation("pulling"),
+                    ResourceLocation.parse("pulling"),
                     (stack, level, entity, seed) ->
                             entity != null && entity.isUsingItem() && entity.getUseItem() == stack
                                     ? 1.0f : 0.0f);

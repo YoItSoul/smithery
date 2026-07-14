@@ -28,7 +28,7 @@ public final class PartType {
         this.durabilityScalar = b.durabilityScalar;
         this.partColorTint = b.partColorTint;
         this.textureTemplate = b.textureTemplate != null ? b.textureTemplate
-                : new ResourceLocation(b.id.getNamespace(), "item/part/" + b.id.getPath());
+                : ResourceLocation.fromNamespaceAndPath(b.id.getNamespace(), "item/part/" + b.id.getPath());
         this.castMb = b.castMb;
         this.syntheticCast = b.syntheticCast;
     }

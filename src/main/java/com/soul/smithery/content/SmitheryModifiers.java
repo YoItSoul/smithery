@@ -682,7 +682,7 @@ public final class SmitheryModifiers {
     }
 
     private static ResourceLocation id(String path) {
-        return new ResourceLocation(Smithery.MODID, path);
+        return ResourceLocation.fromNamespaceAndPath(Smithery.MODID, path);
     }
 
     private SmitheryModifiers() {}

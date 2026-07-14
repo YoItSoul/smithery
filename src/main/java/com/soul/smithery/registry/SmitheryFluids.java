@@ -147,13 +147,13 @@ public final class SmitheryFluids {
     }
 
     private static final ResourceLocation MOLTEN_STILL =
-            new ResourceLocation(Smithery.MODID, "block/molten_still");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "block/molten_still");
     private static final ResourceLocation MOLTEN_FLOW =
-            new ResourceLocation(Smithery.MODID, "block/molten_flow");
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "block/molten_flow");
     private static final ResourceLocation WATER_STILL =
-            new ResourceLocation("minecraft", "block/water_still");
+            ResourceLocation.fromNamespaceAndPath("minecraft", "block/water_still");
     private static final ResourceLocation WATER_FLOW =
-            new ResourceLocation("minecraft", "block/water_flow");
+            ResourceLocation.fromNamespaceAndPath("minecraft", "block/water_flow");
 
     /**
      * FluidType whose client extensions pick one of two animated base sprites — the
@@ -256,7 +256,7 @@ public final class SmitheryFluids {
 
         Entry entry = new Entry(matId, material, type, sourceRef[0], flowingRef[0], blockRef[0], bucketRef[0]);
         ENTRIES.put(matId, entry);
-        ENTRIES_BY_BUCKET_ID.put(new ResourceLocation(Smithery.MODID, name + "_bucket"), entry);
+        ENTRIES_BY_BUCKET_ID.put(ResourceLocation.fromNamespaceAndPath(Smithery.MODID, name + "_bucket"), entry);
     }
 
     /**
