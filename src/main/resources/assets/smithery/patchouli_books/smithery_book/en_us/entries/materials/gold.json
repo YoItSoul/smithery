@@ -1,0 +1,20 @@
+{
+  "name": "Gold",
+  "icon": "minecraft:gold_ingot",
+  "category": "smithery:materials",
+  "sortnum": 3,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:gold_ingot",
+      "text": "- Harvest level: $(l)2$()$(br)- Mining speed: $(l)12.0$()$(br)- Attack: $(l)4.0$()$(br)- Durability: $(l)32$() per ingot$(br)- Melts at $(l)1064°C$()$(br)",
+      "title": "Gold"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:gold_pick_head",
+      "text": "- $(l)Sword$(): Lucky Strike$(br)- $(l)Pickaxe$(): Gilded, Golden Touch$(br)- $(l)Chestplate$(): Alluring",
+      "title": "Traits"
+    }
+  ]
+}

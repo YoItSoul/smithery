@@ -1,0 +1,20 @@
+{
+  "name": "Slimeknightium",
+  "icon": "smithery:slimeknightium_pick_head",
+  "category": "smithery:materials",
+  "sortnum": 16,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:slimeknightium_pick_head",
+      "text": "- Harvest level: $(l)3$()$(br)- Mining speed: $(l)5.8$()$(br)- Attack: $(l)5.1$()$(br)- Durability: $(l)850$() per ingot$(br)- Melts at $(l)1700°C$()$(br)",
+      "title": "Slimeknightium"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:slimeknightium_pick_head",
+      "text": "- $(l)Boots$(): Bouncy",
+      "title": "Traits"
+    }
+  ]
+}

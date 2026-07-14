@@ -1,0 +1,18 @@
+{
+  "name": "Melting",
+  "icon": "minecraft:iron_ingot",
+  "category": "smithery:forge",
+  "sortnum": 2,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "Drop items into the forge interior, or feed them through an $(l)Item Port$(). Once the forge passes their melting point they liquefy:$(br2)- Nugget: $(l)16 mB$()$(br)- Ingot: $(l)144 mB$()$(br)- Raw ore: $(l)288 mB$() — *double yield!*$(br)- Block: $(l)1,296 mB$()",
+      "title": "Items to Metal"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "Living creatures inside a hot forge are $(l)scalded$(), dripping fluid with every tick of damage. Most mobs render down to blood.$(br2)Some render down to... other things. Experiment respectfully.",
+      "title": "A Warning About Mobs"
+    }
+  ]
+}

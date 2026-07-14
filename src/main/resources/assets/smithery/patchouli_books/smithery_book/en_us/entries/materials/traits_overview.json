@@ -1,0 +1,18 @@
+{
+  "name": "Traits & Synergies",
+  "icon": "minecraft:book",
+  "category": "smithery:materials",
+  "sortnum": 0,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "Materials grant traits to specific tools and armor $(l)for free$() — no modifier slots spent. Iron pickaxes magnetize drops; slime boots bounce; blaze armor shrugs off fire.$(br2)Every material's entry in this chapter lists its grants.",
+      "title": "Traits"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "Mixing specific materials in one tool unlocks bonus modifiers at no cost:$(br2)- $(l)Galvanic$() — iron + copper$(br)- $(l)Gilded$() — iron + gold$(br)- $(l)Verdant Veil$() — copper + gold$(br2)Experiment with mixed-material builds.",
+      "title": "Synergies"
+    }
+  ]
+}

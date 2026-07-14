@@ -1,0 +1,18 @@
+{
+  "name": "Welcome to Smithery",
+  "icon": "minecraft:writable_book",
+  "category": "smithery:getting_started",
+  "sortnum": 0,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "Smithery replaces fixed recipes with $(l)parts$(). Every tool and armor piece is assembled from interchangeable parts, and every part carries the stats and traits of its material.$(br2)An $(l)iron$() pick head mines like iron. Put it on $(l)slime$() handles and the tool bounces back from its own mistakes. Materials matter more than shapes.",
+      "title": "Tools From Parts"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "1. Build a $(l)Forge$() and melt raw materials into molten metal$(br)2. $(l)Cast$() parts on the Casting Table — or $(l)press$() non-metals on the Part Press$(br)3. $(l)Assemble$() the parts in any crafting grid$(br)4. $(l)Upgrade$() at an anvil: modifiers, repairs, embossments$(br2)Each step has its own chapter in this guide.",
+      "title": "The Loop"
+    }
+  ]
+}

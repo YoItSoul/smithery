@@ -1,0 +1,20 @@
+{
+  "name": "Netherite",
+  "icon": "minecraft:netherite_ingot",
+  "category": "smithery:materials",
+  "sortnum": 14,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:netherite_ingot",
+      "text": "- Harvest level: $(l)4$()$(br)- Mining speed: $(l)7.0$()$(br)- Attack: $(l)8.7$()$(br)- Durability: $(l)820$() per ingot$(br)- Melts at $(l)2200°C$()$(br)",
+      "title": "Netherite"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:netherite_pick_head",
+      "text": "- $(l)Helmet$(): Stalwart$(br)- $(l)Chestplate$(): Stalwart$(br)- $(l)Leggings$(): Stalwart$(br)- $(l)Boots$(): Stalwart",
+      "title": "Traits"
+    }
+  ]
+}

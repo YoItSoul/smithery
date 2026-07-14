@@ -1,0 +1,20 @@
+{
+  "name": "Resin",
+  "icon": "minecraft:resin_clump",
+  "category": "smithery:materials",
+  "sortnum": 22,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:resin_clump",
+      "text": "- Harvest level: $(l)1$()$(br)- Mining speed: $(l)4.5$()$(br)- Attack: $(l)3.0$()$(br)- Durability: $(l)150$() per ingot$(br)- Does not melt — cut it on the $(l)Part Press$()$(br)",
+      "title": "Resin"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:resin_pick_head",
+      "text": "- $(l)Chestplate$(): Sticky",
+      "title": "Traits"
+    }
+  ]
+}

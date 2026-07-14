@@ -1,0 +1,20 @@
+{
+  "name": "Flint",
+  "icon": "minecraft:flint",
+  "category": "smithery:materials",
+  "sortnum": 20,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:flint",
+      "text": "- Harvest level: $(l)1$()$(br)- Mining speed: $(l)5.0$()$(br)- Attack: $(l)2.9$()$(br)- Durability: $(l)150$() per ingot$(br)- Does not melt — cut it on the $(l)Part Press$()$(br)",
+      "title": "Flint"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:flint_pick_head",
+      "text": "- $(l)Sword$(): Jagged$(br)- $(l)Chestplate$(): Spiny",
+      "title": "Traits"
+    }
+  ]
+}

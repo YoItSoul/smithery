@@ -1,0 +1,18 @@
+{
+  "name": "How Modifiers Work",
+  "icon": "minecraft:anvil",
+  "category": "smithery:modifiers",
+  "sortnum": 0,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "A tool's modifier capacity comes from its $(l)binder$() material; armor's from its $(l)plates$():$(br2)- Iron: 2 slots$(br)- Gold: 3 slots$(br)- Netherite: 4 slots$(br)- Bedrock: 5 slots$(br2)Each modifier level spends one slot. Traits granted by materials are $(l)free$() and never spend slots.",
+      "title": "Slots"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "Combine gear with a modifier item at any $(l)anvil$(). Costs scale per level, and part-way contributions are remembered — you can pay a level's cost across several visits.$(br2)Vanilla enchanted books are refused; smithery gear speaks modifiers.",
+      "title": "Applying"
+    }
+  ]
+}

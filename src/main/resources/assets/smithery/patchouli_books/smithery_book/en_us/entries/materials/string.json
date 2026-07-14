@@ -1,0 +1,20 @@
+{
+  "name": "String",
+  "icon": "minecraft:string",
+  "category": "smithery:materials",
+  "sortnum": 24,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:string",
+      "text": "- Harvest level: $(l)0$()$(br)- Mining speed: $(l)1.0$()$(br)- Attack: $(l)0.0$()$(br)- Durability: $(l)50$() per ingot$(br)- Does not melt — cut it on the $(l)Part Press$()$(br)",
+      "title": "String"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:string_bowstring",
+      "text": "No innate traits — this material is carried by its raw stats.",
+      "title": "Traits"
+    }
+  ]
+}

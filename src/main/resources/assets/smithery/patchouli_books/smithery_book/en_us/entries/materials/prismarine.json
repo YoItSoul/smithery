@@ -1,0 +1,20 @@
+{
+  "name": "Prismarine",
+  "icon": "minecraft:dark_prismarine",
+  "category": "smithery:materials",
+  "sortnum": 8,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:dark_prismarine",
+      "text": "- Harvest level: $(l)1$()$(br)- Mining speed: $(l)5.5$()$(br)- Attack: $(l)6.2$()$(br)- Durability: $(l)430$() per ingot$(br)- Melts at $(l)900°C$()$(br)",
+      "title": "Prismarine"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:prismarine_pick_head",
+      "text": "- $(l)Helmet$(): Aquadynamic$(br)- $(l)Chestplate$(): Aquadynamic$(br)- $(l)Leggings$(): Aquadynamic$(br)- $(l)Boots$(): Aquadynamic",
+      "title": "Traits"
+    }
+  ]
+}

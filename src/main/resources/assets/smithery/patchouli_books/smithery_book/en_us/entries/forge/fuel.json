@@ -1,0 +1,19 @@
+{
+  "name": "Fuel & Heat",
+  "icon": "smithery:forge_fuel_port",
+  "category": "smithery:forge",
+  "sortnum": 1,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:forge_fuel_port",
+      "text": "Fuel Ports hold $(l)liquid fuel$() — bucket it in or pipe it. Ports stacked vertically merge into one tank per fluid.$(br2)- $(l)Lava$() burns toward 1,650°C$(br)- $(l)Molten Blaze$() reaches 3,500°C for the hottest melts",
+      "title": "Feeding the Fire"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "The forge heats toward its fuel's target and cools when starved. Every material has a melting point — $(l)iron needs 1,538°C$(), so a fresh lava forge warms up for a moment before iron starts to drip.$(br2)Hotter forges melt *faster*, not just hotter. Blaze fuel pays for itself.",
+      "title": "Temperature Matters"
+    }
+  ]
+}

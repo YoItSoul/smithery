@@ -1,0 +1,20 @@
+{
+  "name": "Wood",
+  "icon": "minecraft:oak_log",
+  "category": "smithery:materials",
+  "sortnum": 1,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:oak_log",
+      "text": "- Harvest level: $(l)0$()$(br)- Mining speed: $(l)2.0$()$(br)- Attack: $(l)2.0$()$(br)- Durability: $(l)35$() per ingot$(br)- Does not melt — cut it on the $(l)Part Press$()$(br)",
+      "title": "Wood"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:wood_pick_head",
+      "text": "- $(l)Helmet$(): Ecological$(br)- $(l)Chestplate$(): Ecological$(br)- $(l)Leggings$(): Ecological$(br)- $(l)Boots$(): Ecological",
+      "title": "Traits"
+    }
+  ]
+}

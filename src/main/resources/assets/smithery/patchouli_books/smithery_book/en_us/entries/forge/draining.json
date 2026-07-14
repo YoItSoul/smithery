@@ -1,0 +1,14 @@
+{
+  "name": "Draining & Pipes",
+  "icon": "smithery:forge_drain",
+  "category": "smithery:forge",
+  "sortnum": 4,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:forge_drain",
+      "text": "Pick the output fluid by clicking its layer in the controller's tank, then:$(br2)- $(l)Bucket$() it straight from the Drain, or$(br)- $(l)Power the Drain with redstone$() to pump into connected Fluid Pipes — 5 mB per tick along the network, straight to your casting tables.",
+      "title": "Getting Metal Out"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Alloying",
+  "icon": "minecraft:netherite_ingot",
+  "category": "smithery:forge",
+  "sortnum": 3,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "text": "When the right molten metals share a hot enough forge, they combine on their own. $(l)Netherite$() forms from molten gold and ancient debris at 2,200°C.$(br2)Toggle auto-alloying with the $(l)A$() button on the controller screen if you want to keep your metals separate.",
+      "title": "Automatic Alloys"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "Alloy recipes are data-driven — modpacks add their own. Check $(l)JEI$() for the full list, and watch item tooltips: anything meltable shows what it melts into and which alloys want it.",
+      "title": "Finding Recipes"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Slime",
+  "icon": "minecraft:slime_ball",
+  "category": "smithery:materials",
+  "sortnum": 21,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:slime_ball",
+      "text": "- Harvest level: $(l)0$()$(br)- Mining speed: $(l)4.2$()$(br)- Attack: $(l)1.8$()$(br)- Durability: $(l)1000$() per ingot$(br)- Does not melt — cut it on the $(l)Part Press$()$(br)",
+      "title": "Slime"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:slime_pick_head",
+      "text": "- $(l)Boots$(): Bouncy",
+      "title": "Traits"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Neoforgium",
+  "icon": "smithery:neoforgium_pick_head",
+  "category": "smithery:materials",
+  "sortnum": 17,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:neoforgium_pick_head",
+      "text": "- Harvest level: $(l)3$()$(br)- Mining speed: $(l)7.0$()$(br)- Attack: $(l)8.7$()$(br)- Durability: $(l)820$() per ingot$(br)- Melts at $(l)1700°C$()$(br)",
+      "title": "Neoforgium"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:neoforgium_pick_head",
+      "text": "- $(l)Boots$(): Nimble",
+      "title": "Traits"
+    }
+  ]
+}

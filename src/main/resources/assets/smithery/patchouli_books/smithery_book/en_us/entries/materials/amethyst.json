@@ -1,0 +1,20 @@
+{
+  "name": "Amethyst",
+  "icon": "minecraft:amethyst_cluster",
+  "category": "smithery:materials",
+  "sortnum": 10,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:amethyst_cluster",
+      "text": "- Harvest level: $(l)2$()$(br)- Mining speed: $(l)6.0$()$(br)- Attack: $(l)4.0$()$(br)- Durability: $(l)200$() per ingot$(br)- Melts at $(l)1100°C$()$(br)",
+      "title": "Amethyst"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:amethyst_pick_head",
+      "text": "- $(l)Pickaxe$(): Momentum$(br)- $(l)Chestplate$(): Crystalline",
+      "title": "Traits"
+    }
+  ]
+}

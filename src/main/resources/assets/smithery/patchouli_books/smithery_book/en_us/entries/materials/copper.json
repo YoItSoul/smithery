@@ -1,0 +1,20 @@
+{
+  "name": "Copper",
+  "icon": "minecraft:copper_ingot",
+  "category": "smithery:materials",
+  "sortnum": 2,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:copper_ingot",
+      "text": "- Harvest level: $(l)2$()$(br)- Mining speed: $(l)5.3$()$(br)- Attack: $(l)3.0$()$(br)- Durability: $(l)210$() per ingot$(br)- Melts at $(l)1085°C$()$(br)",
+      "title": "Copper"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:copper_pick_head",
+      "text": "- $(l)Sword$(): Verdant$(br)- $(l)Pickaxe$(): Corrosive$(br)- $(l)Helmet$(): Conductive$(br)- $(l)Chestplate$(): Conductive$(br)- $(l)Leggings$(): Conductive$(br)- $(l)Boots$(): Conductive",
+      "title": "Traits"
+    }
+  ]
+}

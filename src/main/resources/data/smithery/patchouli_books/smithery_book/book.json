@@ -1,0 +1,9 @@
+{
+  "name": "Smithery Field Guide",
+  "landing_text": "Melting, casting, pressing, assembling — all of it.",
+  "version": 1,
+  "creative_tab": "smithery:items_tab",
+  "model": "patchouli:book_red",
+  "i18n": false,
+  "use_resource_pack": true
+}

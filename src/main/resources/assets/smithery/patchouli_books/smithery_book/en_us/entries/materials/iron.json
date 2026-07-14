@@ -1,0 +1,20 @@
+{
+  "name": "Iron",
+  "icon": "minecraft:iron_ingot",
+  "category": "smithery:materials",
+  "sortnum": 4,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:iron_ingot",
+      "text": "- Harvest level: $(l)2$()$(br)- Mining speed: $(l)6.0$()$(br)- Attack: $(l)4.0$()$(br)- Durability: $(l)204$() per ingot$(br)- Melts at $(l)1538°C$()$(br)",
+      "title": "Iron"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:iron_pick_head",
+      "text": "- $(l)Pickaxe$(): Magnetized$(br)- $(l)Chestplate$(): Magnetized",
+      "title": "Traits"
+    }
+  ]
+}

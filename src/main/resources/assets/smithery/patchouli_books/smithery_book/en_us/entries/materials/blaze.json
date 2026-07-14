@@ -1,0 +1,20 @@
+{
+  "name": "Blaze",
+  "icon": "minecraft:blaze_rod",
+  "category": "smithery:materials",
+  "sortnum": 9,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:blaze_rod",
+      "text": "- Harvest level: $(l)2$()$(br)- Mining speed: $(l)6.0$()$(br)- Attack: $(l)5.5$()$(br)- Durability: $(l)550$() per ingot$(br)- Melts at $(l)1200°C$()$(br)",
+      "title": "Blaze"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:blaze_pick_head",
+      "text": "- $(l)Sword$(): Fiery$(br)- $(l)Pickaxe$(): Autosmelt$(br)- $(l)Helmet$(): Fireward$(br)- $(l)Chestplate$(): Fireward$(br)- $(l)Leggings$(): Fireward$(br)- $(l)Boots$(): Fireward",
+      "title": "Traits"
+    }
+  ]
+}

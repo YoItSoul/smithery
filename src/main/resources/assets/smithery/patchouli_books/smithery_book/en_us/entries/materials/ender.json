@@ -1,0 +1,20 @@
+{
+  "name": "Ender",
+  "icon": "minecraft:ender_pearl",
+  "category": "smithery:materials",
+  "sortnum": 29,
+  "pages": [
+    {
+      "type": "patchouli:spotlight",
+      "item": "minecraft:ender_pearl",
+      "text": "- Harvest level: $(l)3$()$(br)- Mining speed: $(l)9.0$()$(br)- Attack: $(l)3.0$()$(br)- Durability: $(l)220$() per ingot$(br)- Melts at $(l)900°C$()$(br)",
+      "title": "Ender"
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:ender_pick_head",
+      "text": "- $(l)Sword$(): Verdant, Lucky Strike$(br)- $(l)Pickaxe$(): Magnetized, Gilded",
+      "title": "Traits"
+    }
+  ]
+}
