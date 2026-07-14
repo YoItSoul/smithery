@@ -27,15 +27,6 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // Modonomicon (in-game documentation mod) is published to klikli-dev's
-    // Cloudsmith mods repo. Needed for compile-time API + runtime presence so
-    // we can test the Smithery book in the dev environment.
-    maven {
-        url = "https://dl.cloudsmith.io/public/klikli-dev/mods/maven/"
-        content {
-            includeGroup "com.klikli_dev"
-        }
-    }
     // Geckolib (animated block models for the Part Press). Geckolib's Cloudsmith maven.
     // Geckolib 4.x (the 1.20.1 line) uses the software.bernie.geckolib group.
     maven {
@@ -44,11 +35,12 @@ repositories {
             includeGroup "software.bernie.geckolib"
         }
     }
-    // JEI (Just Enough Items). Hosted on BlameJared's maven.
+    // JEI (Just Enough Items) and Patchouli. Hosted on BlameJared's maven.
     maven {
         url = "https://maven.blamejared.com/"
         content {
             includeGroup "mezz.jei"
+            includeGroup "vazkii.patchouli"
         }
     }
 }
@@ -139,14 +131,11 @@ dependencies {
     // The "userdev" classifier will be requested and setup by ForgeGradle.
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // Modonomicon — in-game documentation framework. We compile against it (so
-    // datagen + book classes resolve) and load it in dev so we can test the
-    // generated book in-game. transitive=false because Modonomicon also pulls
-    // extra dependencies that we don't need. fg.deobf remaps the published SRG
-    // jar to the mapped names used in the dev environment.
-    implementation fg.deobf("com.klikli_dev:modonomicon-${minecraft_version}-forge:${modonomicon_version}") {
-        transitive = false
-    }
+    // Patchouli — in-game documentation. The Smithery book is pure JSON under
+    // assets/smithery/patchouli_books/, so we only need the API at compile time
+    // (book item lookups) and the mod present at runtime for dev testing.
+    compileOnly fg.deobf("vazkii.patchouli:Patchouli:${minecraft_version}-${patchouli_version}-FORGE:api")
+    localRuntime fg.deobf("vazkii.patchouli:Patchouli:${minecraft_version}-${patchouli_version}-FORGE")
 
     // Geckolib — animated block models. Powers the Part Press.
     implementation fg.deobf("software.bernie.geckolib:geckolib-forge-${minecraft_version}:${geckolib_version}")

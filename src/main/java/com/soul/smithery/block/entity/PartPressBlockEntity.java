@@ -18,7 +18,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -114,7 +114,7 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
      * red slime); meltables go through the forge/cast pipeline instead. Returns null
      * for unsupported items.
      */
-    public static @Nullable Identifier resolveMaterialFor(ItemStack stack) {
+    public static @Nullable ResourceLocation resolveMaterialFor(ItemStack stack) {
         if (stack.is(net.minecraft.tags.ItemTags.LOGS))   return SmitheryMaterials.WOOD;
         if (stack.is(net.minecraft.world.item.Items.FLINT))        return SmitheryMaterials.FLINT;
         if (stack.is(net.minecraft.world.item.Items.SLIME_BALL))   return SmitheryMaterials.SLIME;
@@ -189,7 +189,7 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         if (input.isEmpty()) return;
         PartType pt = selectedPartType();
         if (pt == null) return;
-        Identifier materialId = resolveMaterialFor(input);
+        ResourceLocation materialId = resolveMaterialFor(input);
         if (materialId == null) return;
         var partItem = SmitheryItems.getBuiltInPart(materialId, pt.id());
         if (partItem == null) return;

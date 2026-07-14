@@ -1,6 +1,6 @@
 package com.soul.smithery.api.alloy;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,11 +20,11 @@ import java.util.Objects;
 public final class AlloyRecipes {
     private AlloyRecipes() {}
 
-    private static final Map<Identifier, AlloyRecipe> CODE_REGISTRY = new LinkedHashMap<>();
-    private static final Map<Identifier, AlloyRecipe> DATA_REGISTRY = new LinkedHashMap<>();
+    private static final Map<ResourceLocation, AlloyRecipe> CODE_REGISTRY = new LinkedHashMap<>();
+    private static final Map<ResourceLocation, AlloyRecipe> DATA_REGISTRY = new LinkedHashMap<>();
 
     /** Registers (or replaces) a code-layer alloy. Stable across reloads. */
-    public static void register(Identifier id, AlloyRecipe recipe) {
+    public static void register(ResourceLocation id, AlloyRecipe recipe) {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(recipe, "recipe");
         CODE_REGISTRY.put(id, recipe);
@@ -36,7 +36,7 @@ public final class AlloyRecipes {
     }
 
     /** Registers one data-layer alloy. Called by the reload listener per JSON file. */
-    public static void registerDataEntry(Identifier id, AlloyRecipe recipe) {
+    public static void registerDataEntry(ResourceLocation id, AlloyRecipe recipe) {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(recipe, "recipe");
         DATA_REGISTRY.put(id, recipe);
@@ -50,7 +50,7 @@ public final class AlloyRecipes {
      */
     public static List<AlloyRecipe> all() {
         List<AlloyRecipe> out = new ArrayList<>(CODE_REGISTRY.size() + DATA_REGISTRY.size());
-        for (Map.Entry<Identifier, AlloyRecipe> e : CODE_REGISTRY.entrySet()) {
+        for (Map.Entry<ResourceLocation, AlloyRecipe> e : CODE_REGISTRY.entrySet()) {
             if (!DATA_REGISTRY.containsKey(e.getKey())) out.add(e.getValue());
         }
         out.addAll(DATA_REGISTRY.values());

@@ -14,7 +14,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
@@ -81,8 +81,8 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     private boolean alloyEnabled = true;
 
-    private final Map<Identifier, Integer> fluidStorage = new LinkedHashMap<>();
-    private @Nullable Identifier outputFluidId;
+    private final Map<ResourceLocation, Integer> fluidStorage = new LinkedHashMap<>();
+    private @Nullable ResourceLocation outputFluidId;
 
     private List<BlockPos> slotPositions = List.of();
     private NonNullList<ItemStack> slots = NonNullList.create();
@@ -158,17 +158,17 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     /** Returns the mB stored for the given fluid; 0 if absent or unregistered. */
     public int storedFluidMb(net.minecraft.world.level.material.Fluid fluid) {
-        Identifier id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
+        ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
         return id == null ? 0 : fluidStorage.getOrDefault(id, 0);
     }
 
     /** Read-only view of the fluid storage map keyed by Fluid id. */
-    public Map<Identifier, Integer> fluidStorageView() {
+    public Map<ResourceLocation, Integer> fluidStorageView() {
         return Collections.unmodifiableMap(fluidStorage);
     }
 
     /** Currently-selected output fluid id, or null if none picked in the GUI. */
-    public @Nullable Identifier outputFluidId() { return outputFluidId; }
+    public @Nullable ResourceLocation outputFluidId() { return outputFluidId; }
 
     /** mB stored for the currently-selected output fluid; 0 if none. */
     public int outputFluidMb() {
@@ -180,7 +180,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
      * end of iteration order so the GUI renders it at the bottom of the stack. Returns
      * true if the selection changed.
      */
-    public boolean setOutputFluid(@Nullable Identifier fluidId) {
+    public boolean setOutputFluid(@Nullable ResourceLocation fluidId) {
         if (fluidId != null && !fluidStorage.containsKey(fluidId)) {
             return false;
         }
@@ -203,7 +203,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     /** Adds up to {@code mb} of the given fluid, returning the amount actually accepted. */
     public int addFluid(net.minecraft.world.level.material.Fluid fluid, int mb) {
-        Identifier id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
+        ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
         if (id == null || !canAccessFluids() || mb <= 0) return 0;
         int toAdd = Math.min(mb, remainingFluidCapacityMb());
         if (toAdd <= 0) return 0;
@@ -212,7 +212,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         return toAdd;
     }
 
-    private static @Nullable Identifier resolveSavedFluidId(Identifier saved) {
+    private static @Nullable ResourceLocation resolveSavedFluidId(ResourceLocation saved) {
         if (net.minecraft.core.registries.BuiltInRegistries.FLUID.containsKey(saved)) {
             return saved;
         }
@@ -224,7 +224,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     /** Drains up to {@code mb} of the given fluid, returning the amount actually removed. */
     public int drainFluid(net.minecraft.world.level.material.Fluid fluid, int mb) {
-        Identifier id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
+        ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
         if (id == null || !canAccessFluids() || mb <= 0) return 0;
         int have = fluidStorage.getOrDefault(id, 0);
         int toDrain = Math.min(mb, have);
@@ -314,23 +314,23 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             if (temperatureC < recipe.minTemperatureC()) continue;
 
             int n = recipe.inputs().size();
-            Identifier[] inputFluidIds = new Identifier[n];
+            ResourceLocation[] inputFluidIds = new ResourceLocation[n];
             boolean canFire = true;
             for (int i = 0; i < n; i++) {
                 com.soul.smithery.api.alloy.AlloyRecipe.Input in = recipe.inputs().get(i);
-                Identifier fluidId = materialToFluidId(in.material());
+                ResourceLocation fluidId = materialToFluidId(in.material());
                 if (fluidId == null) { canFire = false; break; }
                 if (fluidStorage.getOrDefault(fluidId, 0) < in.mb()) { canFire = false; break; }
                 inputFluidIds[i] = fluidId;
             }
             if (!canFire) continue;
 
-            Identifier outputFluidId = materialToFluidId(recipe.result().material());
+            ResourceLocation outputFluidId = materialToFluidId(recipe.result().material());
             if (outputFluidId == null) continue;
 
             for (int i = 0; i < n; i++) {
                 com.soul.smithery.api.alloy.AlloyRecipe.Input in = recipe.inputs().get(i);
-                Identifier fluidId = inputFluidIds[i];
+                ResourceLocation fluidId = inputFluidIds[i];
                 int remaining = fluidStorage.getOrDefault(fluidId, 0) - in.mb();
                 if (remaining <= 0) fluidStorage.remove(fluidId);
                 else fluidStorage.put(fluidId, remaining);
@@ -340,7 +340,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         }
     }
 
-    private static @Nullable Identifier materialToFluidId(Identifier materialId) {
+    private static @Nullable ResourceLocation materialToFluidId(ResourceLocation materialId) {
         com.soul.smithery.registry.SmitheryFluids.Entry entry =
                 com.soul.smithery.registry.SmitheryFluids.forMaterial(materialId);
         if (entry == null) return null;
@@ -416,7 +416,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     }
 
     private static net.minecraft.world.level.material.@Nullable Fluid fluidForEntity(LivingEntity entity) {
-        Identifier materialId = com.soul.smithery.api.forge.ForgeMobDrops.materialFor(entity);
+        ResourceLocation materialId = com.soul.smithery.api.forge.ForgeMobDrops.materialFor(entity);
         if (materialId == null) return null;
         com.soul.smithery.registry.SmitheryFluids.Entry entry =
                 com.soul.smithery.registry.SmitheryFluids.forMaterial(materialId);
@@ -475,7 +475,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             ItemStack stack = slots.get(i);
             if (stack.isEmpty()) { meltProgressPerSlot[i] = 0f; continue; }
 
-            Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
             MeltingRecipe recipe = SmitheryAPI.MELTING_RECIPES.get(itemId);
             if (recipe == null) continue;
 
@@ -799,16 +799,16 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                 Optional<String> idStr = entry.getString("id");
                 int mb = entry.getInt("mb").orElse(0);
                 if (idStr.isEmpty() || mb <= 0) continue;
-                Identifier id = Identifier.tryParse(idStr.get());
+                ResourceLocation id = ResourceLocation.tryParse(idStr.get());
                 if (id == null) continue;
-                Identifier resolvedFluidId = resolveSavedFluidId(id);
+                ResourceLocation resolvedFluidId = resolveSavedFluidId(id);
                 if (resolvedFluidId != null) {
                     fluidStorage.merge(resolvedFluidId, mb, Integer::sum);
                 }
             }
         }
 
-        outputFluidId = input.getString("outputFluidId").map(Identifier::tryParse).orElse(null);
+        outputFluidId = input.getString("outputFluidId").map(ResourceLocation::tryParse).orElse(null);
         if (outputFluidId != null && !fluidStorage.containsKey(outputFluidId)) {
             outputFluidId = null;
         }
@@ -825,7 +825,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                 int count = entry.getInt("count").orElse(1);
                 float progress = entry.getFloatOr("progress", 0f);
                 if (itemStr.isEmpty()) continue;
-                Identifier itemId = Identifier.tryParse(itemStr.get());
+                ResourceLocation itemId = ResourceLocation.tryParse(itemStr.get());
                 if (itemId == null) continue;
                 Item item = BuiltInRegistries.ITEM.get(itemId).<Item>map(r -> r.value()).orElse(null);
                 if (item == null || item == Items.AIR) continue;
@@ -861,7 +861,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         output.putBoolean("alloyEnabled", alloyEnabled);
 
         ValueOutput.ValueOutputList fluids = output.childrenList("fluids");
-        for (Map.Entry<Identifier, Integer> e : fluidStorage.entrySet()) {
+        for (Map.Entry<ResourceLocation, Integer> e : fluidStorage.entrySet()) {
             if (e.getValue() <= 0) continue;
             ValueOutput entry = fluids.addChild();
             entry.putString("id", e.getKey().toString());
@@ -876,7 +876,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         for (int i = 0; i < slotPositions.size(); i++) {
             ItemStack stack = slots.get(i);
             if (stack.isEmpty()) continue;
-            Identifier key = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
             if (key == null) continue;
             BlockPos pos = slotPositions.get(i);
             ValueOutput entry = slotsOut.addChild();

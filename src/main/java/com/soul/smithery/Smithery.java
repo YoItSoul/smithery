@@ -1,26 +1,49 @@
 package com.soul.smithery;
 
 import com.mojang.logging.LogUtils;
+import com.soul.smithery.api.SmitheryAPI;
+import com.soul.smithery.api.forge.ForgeFuels;
+import com.soul.smithery.api.forge.ForgeMobDrops;
+import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.content.SmitheryMaterials;
 import com.soul.smithery.content.SmitheryMeltingRecipes;
+import com.soul.smithery.content.SmitheryModifierActions;
 import com.soul.smithery.content.SmitheryModifiers;
 import com.soul.smithery.content.SmitheryPartTypes;
 import com.soul.smithery.content.SmitherySynergies;
+import com.soul.smithery.content.SmitheryToolPresets;
 import com.soul.smithery.content.SmitheryToolTypes;
-import com.soul.smithery.registry.SmitheryDataComponents;
+import com.soul.smithery.content.example.EnderExampleContent;
+import com.soul.smithery.item.tool.SmitheryArmorItem;
+import com.soul.smithery.item.tool.ToolCompositions;
+import com.soul.smithery.network.SmitheryPayloads;
+import com.soul.smithery.registry.SmitheryBlockEntities;
+import com.soul.smithery.registry.SmitheryBlocks;
+import com.soul.smithery.registry.SmitheryEntityTypes;
+import com.soul.smithery.registry.SmitheryFluids;
 import com.soul.smithery.registry.SmitheryItems;
+import com.soul.smithery.registry.SmitheryMenus;
+import com.soul.smithery.registry.SmitheryRecipes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.animal.Fox;
+import net.minecraft.world.entity.monster.Blaze;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 import org.slf4j.Logger;
 
 /**
@@ -33,7 +56,7 @@ import org.slf4j.Logger;
  */
 @Mod(Smithery.MODID)
 public class Smithery {
-    /** Mod identifier used as the namespace for every {@code Identifier} this mod creates. */
+    /** Mod identifier used as the namespace for every {@code ResourceLocation} this mod creates. */
     public static final String MODID = "smithery";
 
     /** Shared SLF4J logger for the mod. */
@@ -44,57 +67,56 @@ public class Smithery {
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
     /** Creative tab listing every auto-generated PartItem. */
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> PARTS_TAB =
+    public static final RegistryObject<CreativeModeTab> PARTS_TAB =
             CREATIVE_MODE_TABS.register("parts_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".parts"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> {
-                        var di = SmitheryItems.getBuiltInPart(
+                        var part = SmitheryItems.getBuiltInPart(
                                 SmitheryMaterials.IRON, SmitheryPartTypes.SWORD_BLADE.id());
-                        return di != null ? di.get().getDefaultInstance()
-                                          : net.minecraft.world.item.Items.IRON_INGOT.getDefaultInstance();
+                        return part != null ? part.get().getDefaultInstance()
+                                            : Items.IRON_INGOT.getDefaultInstance();
                     })
                     .displayItems((params, output) -> SmitheryItems.builtInParts().values()
-                            .forEach(di -> output.accept(di.get())))
+                            .forEach(part -> output.accept(part.get())))
                     .build());
 
     /** Creative tab listing Smithery's placeable blocks (forge controller, casting table, etc.). */
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> BLOCKS_TAB =
+    public static final RegistryObject<CreativeModeTab> BLOCKS_TAB =
             CREATIVE_MODE_TABS.register("blocks_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".blocks"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
-                    .icon(() -> com.soul.smithery.registry.SmitheryBlocks.FORGE_CONTROLLER_ITEM.get().getDefaultInstance())
+                    .icon(() -> SmitheryBlocks.FORGE_CONTROLLER_ITEM.get().getDefaultInstance())
                     .displayItems((params, output) -> {
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.FURNACE_BRICKS_ITEM.get());
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_CONTROLLER_ITEM.get());
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_FUEL_PORT_ITEM.get());
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_DRAIN_ITEM.get());
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.FORGE_ITEM_PORT_ITEM.get());
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_TABLE_ITEM.get());
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.CASTING_SAND_ITEM.get());
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.FLUID_PIPE_ITEM.get());
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.PART_PRESS_ITEM.get());
-                        output.accept(com.soul.smithery.registry.SmitheryBlocks.RED_SLIME_BLOCK_ITEM.get());
+                        output.accept(SmitheryBlocks.FURNACE_BRICKS_ITEM.get());
+                        output.accept(SmitheryBlocks.FORGE_CONTROLLER_ITEM.get());
+                        output.accept(SmitheryBlocks.FORGE_FUEL_PORT_ITEM.get());
+                        output.accept(SmitheryBlocks.FORGE_DRAIN_ITEM.get());
+                        output.accept(SmitheryBlocks.FORGE_ITEM_PORT_ITEM.get());
+                        output.accept(SmitheryBlocks.CASTING_TABLE_ITEM.get());
+                        output.accept(SmitheryBlocks.CASTING_SAND_ITEM.get());
+                        output.accept(SmitheryBlocks.FLUID_PIPE_ITEM.get());
+                        output.accept(SmitheryBlocks.PART_PRESS_ITEM.get());
+                        output.accept(SmitheryBlocks.RED_SLIME_BLOCK_ITEM.get());
                     })
                     .build());
 
     /** Creative tab listing every registered molten-material bucket. */
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> FLUIDS_TAB =
+    public static final RegistryObject<CreativeModeTab> FLUIDS_TAB =
             CREATIVE_MODE_TABS.register("fluids_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".fluids"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> {
-                        var ironEntry = com.soul.smithery.registry.SmitheryFluids.forMaterial(
-                                com.soul.smithery.content.SmitheryMaterials.IRON);
+                        var ironEntry = SmitheryFluids.forMaterial(SmitheryMaterials.IRON);
                         if (ironEntry != null) return ironEntry.bucket.get().getDefaultInstance();
-                        var entries = com.soul.smithery.registry.SmitheryFluids.entries();
+                        var entries = SmitheryFluids.entries();
                         if (!entries.isEmpty()) {
                             return entries.values().iterator().next().bucket.get().getDefaultInstance();
                         }
-                        return net.minecraft.world.item.Items.IRON_INGOT.getDefaultInstance();
+                        return Items.IRON_INGOT.getDefaultInstance();
                     })
                     .displayItems((params, output) -> {
-                        for (var entry : com.soul.smithery.registry.SmitheryFluids.entries().values()) {
+                        for (var entry : SmitheryFluids.entries().values()) {
                             output.accept(entry.bucket.get());
                         }
                     })
@@ -104,7 +126,7 @@ public class Smithery {
      * Creative tab listing miscellaneous Smithery-crafted resource items (bowstring-class items,
      * intermediates) that aren't parts, placeable blocks, or fluids.
      */
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> ITEMS_TAB =
+    public static final RegistryObject<CreativeModeTab> ITEMS_TAB =
             CREATIVE_MODE_TABS.register("items_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".items"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
@@ -121,46 +143,42 @@ public class Smithery {
                     .build());
 
     /** Creative tab listing one example composed tool per (material x tool type) pair. */
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> TOOLS_TAB =
+    public static final RegistryObject<CreativeModeTab> TOOLS_TAB =
             CREATIVE_MODE_TABS.register("tools_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".tools"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
-                    .icon(() -> com.soul.smithery.item.tool.ToolCompositions.apply(
+                    .icon(() -> ToolCompositions.apply(
                             SmitheryItems.SWORD.get().getDefaultInstance(),
-                            com.soul.smithery.content.SmitheryToolPresets.iron(SmitheryToolTypes.SWORD)))
+                            SmitheryToolPresets.iron(SmitheryToolTypes.SWORD)))
                     .displayItems((params, output) -> {
-                        for (var mat : com.soul.smithery.api.SmitheryAPI.MATERIALS.all()) {
-                            for (var tt : com.soul.smithery.api.SmitheryAPI.TOOL_TYPES.all()) {
-                                var toolItem = net.minecraft.core.registries.BuiltInRegistries.ITEM
-                                        .getValue(tt.id());
-                                if (toolItem == null) continue;
-                                if (toolItem instanceof com.soul.smithery.item.tool.SmitheryArmorItem) continue;
-                                var stack = new net.minecraft.world.item.ItemStack(toolItem);
-                                var comp = com.soul.smithery.content.SmitheryToolPresets.uniform(tt, mat.id());
-                                output.accept(com.soul.smithery.item.tool.ToolCompositions.apply(stack, comp));
+                        for (Material mat : SmitheryAPI.MATERIALS.all()) {
+                            for (ToolType tt : SmitheryAPI.TOOL_TYPES.all()) {
+                                Item toolItem = ForgeRegistries.ITEMS.getValue(tt.id());
+                                if (toolItem == null || toolItem == Items.AIR) continue;
+                                if (toolItem instanceof SmitheryArmorItem) continue;
+                                var comp = SmitheryToolPresets.uniform(tt, mat.id());
+                                output.accept(ToolCompositions.apply(new ItemStack(toolItem), comp));
                             }
                         }
                     })
                     .build());
 
     /** Creative tab listing one example composed armor piece per (material x armor slot) pair. */
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> ARMOR_TAB =
+    public static final RegistryObject<CreativeModeTab> ARMOR_TAB =
             CREATIVE_MODE_TABS.register("armor_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".armor"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
-                    .icon(() -> com.soul.smithery.item.tool.ToolCompositions.apply(
+                    .icon(() -> ToolCompositions.apply(
                             SmitheryItems.CHESTPLATE.get().getDefaultInstance(),
-                            com.soul.smithery.content.SmitheryToolPresets.iron(SmitheryToolTypes.CHESTPLATE)))
+                            SmitheryToolPresets.iron(SmitheryToolTypes.CHESTPLATE)))
                     .displayItems((params, output) -> {
-                        for (var mat : com.soul.smithery.api.SmitheryAPI.MATERIALS.all()) {
+                        for (Material mat : SmitheryAPI.MATERIALS.all()) {
                             if (!mat.stats().supportsArmor()) continue;
-                            for (var tt : com.soul.smithery.api.SmitheryAPI.TOOL_TYPES.all()) {
-                                var toolItem = net.minecraft.core.registries.BuiltInRegistries.ITEM
-                                        .getValue(tt.id());
-                                if (!(toolItem instanceof com.soul.smithery.item.tool.SmitheryArmorItem)) continue;
-                                var stack = new net.minecraft.world.item.ItemStack(toolItem);
-                                var comp = com.soul.smithery.content.SmitheryToolPresets.uniform(tt, mat.id());
-                                output.accept(com.soul.smithery.item.tool.ToolCompositions.apply(stack, comp));
+                            for (ToolType tt : SmitheryAPI.TOOL_TYPES.all()) {
+                                Item toolItem = ForgeRegistries.ITEMS.getValue(tt.id());
+                                if (!(toolItem instanceof SmitheryArmorItem)) continue;
+                                var comp = SmitheryToolPresets.uniform(tt, mat.id());
+                                output.accept(ToolCompositions.apply(new ItemStack(toolItem), comp));
                             }
                         }
                     })
@@ -173,72 +191,60 @@ public class Smithery {
      * modifiers before materials add modifier effects; materials before items/fluids derive from
      * them; synergies after both materials and modifiers exist. Deferred registers attach last.
      */
-    public Smithery(IEventBus modEventBus, ModContainer modContainer) {
+    public Smithery() {
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
         SmitheryPartTypes.register();
         SmitheryToolTypes.register();
-        com.soul.smithery.content.SmitheryModifierActions.register();
+        SmitheryModifierActions.register();
         SmitheryModifiers.register();
         SmitheryMaterials.register();
         SmitherySynergies.register();
         SmitheryMeltingRecipes.register();
-        com.soul.smithery.content.example.EnderExampleContent.register();
-        com.soul.smithery.registry.SmitheryBlocks.registerImpressedSandVariants();
-        com.soul.smithery.registry.SmitheryFluids.bootstrap();
+        EnderExampleContent.register();
+        SmitheryBlocks.registerImpressedSandVariants();
+        SmitheryFluids.bootstrap();
 
         SmitheryItems.registerBuiltInParts();
 
         SmitheryMeltingRecipes.registerPartRemeltRecipes();
 
-        com.soul.smithery.registry.SmitheryBlocks.register(modEventBus);
-        SmitheryDataComponents.register(modEventBus);
+        SmitheryBlocks.register(modEventBus);
         SmitheryItems.register(modEventBus);
-        com.soul.smithery.registry.SmitheryBlockEntities.register(modEventBus);
-        com.soul.smithery.registry.SmitheryRecipes.register(modEventBus);
-        com.soul.smithery.registry.SmitheryMenus.register(modEventBus);
-        com.soul.smithery.registry.SmitheryFluids.register(modEventBus);
-        com.soul.smithery.registry.SmitheryEntityTypes.register(modEventBus);
-        com.soul.smithery.registry.SmitheryAttachments.register(modEventBus);
+        SmitheryBlockEntities.register(modEventBus);
+        SmitheryRecipes.register(modEventBus);
+        SmitheryMenus.register(modEventBus);
+        SmitheryFluids.register(modEventBus);
+        SmitheryEntityTypes.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
 
         modEventBus.addListener(this::commonSetup);
-        modEventBus.addListener(this::onBuildCreativeTabs);
 
-        modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        SmitheryPayloads.register();
+
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            com.soul.smithery.api.forge.ForgeFuels.register(
-                    net.minecraft.world.level.material.Fluids.LAVA,
-                    new com.soul.smithery.api.forge.ForgeFuels.Profile(1650f));
-            var blazeEntry = com.soul.smithery.registry.SmitheryFluids.forMaterial(
-                    com.soul.smithery.content.SmitheryMaterials.BLAZE);
+            ForgeFuels.register(Fluids.LAVA, new ForgeFuels.Profile(1650f));
+            var blazeEntry = SmitheryFluids.forMaterial(SmitheryMaterials.BLAZE);
             if (blazeEntry != null) {
-                com.soul.smithery.api.forge.ForgeFuels.register(
-                        blazeEntry.source.get(),
-                        new com.soul.smithery.api.forge.ForgeFuels.Profile(3500f));
+                ForgeFuels.register(blazeEntry.source.get(), new ForgeFuels.Profile(3500f));
             }
 
-            com.soul.smithery.api.forge.ForgeMobDrops.setDefault(
-                    com.soul.smithery.content.SmitheryMaterials.BLOOD);
-            com.soul.smithery.api.forge.ForgeMobDrops.register(
-                    net.minecraft.world.entity.animal.fox.Fox.class,
-                    com.soul.smithery.content.SmitheryMaterials.FOX_BLOOD);
-            com.soul.smithery.api.forge.ForgeMobDrops.register(
-                    net.minecraft.world.entity.monster.Blaze.class,
-                    com.soul.smithery.content.SmitheryMaterials.BLAZE);
+            ForgeMobDrops.setDefault(SmitheryMaterials.BLOOD);
+            ForgeMobDrops.register(Fox.class, SmitheryMaterials.FOX_BLOOD);
+            ForgeMobDrops.register(Blaze.class, SmitheryMaterials.BLAZE);
         });
 
-        var api = com.soul.smithery.api.SmitheryAPI.MATERIALS;
+        var api = SmitheryAPI.MATERIALS;
         LOGGER.info("Smithery: {} materials × {} part types = {} part items; {} modifiers, {} synergies, {} tool types",
                 api.size(),
-                com.soul.smithery.api.SmitheryAPI.PART_TYPES.size(),
+                SmitheryAPI.PART_TYPES.size(),
                 SmitheryItems.builtInParts().size(),
-                com.soul.smithery.api.SmitheryAPI.MODIFIERS.size(),
-                com.soul.smithery.api.SmitheryAPI.SYNERGIES.size(),
-                com.soul.smithery.api.SmitheryAPI.TOOL_TYPES.size());
-    }
-
-    private void onBuildCreativeTabs(BuildCreativeModeTabContentsEvent event) {
+                SmitheryAPI.MODIFIERS.size(),
+                SmitheryAPI.SYNERGIES.size(),
+                SmitheryAPI.TOOL_TYPES.size());
     }
 }

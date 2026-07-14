@@ -16,12 +16,12 @@ import net.minecraft.client.renderer.item.ItemModelResolver;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.registries.DeferredItem;
+import net.minecraftforge.registries.RegistryObject;
 
 /**
  * Block entity renderer for the casting table.
@@ -44,7 +44,7 @@ public class CastingTableRenderer
         public State castState = State.EMPTY;
         public final ItemStackRenderState sand = new ItemStackRenderState();
         public boolean hasPart;
-        public net.minecraft.resources.@org.jspecify.annotations.Nullable Identifier partTextureLoc;
+        public net.minecraft.resources.@org.jspecify.annotations.Nullable ResourceLocation partTextureLoc;
         public int partTintArgb;
     }
 
@@ -92,7 +92,7 @@ public class CastingTableRenderer
     }
 
     private static void bindPart(RenderState state, CastingTableBlockEntity be) {
-        net.minecraft.resources.Identifier ptId = be.impressedPartTypeId();
+        net.minecraft.resources.ResourceLocation ptId = be.impressedPartTypeId();
         if (ptId == null) return;
         com.soul.smithery.api.part.PartType pt = com.soul.smithery.api.SmitheryAPI.PART_TYPES.get(ptId);
         if (pt == null) return;
@@ -104,18 +104,18 @@ public class CastingTableRenderer
         if (resultStack.isEmpty()) return;
         boolean isPartItem = resultStack.getItem() instanceof com.soul.smithery.item.PartItem;
 
-        net.minecraft.resources.Identifier texLoc;
+        net.minecraft.resources.ResourceLocation texLoc;
         int baseColor;
         if (isPartItem) {
-            net.minecraft.resources.Identifier tmpl = pt.textureTemplate();
-            texLoc = net.minecraft.resources.Identifier.fromNamespaceAndPath(
+            net.minecraft.resources.ResourceLocation tmpl = pt.textureTemplate();
+            texLoc = net.minecraft.resources.new ResourceLocation(
                     tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
             baseColor = entry.material.stats().partColor() | 0xFF000000;
         } else {
-            net.minecraft.resources.Identifier itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM
+            net.minecraft.resources.ResourceLocation itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM
                     .getKey(resultStack.getItem());
             if (itemId == null) return;
-            texLoc = net.minecraft.resources.Identifier.fromNamespaceAndPath(
+            texLoc = net.minecraft.resources.new ResourceLocation(
                     itemId.getNamespace(), "textures/item/" + itemId.getPath() + ".png");
             baseColor = 0xFFFFFFFF;
         }
@@ -148,9 +148,9 @@ public class CastingTableRenderer
     }
 
     private static ItemStack pickImpressedSandStack(CastingTableBlockEntity be) {
-        Identifier ptId = be.impressedPartTypeId();
+        ResourceLocation ptId = be.impressedPartTypeId();
         if (ptId == null) return new ItemStack(SmitheryBlocks.CASTING_SAND.get());
-        DeferredItem<BlockItem> impressedItem = SmitheryBlocks.getImpressedSandItem(ptId);
+        RegistryObject<BlockItem> impressedItem = SmitheryBlocks.getImpressedSandItem(ptId);
         return impressedItem == null
                 ? new ItemStack(SmitheryBlocks.CASTING_SAND.get())
                 : new ItemStack(impressedItem.get());
@@ -169,7 +169,7 @@ public class CastingTableRenderer
 
         if (state.hasPart && state.partTextureLoc != null) {
             final int color = state.partTintArgb;
-            final net.minecraft.resources.Identifier tex = state.partTextureLoc;
+            final net.minecraft.resources.ResourceLocation tex = state.partTextureLoc;
             collector.submitCustomGeometry(poseStack,
                     RenderTypes.entityTranslucent(tex),
                     (pose, buffer) -> drawPartQuad(pose, buffer, color));

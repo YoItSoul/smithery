@@ -8,9 +8,9 @@ import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolCompositions;
 import com.soul.smithery.registry.SmitheryDataComponents;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.AnvilUpdateEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.AnvilUpdateEvent;
 
 /**
  * Vanilla anvil hook that embosses smithery gear with a donor material: place any smithery
@@ -22,7 +22,7 @@ import net.neoforged.neoforge.event.AnvilUpdateEvent;
  * <p>Donor traits never override effects the gear already has (see the collection order in
  * {@code ToolStats.compute}); embossment is flavor grafting, not a power multiplier.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class EmbossmentHandler {
     private EmbossmentHandler() {}
 

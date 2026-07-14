@@ -1,6 +1,6 @@
 package com.soul.smithery.api.melting;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Objects;
 
@@ -16,7 +16,7 @@ import java.util.Objects;
  * @param outputMaterialId id of the material the item melts into
  * @param outputMb         milliBuckets of output material produced (nugget=16, ingot=144, ore=288, block=1296)
  */
-public record MeltingRecipe(Identifier inputItemId, Identifier outputMaterialId, int outputMb) {
+public record MeltingRecipe(ResourceLocation inputItemId, ResourceLocation outputMaterialId, int outputMb) {
 
     /** Compact constructor enforcing non-null ids and a positive output volume. */
     public MeltingRecipe {

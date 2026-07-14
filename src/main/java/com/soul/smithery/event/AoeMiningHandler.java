@@ -13,9 +13,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.level.block.BreakBlockEvent;
 
 /**
  * 3x3 mining for the mining hammer: when a hammer breaks a block, the eight neighbours in the
@@ -26,7 +26,7 @@ import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
  * <p>Recursion guard: the spread uses {@code player.gameMode.destroyBlock}, which re-fires this
  * event per neighbour; a thread-local flag makes those inner breaks single-block.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class AoeMiningHandler {
     private AoeMiningHandler() {}
 

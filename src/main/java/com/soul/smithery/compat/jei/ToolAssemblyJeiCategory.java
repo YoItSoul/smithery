@@ -16,7 +16,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -102,7 +102,7 @@ public class ToolAssemblyJeiCategory extends AbstractRecipeCategory<SmitheryJeiR
 
         long tick = System.currentTimeMillis() / 1000L;
 
-        List<Identifier> matIds = new ArrayList<>(inputs.size());
+        List<ResourceLocation> matIds = new ArrayList<>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
             IRecipeSlotDrawable slot = inputs.get(i);
             List<ItemStack> slotParts = recipe.partsBySlot().get(i);

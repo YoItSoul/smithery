@@ -20,7 +20,7 @@ import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.BlockItem;
@@ -52,8 +52,8 @@ public class ForgeControllerRenderer implements
     private static final float SPRITE_SIZE = 0.6f;
     private static final float BLOCK_SIZE  = 0.55f;
 
-    private static final Identifier MOLTEN_STILL_TEXTURE =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "textures/block/molten_still.png");
+    private static final ResourceLocation MOLTEN_STILL_TEXTURE =
+            new ResourceLocation(Smithery.MODID, "textures/block/molten_still.png");
 
     private static final int  FRAME_COUNT       = 16;
     private static final long FRAME_DURATION_MS = 150L;
@@ -61,7 +61,7 @@ public class ForgeControllerRenderer implements
 
     private static final float POOL_LERP_FACTOR = 0.10f;
 
-    private final Map<Long, Map<Identifier, Float>> displayedFluidByCtrl = new HashMap<>();
+    private final Map<Long, Map<ResourceLocation, Float>> displayedFluidByCtrl = new HashMap<>();
 
     private final ItemModelResolver itemModelResolver;
     private final ItemStackRenderState scratchRenderState = new ItemStackRenderState();
@@ -190,12 +190,12 @@ public class ForgeControllerRenderer implements
     private void extractFluidPool(ForgeControllerBlockEntity be, RenderState state,
                                   List<BlockPos> slotPositions, BlockPos origin) {
         if (slotPositions.isEmpty()) return;
-        Map<Identifier, Integer> stored = be.fluidStorageView();
+        Map<ResourceLocation, Integer> stored = be.fluidStorageView();
         if (stored.isEmpty()) {
-            Map<Identifier, Float> cached = displayedFluidByCtrl.get(origin.asLong());
+            Map<ResourceLocation, Float> cached = displayedFluidByCtrl.get(origin.asLong());
             if (cached == null || cached.isEmpty()) return;
-            Map<Identifier, Integer> phantom = new java.util.LinkedHashMap<>();
-            for (Map.Entry<Identifier, Float> e : cached.entrySet()) {
+            Map<ResourceLocation, Integer> phantom = new java.util.LinkedHashMap<>();
+            for (Map.Entry<ResourceLocation, Float> e : cached.entrySet()) {
                 int dec = (int) (e.getValue() * (1f - POOL_LERP_FACTOR));
                 if (dec > 0) phantom.put(e.getKey(), dec);
             }
@@ -206,11 +206,11 @@ public class ForgeControllerRenderer implements
             }
         }
 
-        Map<Identifier, Float> displayed = displayedFluidByCtrl
+        Map<ResourceLocation, Float> displayed = displayedFluidByCtrl
                 .computeIfAbsent(origin.asLong(), k -> new HashMap<>());
         displayed.keySet().retainAll(stored.keySet());
-        Map<Identifier, Integer> displayedMb = new java.util.LinkedHashMap<>();
-        for (Map.Entry<Identifier, Integer> e : stored.entrySet()) {
+        Map<ResourceLocation, Integer> displayedMb = new java.util.LinkedHashMap<>();
+        for (Map.Entry<ResourceLocation, Integer> e : stored.entrySet()) {
             float target = e.getValue();
             float prev = displayed.getOrDefault(e.getKey(), target);
             float lerped = prev + (target - prev) * POOL_LERP_FACTOR;
@@ -228,7 +228,7 @@ public class ForgeControllerRenderer implements
         });
 
         int cursor = 0;
-        for (Map.Entry<Identifier, Integer> e : displayedMb.entrySet()) {
+        for (Map.Entry<ResourceLocation, Integer> e : displayedMb.entrySet()) {
             int mb = e.getValue();
             if (mb <= 0) continue;
             int color = colorForFluidId(e.getKey());
@@ -254,7 +254,7 @@ public class ForgeControllerRenderer implements
         }
     }
 
-    private static int colorForFluidId(Identifier fluidId) {
+    private static int colorForFluidId(ResourceLocation fluidId) {
         Fluid f = BuiltInRegistries.FLUID.get(fluidId).<Fluid>map(h -> h.value()).orElse(null);
         if (f == null) return 0xDDFF8844;
         SmitheryFluids.Entry entry = SmitheryFluids.forFluid(f);

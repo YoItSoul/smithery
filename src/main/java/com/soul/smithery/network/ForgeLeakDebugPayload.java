@@ -6,7 +6,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
 
@@ -23,7 +23,7 @@ public record ForgeLeakDebugPayload(List<BlockPos> positions, int durationTicks)
 
     /** Payload type identifier under {@code smithery:forge_leak_debug}. */
     public static final CustomPacketPayload.Type<ForgeLeakDebugPayload> TYPE =
-            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(Smithery.MODID, "forge_leak_debug"));
+            new CustomPacketPayload.Type<>(new ResourceLocation(Smithery.MODID, "forge_leak_debug"));
 
     /** Stream codec for serialising payload instances over the network. */
     public static final StreamCodec<RegistryFriendlyByteBuf, ForgeLeakDebugPayload> STREAM_CODEC =

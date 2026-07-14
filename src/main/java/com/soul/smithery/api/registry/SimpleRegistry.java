@@ -1,6 +1,6 @@
 package com.soul.smithery.api.registry;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -21,13 +21,13 @@ import java.util.function.Function;
  */
 public class SimpleRegistry<T> {
     private final String registryName;
-    private final Function<T, Identifier> idFn;
-    private final Map<Identifier, T> map = new LinkedHashMap<>();
+    private final Function<T, ResourceLocation> idFn;
+    private final Map<ResourceLocation, T> map = new LinkedHashMap<>();
 
     /**
      * Creates a registry with a human-readable name and a function that extracts the id of a value.
      */
-    public SimpleRegistry(String registryName, Function<T, Identifier> idFn) {
+    public SimpleRegistry(String registryName, Function<T, ResourceLocation> idFn) {
         this.registryName = registryName;
         this.idFn = idFn;
     }
@@ -39,7 +39,7 @@ public class SimpleRegistry<T> {
      */
     public synchronized T register(T value) {
         Objects.requireNonNull(value);
-        Identifier id = idFn.apply(value);
+        ResourceLocation id = idFn.apply(value);
         Objects.requireNonNull(id, registryName + " value missing id");
         if (map.containsKey(id)) {
             throw new IllegalStateException(registryName + " already contains " + id);
@@ -50,25 +50,25 @@ public class SimpleRegistry<T> {
 
     /** Replace an existing entry (used by datapack overrides). Returns {@code false} if missing. */
     public synchronized boolean replace(T value) {
-        Identifier id = idFn.apply(value);
+        ResourceLocation id = idFn.apply(value);
         if (!map.containsKey(id)) return false;
         map.put(id, value);
         return true;
     }
 
     /** Remove an entry. Returns true if it was present. */
-    public synchronized boolean remove(Identifier id) {
+    public synchronized boolean remove(ResourceLocation id) {
         return map.remove(id) != null;
     }
 
     /** Looks up a value by id, returning {@code null} if missing. */
-    public synchronized T get(Identifier id) { return map.get(id); }
+    public synchronized T get(ResourceLocation id) { return map.get(id); }
 
     /** Looks up a value by id wrapped in an {@link Optional}. */
-    public synchronized Optional<T> getOptional(Identifier id) { return Optional.ofNullable(map.get(id)); }
+    public synchronized Optional<T> getOptional(ResourceLocation id) { return Optional.ofNullable(map.get(id)); }
 
     /** True if the registry contains an entry with this id. */
-    public synchronized boolean contains(Identifier id) { return map.containsKey(id); }
+    public synchronized boolean contains(ResourceLocation id) { return map.containsKey(id); }
 
     /** Number of registered entries. */
     public synchronized int size() { return map.size(); }
@@ -79,7 +79,7 @@ public class SimpleRegistry<T> {
     }
 
     /** Snapshot of all ids in insertion order. */
-    public synchronized Collection<Identifier> ids() {
+    public synchronized Collection<ResourceLocation> ids() {
         return Collections.unmodifiableCollection(new java.util.ArrayList<>(map.keySet()));
     }
 

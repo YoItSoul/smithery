@@ -11,7 +11,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -69,7 +69,7 @@ public class CastingTableBlockEntity extends BlockEntity {
     public static final int COOLING_TICKS_PER_MB = 2;
 
     private State state = State.EMPTY;
-    private @Nullable Identifier impressedPartTypeId;
+    private @Nullable ResourceLocation impressedPartTypeId;
     private int requiredMb = 0;
     private int brushProgress = 0;
 
@@ -87,7 +87,7 @@ public class CastingTableBlockEntity extends BlockEntity {
     /** Returns the current cycle {@link State}. */
     public State state() { return state; }
     /** Returns the impressed PartType id, or null if no impression. */
-    public @Nullable Identifier impressedPartTypeId() { return impressedPartTypeId; }
+    public @Nullable ResourceLocation impressedPartTypeId() { return impressedPartTypeId; }
     /** Returns the mB required to fully fill the current impression. */
     public int requiredMb() { return requiredMb; }
     /** Returns the current brush stroke count toward {@link #MAX_BRUSH}. */
@@ -163,7 +163,7 @@ public class CastingTableBlockEntity extends BlockEntity {
      * {@link com.soul.smithery.api.cast.CastTemplates} registry. The template item itself
      * is not consumed. Returns true when the impression was actually made.
      */
-    public boolean tryImpressTemplateItem(Identifier castTypeId) {
+    public boolean tryImpressTemplateItem(ResourceLocation castTypeId) {
         if (state != State.SAND || castTypeId == null) return false;
         PartType pt = SmitheryAPI.PART_TYPES.get(castTypeId);
         if (pt == null) return false;
@@ -323,7 +323,7 @@ public class CastingTableBlockEntity extends BlockEntity {
             output.putInt("brushProgress", brushProgress);
         }
         if (pouredFluid != Fluids.EMPTY) {
-            Identifier fluidId = BuiltInRegistries.FLUID.getKey(pouredFluid);
+            ResourceLocation fluidId = BuiltInRegistries.FLUID.getKey(pouredFluid);
             if (fluidId != null) output.putString("pouredFluid", fluidId.toString());
         }
         if (filledMb > 0) {
@@ -339,13 +339,13 @@ public class CastingTableBlockEntity extends BlockEntity {
         super.loadAdditional(input);
         state = input.getString("state").map(State::byName).orElse(State.EMPTY);
         Optional<String> ptStr = input.getString("impressedPartType");
-        impressedPartTypeId = ptStr.map(Identifier::tryParse).orElse(null);
+        impressedPartTypeId = ptStr.map(ResourceLocation::tryParse).orElse(null);
         requiredMb = input.getInt("requiredMb").orElse(0);
         brushProgress = input.getInt("brushProgress").orElse(0);
 
         Optional<String> fluidStr = input.getString("pouredFluid");
         if (fluidStr.isPresent()) {
-            Identifier fluidId = Identifier.tryParse(fluidStr.get());
+            ResourceLocation fluidId = ResourceLocation.tryParse(fluidStr.get());
             pouredFluid = fluidId == null
                     ? Fluids.EMPTY
                     : BuiltInRegistries.FLUID.get(fluidId).<Fluid>map(r -> r.value()).orElse(Fluids.EMPTY);

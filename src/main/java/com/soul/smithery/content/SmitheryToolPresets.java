@@ -2,7 +2,7 @@ package com.soul.smithery.content;
 
 import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.item.tool.ToolComposition;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,14 +19,14 @@ public final class SmitheryToolPresets {
      * @param materialId material identifier applied to every slot
      * @return a uniform-material composition for {@code tt}
      */
-    public static ToolComposition uniform(ToolType tt, Identifier materialId) {
-        List<Identifier> mats = new ArrayList<>(tt.slots().size());
+    public static ToolComposition uniform(ToolType tt, ResourceLocation materialId) {
+        List<ResourceLocation> mats = new ArrayList<>(tt.slots().size());
         for (int i = 0; i < tt.slots().size(); i++) mats.add(materialId);
         return new ToolComposition(tt.id(), mats);
     }
 
     /**
-     * Convenience wrapper that calls {@link #uniform(ToolType, Identifier)} with iron.
+     * Convenience wrapper that calls {@link #uniform(ToolType, ResourceLocation)} with iron.
      *
      * @param tt the tool type to compose in iron
      * @return an all-iron composition for {@code tt}

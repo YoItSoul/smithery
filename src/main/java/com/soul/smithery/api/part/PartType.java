@@ -1,6 +1,6 @@
 package com.soul.smithery.api.part;
 
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Objects;
 
@@ -16,10 +16,10 @@ public final class PartType {
     /** Default mB needed to cast one part if a PartType doesn't override it (half an ingot). */
     public static final int DEFAULT_CAST_MB = 72;
 
-    private final Identifier id;
+    private final ResourceLocation id;
     private final float durabilityScalar;
     private final boolean partColorTint;
-    private final Identifier textureTemplate;
+    private final ResourceLocation textureTemplate;
     private final int castMb;
     private final boolean syntheticCast;
 
@@ -28,13 +28,13 @@ public final class PartType {
         this.durabilityScalar = b.durabilityScalar;
         this.partColorTint = b.partColorTint;
         this.textureTemplate = b.textureTemplate != null ? b.textureTemplate
-                : Identifier.fromNamespaceAndPath(b.id.getNamespace(), "item/part/" + b.id.getPath());
+                : new ResourceLocation(b.id.getNamespace(), "item/part/" + b.id.getPath());
         this.castMb = b.castMb;
         this.syntheticCast = b.syntheticCast;
     }
 
-    /** Identifier for this part type. */
-    public Identifier id() { return id; }
+    /** ResourceLocation for this part type. */
+    public ResourceLocation id() { return id; }
 
     /** Scalar applied to this slot's durability contribution when computing tool durability. */
     public float durabilityScalar() { return durabilityScalar; }
@@ -43,7 +43,7 @@ public final class PartType {
     public boolean partColorTint() { return partColorTint; }
 
     /** Texture template path used by the auto-generated PartItem model. */
-    public Identifier textureTemplate() { return textureTemplate; }
+    public ResourceLocation textureTemplate() { return textureTemplate; }
 
     /** mB of molten material needed to cast one of this part. */
     public int castMb() { return castMb; }
@@ -62,18 +62,18 @@ public final class PartType {
     @Override public String toString() { return "PartType[" + id + "]"; }
 
     /** Begins building a {@link PartType} with the given id. */
-    public static Builder builder(Identifier id) { return new Builder(id); }
+    public static Builder builder(ResourceLocation id) { return new Builder(id); }
 
     /** Fluent builder for {@link PartType}. */
     public static final class Builder {
-        private final Identifier id;
+        private final ResourceLocation id;
         private float durabilityScalar = 1.0f;
         private boolean partColorTint = true;
-        private Identifier textureTemplate;
+        private ResourceLocation textureTemplate;
         private int castMb = DEFAULT_CAST_MB;
         private boolean syntheticCast = false;
 
-        private Builder(Identifier id) { this.id = id; }
+        private Builder(ResourceLocation id) { this.id = id; }
 
         /** Sets the durability scalar applied to this slot's contribution. */
         public Builder durabilityScalar(float v) { this.durabilityScalar = v; return this; }
@@ -82,7 +82,7 @@ public final class PartType {
         public Builder partColorTint(boolean v) { this.partColorTint = v; return this; }
 
         /** Overrides the texture template path used for auto-generated PartItem models. */
-        public Builder textureTemplate(Identifier t) { this.textureTemplate = t; return this; }
+        public Builder textureTemplate(ResourceLocation t) { this.textureTemplate = t; return this; }
 
         /** Override how much molten material is needed to cast one part of this type. */
         public Builder castMb(int v) { this.castMb = v; return this; }

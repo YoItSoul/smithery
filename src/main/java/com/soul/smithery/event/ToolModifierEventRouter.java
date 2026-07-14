@@ -10,12 +10,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
-import net.neoforged.neoforge.event.entity.living.LivingExperienceDropEvent;
-import net.neoforged.neoforge.event.level.BlockDropsEvent;
-import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.entity.living.LivingDropsEvent;
+import net.minecraftforge.event.entity.living.LivingExperienceDropEvent;
+import net.minecraftforge.event.level.BlockDropsEvent;
+import net.minecraftforge.event.level.block.BreakBlockEvent;
 
 /**
  * Central dispatcher that fans vanilla / NeoForge gameplay events out to the active-modifier
@@ -28,7 +28,7 @@ import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
  * <p>Effect resolution (and its efficiency notes) lives in {@link ModifierDispatch}, shared
  * with {@link ArmorModifierEventRouter}.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class ToolModifierEventRouter {
     private ToolModifierEventRouter() {}
 
@@ -38,7 +38,7 @@ public final class ToolModifierEventRouter {
      * it (Jagged-style wear bonuses, conditional damage).
      */
     @SubscribeEvent
-    public static void onDealDamage(net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
+    public static void onDealDamage(net.minecraftforge.event.entity.living.LivingIncomingDamageEvent event) {
         if (!(event.getSource().getEntity() instanceof LivingEntity attacker)) return;
         if (attacker.level().isClientSide()) return;
         ItemStack tool = attacker.getMainHandItem();

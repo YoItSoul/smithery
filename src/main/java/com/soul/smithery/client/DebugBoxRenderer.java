@@ -11,11 +11,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.client.event.ClientTickEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,7 +29,7 @@ import java.util.List;
  * and expired entries are dropped. Currently driven by the forge multiblock validator
  * to highlight leak positions when a structure fails to close.
  */
-@EventBusSubscriber(modid = Smithery.MODID, value = Dist.CLIENT)
+@Mod.EventBusSubscriber(modid = Smithery.MODID, value = Dist.CLIENT)
 public final class DebugBoxRenderer {
     private DebugBoxRenderer() {}
 

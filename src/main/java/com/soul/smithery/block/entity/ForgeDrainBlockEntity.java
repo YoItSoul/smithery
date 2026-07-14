@@ -5,7 +5,7 @@ import com.soul.smithery.registry.SmitheryBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -97,7 +97,7 @@ public class ForgeDrainBlockEntity extends BlockEntity {
 
         ForgeControllerBlockEntity controller = controller();
         if (controller == null) return;
-        Identifier outputFluidId = controller.outputFluidId();
+        ResourceLocation outputFluidId = controller.outputFluidId();
         if (outputFluidId == null) return;
         if (controller.outputFluidMb() <= 0) return;
 
@@ -231,16 +231,16 @@ public class ForgeDrainBlockEntity extends BlockEntity {
 
     private final class DrainHandler implements ResourceHandler<FluidResource> {
 
-        private @Nullable Identifier activeId() {
+        private @Nullable ResourceLocation activeId() {
             ForgeControllerBlockEntity c = controller();
             if (c == null) return null;
-            Identifier id = c.outputFluidId();
+            ResourceLocation id = c.outputFluidId();
             if (id == null || c.outputFluidMb() <= 0) return null;
             return id;
         }
 
         private @Nullable Fluid activeFluid() {
-            Identifier id = activeId();
+            ResourceLocation id = activeId();
             if (id == null) return null;
             return BuiltInRegistries.FLUID.get(id).<Fluid>map(r -> r.value()).orElse(null);
         }

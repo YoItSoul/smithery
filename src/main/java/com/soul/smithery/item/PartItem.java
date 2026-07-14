@@ -11,7 +11,7 @@ import com.soul.smithery.item.tool.SmitheryToolItem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -27,22 +27,22 @@ import java.util.function.Consumer;
  * time using the material's part colour.
  */
 public class PartItem extends Item {
-    private final Identifier materialId;
-    private final Identifier partTypeId;
+    private final ResourceLocation materialId;
+    private final ResourceLocation partTypeId;
 
     /**
      * Constructs a part item for the given (material, part type) pair.
      */
-    public PartItem(Properties properties, Identifier materialId, Identifier partTypeId) {
+    public PartItem(Properties properties, ResourceLocation materialId, ResourceLocation partTypeId) {
         super(properties);
         this.materialId = materialId;
         this.partTypeId = partTypeId;
     }
 
     /** Returns the part's material id. */
-    public Identifier materialId() { return materialId; }
+    public ResourceLocation materialId() { return materialId; }
     /** Returns the part's PartType id. */
-    public Identifier partTypeId() { return partTypeId; }
+    public ResourceLocation partTypeId() { return partTypeId; }
 
     /** Resolves the live {@link Material} for this part, or null if the id is unregistered. */
     public Material material() { return SmitheryAPI.MATERIALS.get(materialId); }
@@ -175,27 +175,27 @@ public class PartItem extends Item {
     }
 
     /** Translation key shared by material display names. */
-    public static String materialTranslationKey(Identifier materialId) {
+    public static String materialTranslationKey(ResourceLocation materialId) {
         return Smithery.MODID + ".material." + materialId.getNamespace() + "." + materialId.getPath();
     }
 
     /** Translation key shared by part-type display names. */
-    public static String partTranslationKey(Identifier partTypeId) {
+    public static String partTranslationKey(ResourceLocation partTypeId) {
         return Smithery.MODID + ".part." + partTypeId.getNamespace() + "." + partTypeId.getPath();
     }
 
     /** Translation key shared by tool-type display names. */
-    public static String toolTypeTranslationKey(Identifier toolTypeId) {
+    public static String toolTypeTranslationKey(ResourceLocation toolTypeId) {
         return Smithery.MODID + ".tool." + toolTypeId.getNamespace() + "." + toolTypeId.getPath();
     }
 
     /** Translation key shared by modifier display names. */
-    public static String modifierTranslationKey(Identifier modifierId) {
+    public static String modifierTranslationKey(ResourceLocation modifierId) {
         return Smithery.MODID + ".modifier." + modifierId.getNamespace() + "." + modifierId.getPath();
     }
 
     /** Translation key for the description text shown in tooltips when Shift is held. */
-    public static String modifierDescriptionKey(Identifier modifierId) {
+    public static String modifierDescriptionKey(ResourceLocation modifierId) {
         return modifierTranslationKey(modifierId) + ".description";
     }
 }

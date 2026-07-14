@@ -10,7 +10,7 @@ import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.content.SmitheryModifiers;
 import com.soul.smithery.content.SmitheryPartTypes;
 import com.soul.smithery.content.SmitheryToolTypes;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Items;
 
 import java.util.Map;
@@ -30,15 +30,15 @@ import java.util.Map;
 public final class EnderExampleContent {
     private EnderExampleContent() {}
 
-    /** Identifier of the ender material registered by this example. */
-    public static final Identifier ENDER_MATERIAL_ID =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "ender");
-    /** Identifier of the synthetic pearl part type registered by this example. */
-    public static final Identifier PEARL_PART_TYPE_ID =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "pearl");
-    /** Identifier of the data-driven ender_affinity modifier referenced by this example. */
-    public static final Identifier ENDER_AFFINITY_MODIFIER_ID =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "ender_affinity");
+    /** ResourceLocation of the ender material registered by this example. */
+    public static final ResourceLocation ENDER_MATERIAL_ID =
+            new ResourceLocation(Smithery.MODID, "ender");
+    /** ResourceLocation of the synthetic pearl part type registered by this example. */
+    public static final ResourceLocation PEARL_PART_TYPE_ID =
+            new ResourceLocation(Smithery.MODID, "pearl");
+    /** ResourceLocation of the data-driven ender_affinity modifier referenced by this example. */
+    public static final ResourceLocation ENDER_AFFINITY_MODIFIER_ID =
+            new ResourceLocation(Smithery.MODID, "ender_affinity");
 
     /** Cached pearl part-type handle for downstream renderer / capability lookups. */
     public static PartType PEARL;
@@ -52,7 +52,7 @@ public final class EnderExampleContent {
                 .durabilityScalar(0.0f)
                 .partColorTint(false)
                 .castMb(64)
-                .textureTemplate(Identifier.fromNamespaceAndPath("minecraft", "item/ender_pearl"))
+                .textureTemplate(new ResourceLocation("minecraft", "item/ender_pearl"))
                 .syntheticCast(true)
                 .build());
 

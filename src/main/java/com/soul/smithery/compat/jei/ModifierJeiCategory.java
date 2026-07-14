@@ -19,7 +19,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -184,7 +184,7 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
      * Builds the modifier's translated display name from its identifier path
      * ({@code smithery.modifier.<namespace>.<path>}).
      */
-    private static Component nameOf(Identifier id) {
+    private static Component nameOf(ResourceLocation id) {
         return Component.translatable("smithery.modifier." + id.getNamespace() + "." + id.getPath());
     }
 
@@ -192,7 +192,7 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
      * Builds the modifier's translated description from its identifier path
      * ({@code smithery.modifier.<namespace>.<path>.description}).
      */
-    private static Component descriptionOf(Identifier id) {
+    private static Component descriptionOf(ResourceLocation id) {
         return Component.translatable("smithery.modifier." + id.getNamespace() + "." + id.getPath() + ".description");
     }
 
@@ -285,11 +285,11 @@ public class ModifierJeiCategory extends AbstractRecipeCategory<JeiModifier> {
         return String.valueOf(value);
     }
 
-    private static Component materialName(Identifier materialId) {
+    private static Component materialName(ResourceLocation materialId) {
         return Component.translatable("smithery.material." + materialId.getNamespace() + "." + materialId.getPath());
     }
 
-    private static Component toolName(Identifier toolId) {
+    private static Component toolName(ResourceLocation toolId) {
         return Component.translatable("smithery.tool." + toolId.getNamespace() + "." + toolId.getPath());
     }
 }

@@ -7,7 +7,7 @@ import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.modifier.ModifierAction;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
@@ -45,7 +45,7 @@ public final class SmitheryModifierActions {
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         Codec.FLOAT.fieldOf("amount").forGetter(BonusDamage::amount)
                 ).apply(i, BonusDamage::new)));
-        @Override public Identifier type() { return TYPE.id(); }
+        @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void apply(Modifier.MutablePassiveStats stats, ModifierEffect effect) {
             stats.bonusAttackDamage += effect.paramFloat("amount", amount) * effect.paramInt("level", 1);
         }
@@ -66,7 +66,7 @@ public final class SmitheryModifierActions {
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         Codec.FLOAT.fieldOf("amount").forGetter(BonusMiningSpeed::amount)
                 ).apply(i, BonusMiningSpeed::new)));
-        @Override public Identifier type() { return TYPE.id(); }
+        @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void apply(Modifier.MutablePassiveStats stats, ModifierEffect effect) {
             stats.bonusMiningSpeed += effect.paramFloat("amount", amount) * effect.paramInt("level", 1);
         }
@@ -87,7 +87,7 @@ public final class SmitheryModifierActions {
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         Codec.FLOAT.fieldOf("amount").forGetter(BonusAttackSpeed::amount)
                 ).apply(i, BonusAttackSpeed::new)));
-        @Override public Identifier type() { return TYPE.id(); }
+        @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void apply(Modifier.MutablePassiveStats stats, ModifierEffect effect) {
             stats.bonusAttackDamage += effect.paramFloat("amount", amount) * effect.paramInt("level", 1);
         }
@@ -101,18 +101,18 @@ public final class SmitheryModifierActions {
      * @param durationTicks effect duration in ticks
      * @param amplifier     effect amplifier (0 = level I)
      */
-    public record ApplyMobEffect(Identifier effectId, float chance, int durationTicks, int amplifier)
+    public record ApplyMobEffect(ResourceLocation effectId, float chance, int durationTicks, int amplifier)
             implements ModifierAction.OnAttack {
         /** Codec-driven action type registered under {@code smithery:apply_mob_effect}. */
         public static final ModifierAction.ActionType<ApplyMobEffect> TYPE = ModifierAction.ActionType.of(
                 id("apply_mob_effect"),
                 RecordCodecBuilder.mapCodec(i -> i.group(
-                        Identifier.CODEC.fieldOf("effect").forGetter(ApplyMobEffect::effectId),
+                        ResourceLocation.CODEC.fieldOf("effect").forGetter(ApplyMobEffect::effectId),
                         Codec.FLOAT.optionalFieldOf("chance", 1.0f).forGetter(ApplyMobEffect::chance),
                         Codec.INT.optionalFieldOf("duration_ticks", 60).forGetter(ApplyMobEffect::durationTicks),
                         Codec.INT.optionalFieldOf("amplifier", 0).forGetter(ApplyMobEffect::amplifier)
                 ).apply(i, ApplyMobEffect::new)));
-        @Override public Identifier type() { return TYPE.id(); }
+        @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void execute(Modifier.AttackContext ctx, ModifierEffect effect) {
             if (!(ctx.target() instanceof LivingEntity target)) return;
             if (target.level().isClientSide()) return;
@@ -138,7 +138,7 @@ public final class SmitheryModifierActions {
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         Codec.FLOAT.fieldOf("radius").forGetter(PullDrops::radius)
                 ).apply(i, PullDrops::new)));
-        @Override public Identifier type() { return TYPE.id(); }
+        @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void execute(Modifier.BlockBreakContext ctx, ModifierEffect effect) {
             if (ctx.level().isClientSide() || ctx.player() == null) return;
             float r = effect.paramFloat("radius", radius);
@@ -165,7 +165,7 @@ public final class SmitheryModifierActions {
                         Codec.FLOAT.optionalFieldOf("chance", 0.30f).forGetter(TeleportTarget::chance),
                         Codec.FLOAT.optionalFieldOf("radius", 4.0f).forGetter(TeleportTarget::radius)
                 ).apply(i, TeleportTarget::new)));
-        @Override public Identifier type() { return TYPE.id(); }
+        @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void execute(Modifier.AttackContext ctx, ModifierEffect effect) {
             if (!(ctx.target() instanceof LivingEntity living)) return;
             if (living.level().isClientSide()) return;
@@ -194,14 +194,14 @@ public final class SmitheryModifierActions {
      * @param blockTag optional block-tag id restricting the multiplier to matching blocks; when
      *                 absent, the bonus applies to any block
      */
-    public record BonusDrops(java.util.Optional<Identifier> blockTag) implements ModifierAction.OnBlockDrops {
+    public record BonusDrops(java.util.Optional<ResourceLocation> blockTag) implements ModifierAction.OnBlockDrops {
         /** Codec-driven action type registered under {@code smithery:bonus_drops}. */
         public static final ModifierAction.ActionType<BonusDrops> TYPE = ModifierAction.ActionType.of(
                 id("bonus_drops"),
                 RecordCodecBuilder.mapCodec(i -> i.group(
-                        Identifier.CODEC.optionalFieldOf("block_tag").forGetter(BonusDrops::blockTag)
+                        ResourceLocation.CODEC.optionalFieldOf("block_tag").forGetter(BonusDrops::blockTag)
                 ).apply(i, BonusDrops::new)));
-        @Override public Identifier type() { return TYPE.id(); }
+        @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void onDrops(Modifier.BlockDropsContext ctx, ModifierEffect effect) {
             if (blockTag.isPresent()) {
                 net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> tag =
@@ -239,7 +239,7 @@ public final class SmitheryModifierActions {
         public static final ModifierAction.ActionType<BonusMobDrops> TYPE = ModifierAction.ActionType.of(
                 id("bonus_mob_drops"),
                 com.mojang.serialization.MapCodec.unit(BonusMobDrops::new));
-        @Override public Identifier type() { return TYPE.id(); }
+        @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void onDrops(Modifier.MobDropsContext ctx, ModifierEffect effect) {
             int level = effect.paramInt("level", 1);
             net.minecraft.util.RandomSource rng = ctx.victim().level().getRandom();
@@ -270,15 +270,15 @@ public final class SmitheryModifierActions {
      * @param enchantmentId identifier of the vanilla enchantment to apply
      * @param level         enchantment level; can be overridden via the effect's {@code level} param
      */
-    public record ApplyEnchantment(Identifier enchantmentId, int level) implements ModifierAction.OnCompose {
+    public record ApplyEnchantment(ResourceLocation enchantmentId, int level) implements ModifierAction.OnCompose {
         /** Codec-driven action type registered under {@code smithery:apply_enchantment}. */
         public static final ModifierAction.ActionType<ApplyEnchantment> TYPE = ModifierAction.ActionType.of(
                 id("apply_enchantment"),
                 RecordCodecBuilder.mapCodec(i -> i.group(
-                        Identifier.CODEC.fieldOf("enchantment").forGetter(ApplyEnchantment::enchantmentId),
+                        ResourceLocation.CODEC.fieldOf("enchantment").forGetter(ApplyEnchantment::enchantmentId),
                         Codec.INT.optionalFieldOf("level", 1).forGetter(ApplyEnchantment::level)
                 ).apply(i, ApplyEnchantment::new)));
-        @Override public Identifier type() { return TYPE.id(); }
+        @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void apply(Modifier.ComposeContext ctx, ModifierEffect effect) {
             net.minecraft.core.HolderLookup.Provider lookup = ctx.lookup();
             if (lookup == null) return;
@@ -315,7 +315,7 @@ public final class SmitheryModifierActions {
         ModifierAction.ON_COMPOSE.register(ApplyEnchantment.TYPE);
     }
 
-    private static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(Smithery.MODID, path);
+    private static ResourceLocation id(String path) {
+        return new ResourceLocation(Smithery.MODID, path);
     }
 }

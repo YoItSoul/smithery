@@ -6,9 +6,9 @@ import com.soul.smithery.registry.SmitheryFluids;
 import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.renderer.block.FluidModel;
 import net.minecraft.client.resources.model.sprite.Material;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.client.event.RegisterFluidModelsEvent;
+import net.minecraftforge.client.event.RegisterFluidModelsEvent;
 
 /**
  * Client-side fluid model + tint registration for every Smithery fluid.
@@ -21,14 +21,14 @@ import net.neoforged.neoforge.client.event.RegisterFluidModelsEvent;
  */
 public final class SmitheryFluidsClient {
 
-    private static final Identifier MOLTEN_STILL =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "block/molten_still");
-    private static final Identifier MOLTEN_FLOW =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "block/molten_flow");
-    private static final Identifier WATER_STILL =
-            Identifier.fromNamespaceAndPath("minecraft", "block/water_still");
-    private static final Identifier WATER_FLOW =
-            Identifier.fromNamespaceAndPath("minecraft", "block/water_flow");
+    private static final ResourceLocation MOLTEN_STILL =
+            new ResourceLocation(Smithery.MODID, "block/molten_still");
+    private static final ResourceLocation MOLTEN_FLOW =
+            new ResourceLocation(Smithery.MODID, "block/molten_flow");
+    private static final ResourceLocation WATER_STILL =
+            new ResourceLocation("minecraft", "block/water_still");
+    private static final ResourceLocation WATER_FLOW =
+            new ResourceLocation("minecraft", "block/water_flow");
 
     /**
      * Registers a fluid model for every Smithery fluid entry on the supplied event.

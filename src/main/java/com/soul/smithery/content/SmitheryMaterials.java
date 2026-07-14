@@ -6,7 +6,7 @@ import com.soul.smithery.api.material.MaterialStats;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.tool.ToolType;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Map;
 
@@ -23,62 +23,62 @@ import java.util.Map;
  * anchor against vanilla.
  */
 public final class SmitheryMaterials {
-    /** Identifier of the built-in wood material. */
-    public static Identifier WOOD;
-    /** Identifier of the built-in copper material. */
-    public static Identifier COPPER;
-    /** Identifier of the built-in gold material. */
-    public static Identifier GOLD;
-    /** Identifier of the built-in iron material. */
-    public static Identifier IRON;
-    /** Identifier of the built-in stone material. */
-    public static Identifier STONE;
-    /** Identifier of the built-in lapis material. */
-    public static Identifier LAPIS;
-    /** Identifier of the built-in redstone material. */
-    public static Identifier REDSTONE;
-    /** Identifier of the built-in prismarine material. */
-    public static Identifier PRISMARINE;
-    /** Identifier of the built-in blaze material. */
-    public static Identifier BLAZE;
-    /** Identifier of the built-in amethyst material. */
-    public static Identifier AMETHYST;
-    /** Identifier of the built-in diamond material. */
-    public static Identifier DIAMOND;
-    /** Identifier of the built-in emerald material. */
-    public static Identifier EMERALD;
-    /** Identifier of the built-in netherite material. */
-    public static Identifier NETHERITE;
-    /** Identifier of the cast-only ancient-debris intermediate that feeds the netherite alloy. */
-    public static Identifier ANCIENT_DEBRIS;
-    /** Identifier of the built-in bedrock material. */
-    public static Identifier BEDROCK;
-    /** Identifier of the slimeknightium easter-egg alloy material. */
-    public static Identifier SLIMEKNIGHTIUM;
-    /** Identifier of the neoforgium easter-egg alloy material (hidden from JEI). */
-    public static Identifier NEOFORGIUM;
-    /** Identifier of the generic mob-blood fluid material. */
-    public static Identifier BLOOD;
-    /** Identifier of the fox-specific blood fluid material that feeds the neoforgium alloy. */
-    public static Identifier FOX_BLOOD;
-    /** Identifier of the built-in flint material. */
-    public static Identifier FLINT;
-    /** Identifier of the built-in slime material. */
-    public static Identifier SLIME;
-    /** Identifier of the built-in resin material. */
-    public static Identifier RESIN;
-    /** Identifier of the built-in coral material. */
-    public static Identifier CORAL;
-    /** Identifier of the vanilla-string bowstring-class material. */
-    public static Identifier STRING;
-    /** Identifier of the flame-themed bowstring-class material. */
-    public static Identifier FLAMESTRING;
-    /** Identifier of the breeze-themed bowstring-class material. */
-    public static Identifier BREEZESTRING;
-    /** Identifier of the red-slime material (bowstring-eligible and unrestricted general use). */
-    public static Identifier RED_SLIME;
-    /** Identifier of the kelp-string bowstring-class material. */
-    public static Identifier KELP_STRING;
+    /** ResourceLocation of the built-in wood material. */
+    public static ResourceLocation WOOD;
+    /** ResourceLocation of the built-in copper material. */
+    public static ResourceLocation COPPER;
+    /** ResourceLocation of the built-in gold material. */
+    public static ResourceLocation GOLD;
+    /** ResourceLocation of the built-in iron material. */
+    public static ResourceLocation IRON;
+    /** ResourceLocation of the built-in stone material. */
+    public static ResourceLocation STONE;
+    /** ResourceLocation of the built-in lapis material. */
+    public static ResourceLocation LAPIS;
+    /** ResourceLocation of the built-in redstone material. */
+    public static ResourceLocation REDSTONE;
+    /** ResourceLocation of the built-in prismarine material. */
+    public static ResourceLocation PRISMARINE;
+    /** ResourceLocation of the built-in blaze material. */
+    public static ResourceLocation BLAZE;
+    /** ResourceLocation of the built-in amethyst material. */
+    public static ResourceLocation AMETHYST;
+    /** ResourceLocation of the built-in diamond material. */
+    public static ResourceLocation DIAMOND;
+    /** ResourceLocation of the built-in emerald material. */
+    public static ResourceLocation EMERALD;
+    /** ResourceLocation of the built-in netherite material. */
+    public static ResourceLocation NETHERITE;
+    /** ResourceLocation of the cast-only ancient-debris intermediate that feeds the netherite alloy. */
+    public static ResourceLocation ANCIENT_DEBRIS;
+    /** ResourceLocation of the built-in bedrock material. */
+    public static ResourceLocation BEDROCK;
+    /** ResourceLocation of the slimeknightium easter-egg alloy material. */
+    public static ResourceLocation SLIMEKNIGHTIUM;
+    /** ResourceLocation of the neoforgium easter-egg alloy material (hidden from JEI). */
+    public static ResourceLocation NEOFORGIUM;
+    /** ResourceLocation of the generic mob-blood fluid material. */
+    public static ResourceLocation BLOOD;
+    /** ResourceLocation of the fox-specific blood fluid material that feeds the neoforgium alloy. */
+    public static ResourceLocation FOX_BLOOD;
+    /** ResourceLocation of the built-in flint material. */
+    public static ResourceLocation FLINT;
+    /** ResourceLocation of the built-in slime material. */
+    public static ResourceLocation SLIME;
+    /** ResourceLocation of the built-in resin material. */
+    public static ResourceLocation RESIN;
+    /** ResourceLocation of the built-in coral material. */
+    public static ResourceLocation CORAL;
+    /** ResourceLocation of the vanilla-string bowstring-class material. */
+    public static ResourceLocation STRING;
+    /** ResourceLocation of the flame-themed bowstring-class material. */
+    public static ResourceLocation FLAMESTRING;
+    /** ResourceLocation of the breeze-themed bowstring-class material. */
+    public static ResourceLocation BREEZESTRING;
+    /** ResourceLocation of the red-slime material (bowstring-eligible and unrestricted general use). */
+    public static ResourceLocation RED_SLIME;
+    /** ResourceLocation of the kelp-string bowstring-class material. */
+    public static ResourceLocation KELP_STRING;
 
     /**
      * Registers every built-in material plus the bowstring eligibility allow-list and
@@ -138,7 +138,7 @@ public final class SmitheryMaterials {
                 .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.GILDED,
                         Map.of("xp_multiplier", 1.25f))
                 .addModifier(SmitheryToolTypes.PICKAXE,
-                        Identifier.fromNamespaceAndPath(Smithery.MODID, "golden_touch"))
+                        new ResourceLocation(Smithery.MODID, "golden_touch"))
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.ALLURING,
                         Map.of("radius", 6.0f))
                 .armor(32f, 7f, 10f, 0.7f, 0f, 5f)
@@ -491,7 +491,7 @@ public final class SmitheryMaterials {
                 .partColor(0xFF3F8E45)
                 .binderMultiplier(1.1f), 2).build());
 
-        Identifier bowstringId = SmitheryPartTypes.BOWSTRING.id();
+        ResourceLocation bowstringId = SmitheryPartTypes.BOWSTRING.id();
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, STRING);
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, SLIME);
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, FLAMESTRING);
@@ -521,8 +521,8 @@ public final class SmitheryMaterials {
                 SmitheryToolTypes.LEGGINGS, SmitheryToolTypes.BOOTS };
     }
 
-    private static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(Smithery.MODID, path);
+    private static ResourceLocation id(String path) {
+        return new ResourceLocation(Smithery.MODID, path);
     }
 
     private SmitheryMaterials() {}

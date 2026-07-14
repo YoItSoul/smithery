@@ -5,7 +5,7 @@ import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.modifier.Modifier;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.server.ServerLifecycleHooks;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import org.jspecify.annotations.Nullable;
 
 /**

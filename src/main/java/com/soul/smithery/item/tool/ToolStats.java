@@ -9,7 +9,7 @@ import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.synergy.SynergyDefinition;
 import com.soul.smithery.api.tool.DurabilityRole;
 import com.soul.smithery.api.tool.ToolType;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -123,7 +123,7 @@ public final class ToolStats {
         if (tt == null || !comp.isValid()) return broken();
 
         List<ToolType.Slot> slots = tt.slots();
-        List<Identifier> materialIds = comp.slotMaterials();
+        List<ResourceLocation> materialIds = comp.slotMaterials();
 
         boolean armor = isArmor(tt);
 
@@ -161,7 +161,7 @@ public final class ToolStats {
             }
         }
 
-        java.util.LinkedHashMap<Identifier, ResolvedEffect> effectsMap = new java.util.LinkedHashMap<>();
+        java.util.LinkedHashMap<ResourceLocation, ResolvedEffect> effectsMap = new java.util.LinkedHashMap<>();
 
         // Embossed donor traits collect FIRST so the tool's own material grants, synergies,
         // and applied modifiers all win same-id collisions — embossment grafts flavor, it
@@ -184,7 +184,7 @@ public final class ToolStats {
         }
 
         List<SynergyDefinition> synergies = new ArrayList<>();
-        List<Identifier> distinct = comp.distinctMaterials();
+        List<ResourceLocation> distinct = comp.distinctMaterials();
         for (int i = 0; i < distinct.size(); i++) {
             for (int j = i + 1; j < distinct.size(); j++) {
                 for (SynergyDefinition s : SmitheryAPI.synergiesFor(distinct.get(i), distinct.get(j))) {
@@ -239,7 +239,7 @@ public final class ToolStats {
         return result;
     }
 
-    private static void collectInto(java.util.LinkedHashMap<Identifier, ResolvedEffect> map,
+    private static void collectInto(java.util.LinkedHashMap<ResourceLocation, ResolvedEffect> map,
                                      ModifierEffect effect) {
         Modifier mod = SmitheryAPI.MODIFIERS.get(effect.modifierId());
         if (mod == null) return;
@@ -263,7 +263,7 @@ public final class ToolStats {
         }
     }
 
-    private static float primarySlotMaterialStat(ToolType tt, List<Identifier> materialIds,
+    private static float primarySlotMaterialStat(ToolType tt, List<ResourceLocation> materialIds,
                                                  java.util.function.ToDoubleFunction<MaterialStats> stat) {
         List<ToolType.Slot> slots = tt.slots();
         for (int i = 0; i < slots.size(); i++) {
@@ -275,7 +275,7 @@ public final class ToolStats {
         return 0f;
     }
 
-    private static int maxAdditiveSlotHarvestLevel(ToolType tt, List<Identifier> materialIds) {
+    private static int maxAdditiveSlotHarvestLevel(ToolType tt, List<ResourceLocation> materialIds) {
         List<ToolType.Slot> slots = tt.slots();
         int max = 0;
         for (int i = 0; i < slots.size(); i++) {
@@ -292,8 +292,8 @@ public final class ToolStats {
     }
 
     /** Returns the modifier ids of every active effect on this tool, for tooltip use. */
-    public List<Identifier> allModifierIds() {
-        List<Identifier> out = new ArrayList<>();
+    public List<ResourceLocation> allModifierIds() {
+        List<ResourceLocation> out = new ArrayList<>();
         for (ResolvedEffect r : activeEffects) out.add(r.effect.modifierId());
         return out;
     }

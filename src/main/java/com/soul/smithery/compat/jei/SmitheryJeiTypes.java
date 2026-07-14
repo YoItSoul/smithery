@@ -2,7 +2,7 @@ package com.soul.smithery.compat.jei;
 
 import com.soul.smithery.Smithery;
 import mezz.jei.api.recipe.types.IRecipeType;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 /**
  * Holds the JEI {@code IRecipeType} ids for each Smithery recipe domain.
@@ -30,8 +30,8 @@ public final class SmitheryJeiTypes {
     public static final IRecipeType<SmitheryJeiRecipes.JeiModifier> MODIFIER =
             IRecipeType.create(id("modifier"), SmitheryJeiRecipes.JeiModifier.class);
 
-    private static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(Smithery.MODID, path);
+    private static ResourceLocation id(String path) {
+        return new ResourceLocation(Smithery.MODID, path);
     }
 
     private SmitheryJeiTypes() {}

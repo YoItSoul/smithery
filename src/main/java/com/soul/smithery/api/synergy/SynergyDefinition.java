@@ -2,7 +2,7 @@ package com.soul.smithery.api.synergy;
 
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.tool.ToolType;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -19,10 +19,10 @@ import java.util.Objects;
  * simply do nothing for this synergy.
  */
 public final class SynergyDefinition {
-    private final Identifier id;
-    private final Identifier materialA;
-    private final Identifier materialB;
-    private final Map<Identifier, ModifierEffect> effectsPerToolType;
+    private final ResourceLocation id;
+    private final ResourceLocation materialA;
+    private final ResourceLocation materialB;
+    private final Map<ResourceLocation, ModifierEffect> effectsPerToolType;
 
     private SynergyDefinition(Builder b) {
         this.id = Objects.requireNonNull(b.id);
@@ -39,17 +39,17 @@ public final class SynergyDefinition {
         this.effectsPerToolType = Collections.unmodifiableMap(new HashMap<>(b.effects));
     }
 
-    /** Identifier for this synergy. */
-    public Identifier id() { return id; }
+    /** ResourceLocation for this synergy. */
+    public ResourceLocation id() { return id; }
 
     /** First material id (lexicographically smaller of the two). */
-    public Identifier materialA() { return materialA; }
+    public ResourceLocation materialA() { return materialA; }
 
     /** Second material id (lexicographically larger of the two). */
-    public Identifier materialB() { return materialB; }
+    public ResourceLocation materialB() { return materialB; }
 
     /** Unmodifiable per-tool-type effect map. Tool types absent from this map get nothing. */
-    public Map<Identifier, ModifierEffect> effectsPerToolType() { return effectsPerToolType; }
+    public Map<ResourceLocation, ModifierEffect> effectsPerToolType() { return effectsPerToolType; }
 
     /** Effect for the given tool type, or {@code null} if none is registered. */
     public ModifierEffect effectFor(ToolType toolType) {
@@ -57,32 +57,32 @@ public final class SynergyDefinition {
     }
 
     /** True if this synergy applies to the (a, b) pair regardless of argument order. */
-    public boolean matches(Identifier a, Identifier b) {
+    public boolean matches(ResourceLocation a, ResourceLocation b) {
         return (materialA.equals(a) && materialB.equals(b)) || (materialA.equals(b) && materialB.equals(a));
     }
 
     /** Begins building a {@link SynergyDefinition} with the given id. */
-    public static Builder builder(Identifier id) { return new Builder(id); }
+    public static Builder builder(ResourceLocation id) { return new Builder(id); }
 
     /** Fluent builder for {@link SynergyDefinition}. */
     public static final class Builder {
-        private final Identifier id;
-        private Identifier materialA;
-        private Identifier materialB;
-        private final Map<Identifier, ModifierEffect> effects = new HashMap<>();
+        private final ResourceLocation id;
+        private ResourceLocation materialA;
+        private ResourceLocation materialB;
+        private final Map<ResourceLocation, ModifierEffect> effects = new HashMap<>();
 
-        private Builder(Identifier id) { this.id = id; }
+        private Builder(ResourceLocation id) { this.id = id; }
 
         /** Sets the two material ids this synergy fires for (order-independent at lookup time). */
-        public Builder materials(Identifier a, Identifier b) {
+        public Builder materials(ResourceLocation a, ResourceLocation b) {
             this.materialA = a;
             this.materialB = b;
             return this;
         }
 
-        /** String-id overload of {@link #materials(Identifier, Identifier)}. */
+        /** String-id overload of {@link #materials(ResourceLocation, ResourceLocation)}. */
         public Builder materials(String a, String b) {
-            return materials(Identifier.parse(a), Identifier.parse(b));
+            return materials(new ResourceLocation(a), new ResourceLocation(b));
         }
 
         /** Attaches a {@link ModifierEffect} to fire for the given tool type. */
@@ -92,12 +92,12 @@ public final class SynergyDefinition {
         }
 
         /** Convenience overload wrapping a bare modifier id in a parameterless effect. */
-        public Builder addEffect(ToolType tt, Identifier modifierId) {
+        public Builder addEffect(ToolType tt, ResourceLocation modifierId) {
             return addEffect(tt, ModifierEffect.of(modifierId));
         }
 
         /** Convenience overload wrapping a modifier id and parameter map in an effect. */
-        public Builder addEffect(ToolType tt, Identifier modifierId, Map<String, Object> params) {
+        public Builder addEffect(ToolType tt, ResourceLocation modifierId, Map<String, Object> params) {
             return addEffect(tt, ModifierEffect.of(modifierId, params));
         }
 

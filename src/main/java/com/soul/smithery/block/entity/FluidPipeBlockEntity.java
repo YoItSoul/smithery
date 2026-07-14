@@ -7,7 +7,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -29,7 +29,7 @@ public class FluidPipeBlockEntity extends BlockEntity {
     /** Server ticks the visual marker persists after the last drain refresh. */
     public static final int FLOW_PERSIST_TICKS = 20;
 
-    private @Nullable Identifier transientFluidId;
+    private @Nullable ResourceLocation transientFluidId;
     private int intensityTicks;
 
     /**
@@ -40,7 +40,7 @@ public class FluidPipeBlockEntity extends BlockEntity {
     }
 
     /** Registry id of the fluid the drain last marked passing through this pipe, or null. */
-    public @Nullable Identifier transientFluidId() { return transientFluidId; }
+    public @Nullable ResourceLocation transientFluidId() { return transientFluidId; }
     /** Remaining persistence ticks until the visual marker fades. */
     public int intensityTicks() { return intensityTicks; }
 
@@ -48,7 +48,7 @@ public class FluidPipeBlockEntity extends BlockEntity {
      * Drain-side refresh: latches {@code fluidId} and resets the persistence timer.
      * Called each tick for every pipe currently inside the drain's wavefront.
      */
-    public void markFlow(Identifier fluidId) {
+    public void markFlow(ResourceLocation fluidId) {
         boolean changed = !Objects.equals(this.transientFluidId, fluidId)
                        || this.intensityTicks < FLOW_PERSIST_TICKS;
         this.transientFluidId = fluidId;
@@ -103,7 +103,7 @@ public class FluidPipeBlockEntity extends BlockEntity {
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
         Optional<String> flowStr = input.getString("flow");
-        transientFluidId = flowStr.map(Identifier::tryParse).orElse(null);
+        transientFluidId = flowStr.map(ResourceLocation::tryParse).orElse(null);
         intensityTicks = input.getInt("flowTicks").orElse(0);
     }
 

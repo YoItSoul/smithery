@@ -3,7 +3,7 @@ package com.soul.smithery.content;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.synergy.SynergyDefinition;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Map;
 
@@ -47,8 +47,8 @@ public final class SmitherySynergies {
                 .build());
     }
 
-    private static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(Smithery.MODID, path);
+    private static ResourceLocation id(String path) {
+        return new ResourceLocation(Smithery.MODID, path);
     }
 
     private SmitherySynergies() {}

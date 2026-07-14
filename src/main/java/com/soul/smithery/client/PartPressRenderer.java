@@ -19,7 +19,7 @@ import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
@@ -43,8 +43,8 @@ import java.util.Optional;
  */
 public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity, PartPressRenderer.RenderState> {
 
-    private static final Identifier MODEL_ID =
-            Identifier.fromNamespaceAndPath(Smithery.MODID, "part_press");
+    private static final ResourceLocation MODEL_ID =
+            new ResourceLocation(Smithery.MODID, "part_press");
 
     private static final int TOOTH_COLOR = 0xFFFFFFFF;
     private static final int TOOTH_SHADE = 0xFFC0C0C0;
@@ -52,8 +52,8 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity, Pa
     private static final float TOOTH_H_PX_MAX = 1f;
     private static final float TOOTH_H_MIN_PX = 0.05f;
 
-    private static final Identifier TOOTH_TEXTURE =
-            Identifier.withDefaultNamespace("textures/block/iron_block.png");
+    private static final ResourceLocation TOOTH_TEXTURE =
+            new ResourceLocation("textures/block/iron_block.png");
 
     private static final float HEAD_CLOSED_Y = -10f;
 
@@ -123,9 +123,9 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity, Pa
         if (state.hasOutputPart && state.outputPartTypeId != null && !midClosingAnim) {
             PartType outPt = SmitheryAPI.PART_TYPES.get(state.outputPartTypeId);
             if (outPt != null) {
-                Identifier tmpl = outPt.textureTemplate();
+                ResourceLocation tmpl = outPt.textureTemplate();
                 if (tmpl != null) {
-                    Identifier texLoc = Identifier.fromNamespaceAndPath(
+                    ResourceLocation texLoc = new ResourceLocation(
                             tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
                     final int tint = state.outputPartColorArgb;
                     collector.submitCustomGeometry(poseStack,
@@ -144,9 +144,9 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity, Pa
         if (fullyOpen) {
             PartType pt = SmitheryAPI.PART_TYPES.get(state.selectedPartTypeId);
             if (pt != null) {
-                Identifier tmpl = pt.textureTemplate();
+                ResourceLocation tmpl = pt.textureTemplate();
                 if (tmpl != null) {
-                    Identifier texLoc = Identifier.fromNamespaceAndPath(
+                    ResourceLocation texLoc = new ResourceLocation(
                             tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
                     final float topY = (15f / 16f) + headOffsetBlocks + (1f / 256f);
                     collector.submitCustomGeometry(poseStack,
@@ -266,12 +266,12 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity, Pa
      */
     public static final class RenderState extends BlockEntityRenderState {
         public boolean closed = false;
-        public @Nullable Identifier selectedPartTypeId;
+        public @Nullable ResourceLocation selectedPartTypeId;
         public boolean hasInputItem = false;
         public final ItemStackRenderState inputItem  = new ItemStackRenderState();
         /** True when the finished output part should be drawn as a flat tinted quad. */
         public boolean hasOutputPart = false;
-        public @Nullable Identifier outputPartTypeId;
+        public @Nullable ResourceLocation outputPartTypeId;
         public int outputPartColorArgb = 0xFFFFFFFF;
     }
 }

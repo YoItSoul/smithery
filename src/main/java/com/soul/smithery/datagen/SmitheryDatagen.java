@@ -7,9 +7,9 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.book.SmitheryFieldGuideSubProvider;
 import net.minecraft.data.CachedOutput;
 import net.minecraft.data.DataProvider;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.data.event.GatherDataEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.data.event.GatherDataEvent;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -27,7 +27,7 @@ import java.util.function.BiConsumer;
  * <p>Provider order matters: the data generator runs providers sequentially, so the lang
  * provider (registered second) sees the fully-populated string map.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class SmitheryDatagen {
 
     /**

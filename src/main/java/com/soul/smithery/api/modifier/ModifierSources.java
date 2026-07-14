@@ -2,7 +2,7 @@ package com.soul.smithery.api.modifier;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -107,15 +107,15 @@ public final class ModifierSources {
      * @param unitValue  units this item contributes per application (defaults to 1)
      */
     public record JsonEntry(
-            Identifier sourceItem,
-            Identifier modifier,
+            ResourceLocation sourceItem,
+            ResourceLocation modifier,
             Map<String, Float> params,
             int unitValue
     ) {
         /** Codec for {@link JsonEntry}. */
         public static final Codec<JsonEntry> CODEC = RecordCodecBuilder.create(i -> i.group(
-                Identifier.CODEC.fieldOf("source_item").forGetter(JsonEntry::sourceItem),
-                Identifier.CODEC.fieldOf("modifier").forGetter(JsonEntry::modifier),
+                ResourceLocation.CODEC.fieldOf("source_item").forGetter(JsonEntry::sourceItem),
+                ResourceLocation.CODEC.fieldOf("modifier").forGetter(JsonEntry::modifier),
                 Codec.unboundedMap(Codec.STRING, Codec.FLOAT)
                         .optionalFieldOf("params", Map.of())
                         .forGetter(JsonEntry::params),

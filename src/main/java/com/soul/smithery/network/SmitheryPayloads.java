@@ -3,12 +3,12 @@ package com.soul.smithery.network;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
 import com.soul.smithery.client.DebugBoxRenderer;
-import net.minecraft.resources.Identifier;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.network.event.RegisterPayloadHandlersEvent;
+import net.minecraftforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.registration.PayloadRegistrar;
 
 /**
  * Registers Smithery's custom network payloads and routes their handlers to the appropriate
@@ -17,7 +17,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  * <p>Server-to-client payloads route to client-only sinks (the debug renderer); client-to-server
  * payloads route to block-entity setters with proximity validation.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class SmitheryPayloads {
     private SmitheryPayloads() {}
 
@@ -60,8 +60,8 @@ public final class SmitheryPayloads {
             double dz = payload.controllerPos().getZ() + 0.5 - player.getZ();
             if (dx * dx + dy * dy + dz * dz > 64.0) return;
             if (level.getBlockEntity(payload.controllerPos()) instanceof ForgeControllerBlockEntity be) {
-                Identifier id = payload.fluidId();
-                Identifier current = be.outputFluidId();
+                ResourceLocation id = payload.fluidId();
+                ResourceLocation current = be.outputFluidId();
                 be.setOutputFluid(id.equals(current) ? null : id);
             }
         });

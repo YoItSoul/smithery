@@ -3,13 +3,13 @@ package com.soul.smithery.event;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.part.PartEligibility;
 import net.minecraft.resources.FileToIdConverter;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.AddReloadListenerEvent;
 
 import java.util.Map;
 
@@ -24,7 +24,7 @@ import java.util.Map;
  * ids are accepted silently because registries may not be fully populated at load time; they
  * simply never match at lookup.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class PartEligibilityReloadListener
         extends SimpleJsonResourceReloadListener<PartEligibility.JsonEntry> {
 
@@ -34,11 +34,11 @@ public final class PartEligibilityReloadListener
     }
 
     @Override
-    protected void apply(Map<Identifier, PartEligibility.JsonEntry> entries,
+    protected void apply(Map<ResourceLocation, PartEligibility.JsonEntry> entries,
                           ResourceManager manager, ProfilerFiller profiler) {
         PartEligibility.clearDataEntries();
         int registered = 0;
-        for (Map.Entry<Identifier, PartEligibility.JsonEntry> e : entries.entrySet()) {
+        for (Map.Entry<ResourceLocation, PartEligibility.JsonEntry> e : entries.entrySet()) {
             PartEligibility.JsonEntry parsed = e.getValue();
             PartEligibility.registerDataEntry(parsed.partType(), parsed.materialSet());
             registered += parsed.materials().size();
@@ -53,9 +53,9 @@ public final class PartEligibilityReloadListener
      * @param event the NeoForge add-reload-listeners event
      */
     @SubscribeEvent
-    public static void onAddReloadListeners(AddServerReloadListenersEvent event) {
+    public static void onAddReloadListeners(AddReloadListenerEvent event) {
         event.addListener(
-                Identifier.fromNamespaceAndPath(Smithery.MODID, "part_eligibility"),
+                new ResourceLocation(Smithery.MODID, "part_eligibility"),
                 new PartEligibilityReloadListener());
     }
 }

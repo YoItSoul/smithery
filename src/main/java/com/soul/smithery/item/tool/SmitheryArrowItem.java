@@ -14,7 +14,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Position;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
@@ -37,18 +37,18 @@ import java.util.function.Consumer;
  */
 public class SmitheryArrowItem extends ArrowItem {
 
-    private final Identifier toolTypeId;
+    private final ResourceLocation toolTypeId;
 
     /**
      * Constructs the arrow item bound to the given smithery ToolType id.
      */
-    public SmitheryArrowItem(Properties properties, Identifier toolTypeId) {
+    public SmitheryArrowItem(Properties properties, ResourceLocation toolTypeId) {
         super(properties);
         this.toolTypeId = toolTypeId;
     }
 
     /** Returns the bound ToolType id (e.g. {@code smithery:arrow}). */
-    public Identifier toolTypeId() { return toolTypeId; }
+    public ResourceLocation toolTypeId() { return toolTypeId; }
     /** Resolves the live {@link ToolType} for this arrow item, or null if unregistered. */
     public ToolType toolType() { return SmitheryAPI.TOOL_TYPES.get(toolTypeId); }
 
@@ -70,7 +70,7 @@ public class SmitheryArrowItem extends ArrowItem {
         if (comp == null || !comp.isValid() || tt == null) {
             return Component.translatable(PartItem.toolTypeTranslationKey(toolTypeId));
         }
-        Identifier primaryMat = primaryAdditiveMaterial(tt, comp);
+        ResourceLocation primaryMat = primaryAdditiveMaterial(tt, comp);
         Component matName = primaryMat != null
                 ? Component.translatable(PartItem.materialTranslationKey(primaryMat))
                 : Component.literal("");
@@ -140,7 +140,7 @@ public class SmitheryArrowItem extends ArrowItem {
         return ToolCompositions.apply(stack, comp);
     }
 
-    private static Identifier primaryAdditiveMaterial(ToolType tt, ToolComposition comp) {
+    private static ResourceLocation primaryAdditiveMaterial(ToolType tt, ToolComposition comp) {
         for (int i = 0; i < tt.slots().size(); i++) {
             if (tt.slots().get(i).role() == DurabilityRole.ADDITIVE) {
                 return comp.slotMaterials().get(i);

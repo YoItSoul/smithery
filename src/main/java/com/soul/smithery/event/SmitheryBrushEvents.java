@@ -9,9 +9,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
 
 /**
  * Adapts vanilla's brush-use ticking to {@link CastingTableBlockEntity} so the casting table
@@ -22,7 +22,7 @@ import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
  * see the animation without state changes. This handler raycasts on the matching 10-tick cadence
  * and calls {@code tryBrush} when the player is aiming at a casting table.
  */
-@EventBusSubscriber(modid = Smithery.MODID)
+@Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class SmitheryBrushEvents {
 
     private static final int BRUSH_USE_DURATION_TICKS = 200;

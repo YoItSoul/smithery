@@ -129,7 +129,7 @@ public class CastingTableBlock extends Block implements EntityBlock {
             return InteractionResult.PASS;
         }
 
-        net.minecraft.resources.Identifier castTypeId =
+        net.minecraft.resources.ResourceLocation castTypeId =
                 com.soul.smithery.api.cast.CastTemplates.resolve(stack);
         if (castTypeId != null) {
             if (level.isClientSide()) return InteractionResult.SUCCESS;

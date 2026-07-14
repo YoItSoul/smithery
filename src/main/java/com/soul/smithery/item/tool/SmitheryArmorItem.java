@@ -14,7 +14,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -41,18 +41,18 @@ import java.util.function.Consumer;
  * pickup, and dispenser behaviour all see us as an armor item.
  */
 public class SmitheryArmorItem extends Item {
-    private final Identifier toolTypeId;
+    private final ResourceLocation toolTypeId;
 
     /**
      * Constructs the armor item bound to the given Smithery ToolType id (helmet/chestplate/leggings/boots).
      */
-    public SmitheryArmorItem(Properties properties, Identifier toolTypeId) {
+    public SmitheryArmorItem(Properties properties, ResourceLocation toolTypeId) {
         super(properties);
         this.toolTypeId = toolTypeId;
     }
 
     /** Returns the bound ToolType id (e.g. {@code smithery:helmet}). */
-    public Identifier toolTypeId() { return toolTypeId; }
+    public ResourceLocation toolTypeId() { return toolTypeId; }
     /** Resolves the live {@link ToolType} for this armor item, or null if unregistered. */
     public ToolType toolType() { return SmitheryAPI.TOOL_TYPES.get(toolTypeId); }
 
@@ -88,7 +88,7 @@ public class SmitheryArmorItem extends Item {
      * Maps a Smithery armor tool-type path to its vanilla {@link EquipmentSlot}. Unknown paths
      * fall back to the chest slot so a malformed binding still equips somewhere sensible.
      */
-    public static EquipmentSlot slotForToolTypeId(Identifier toolTypeId) {
+    public static EquipmentSlot slotForToolTypeId(ResourceLocation toolTypeId) {
         return switch (toolTypeId.getPath()) {
             case "helmet"     -> EquipmentSlot.HEAD;
             case "chestplate" -> EquipmentSlot.CHEST;
@@ -128,7 +128,7 @@ public class SmitheryArmorItem extends Item {
         ToolType tt = comp.toolType();
         EquipmentSlot slot = tt != null ? slotForToolTypeId(tt.id()) : EquipmentSlot.CHEST;
         EquipmentSlotGroup group = EquipmentSlotGroup.bySlot(slot);
-        Identifier armorId = Identifier.fromNamespaceAndPath(Smithery.MODID,
+        ResourceLocation armorId = new ResourceLocation(Smithery.MODID,
                 "armor." + (tt != null ? tt.id().getPath() : "unknown"));
 
         ItemAttributeModifiers.Builder attrs = ItemAttributeModifiers.builder();
@@ -154,7 +154,7 @@ public class SmitheryArmorItem extends Item {
      * hidden from the tooltip — the color is derived state, not a player-applied dye.
      */
     private static void applyWornTint(ItemStack stack, ToolType tt, ToolComposition comp) {
-        Identifier coreMaterial = tt != null ? primaryAdditiveMaterial(tt, comp) : null;
+        ResourceLocation coreMaterial = tt != null ? primaryAdditiveMaterial(tt, comp) : null;
         Material material = coreMaterial != null ? SmitheryAPI.MATERIALS.get(coreMaterial) : null;
         if (material == null) return;
         stack.set(DataComponents.DYED_COLOR,
@@ -170,7 +170,7 @@ public class SmitheryArmorItem extends Item {
         if (comp == null || !comp.isValid() || tt == null) {
             return Component.translatable(PartItem.toolTypeTranslationKey(toolTypeId));
         }
-        Identifier primary = primaryAdditiveMaterial(tt, comp);
+        ResourceLocation primary = primaryAdditiveMaterial(tt, comp);
         Component matName = primary != null
                 ? Component.translatable(PartItem.materialTranslationKey(primary))
                 : Component.literal("");
@@ -178,7 +178,7 @@ public class SmitheryArmorItem extends Item {
                 matName, Component.translatable(PartItem.toolTypeTranslationKey(toolTypeId)));
     }
 
-    private static Identifier primaryAdditiveMaterial(ToolType tt, ToolComposition comp) {
+    private static ResourceLocation primaryAdditiveMaterial(ToolType tt, ToolComposition comp) {
         for (int i = 0; i < tt.slots().size(); i++) {
             if (tt.slots().get(i).role() == com.soul.smithery.api.tool.DurabilityRole.ADDITIVE) {
                 return comp.slotMaterials().get(i);

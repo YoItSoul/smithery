@@ -9,7 +9,7 @@ import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.registry.SimpleRegistry;
 import com.soul.smithery.api.synergy.SynergyDefinition;
 import com.soul.smithery.api.tool.ToolType;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -66,7 +66,7 @@ public final class SmitheryAPI {
      * <p>One recipe per input item; later registrations replace earlier ones, letting datapack
      * overrides win over built-in defaults. O(1) lookup by item id.
      */
-    public static final Map<Identifier, MeltingRecipe> MELTING_RECIPES = new HashMap<>();
+    public static final Map<ResourceLocation, MeltingRecipe> MELTING_RECIPES = new HashMap<>();
 
     /** Registers a {@link PartType}. */
     public static PartType registerPartType(PartType pt) { return PART_TYPES.register(pt); }
@@ -92,17 +92,17 @@ public final class SmitheryAPI {
     /** Convenience overload that constructs a {@link MeltingRecipe} from string ids and mB. */
     public static MeltingRecipe registerMeltingRecipe(String inputItem, String material, int mb) {
         return registerMeltingRecipe(new MeltingRecipe(
-                Identifier.parse(inputItem), Identifier.parse(material), mb));
+                new ResourceLocation(inputItem), new ResourceLocation(material), mb));
     }
 
     /** Creates and registers a {@link Material} with the given id and stats. */
-    public static Material registerMaterial(Identifier id, MaterialStats stats) {
+    public static Material registerMaterial(ResourceLocation id, MaterialStats stats) {
         return MATERIALS.register(new Material(id, stats));
     }
 
-    /** String-id overload of {@link #registerMaterial(Identifier, MaterialStats)}. */
+    /** String-id overload of {@link #registerMaterial(ResourceLocation, MaterialStats)}. */
     public static Material registerMaterial(String id, MaterialStats stats) {
-        return registerMaterial(Identifier.parse(id), stats);
+        return registerMaterial(new ResourceLocation(id), stats);
     }
 
     /**
@@ -111,7 +111,7 @@ public final class SmitheryAPI {
      *
      * @return {@code true} if the material existed and was updated
      */
-    public static boolean overrideMaterial(Identifier id, MaterialStats newStats) {
+    public static boolean overrideMaterial(ResourceLocation id, MaterialStats newStats) {
         Material m = MATERIALS.get(id);
         if (m == null) return false;
         m.overrideStats(newStats);
@@ -119,12 +119,12 @@ public final class SmitheryAPI {
     }
 
     /** Remove a material and unregister its auto-generated content. */
-    public static boolean removeMaterial(Identifier id) {
+    public static boolean removeMaterial(ResourceLocation id) {
         return MATERIALS.remove(id);
     }
 
     /** Returns all synergies that match the given (a, b) pair, order-independent. */
-    public static List<SynergyDefinition> synergiesFor(Identifier a, Identifier b) {
+    public static List<SynergyDefinition> synergiesFor(ResourceLocation a, ResourceLocation b) {
         List<SynergyDefinition> out = new ArrayList<>();
         for (SynergyDefinition s : SYNERGIES.all()) {
             if (s.matches(a, b)) out.add(s);

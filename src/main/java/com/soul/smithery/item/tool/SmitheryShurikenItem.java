@@ -1,7 +1,7 @@
 package com.soul.smithery.item.tool;
 
 import com.soul.smithery.entity.SmitheryShuriken;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -25,7 +25,7 @@ public class SmitheryShurikenItem extends SmitheryToolItem {
     /**
      * Constructs the shuriken item bound to the given smithery ToolType id.
      */
-    public SmitheryShurikenItem(Properties properties, Identifier toolTypeId) {
+    public SmitheryShurikenItem(Properties properties, ResourceLocation toolTypeId) {
         super(properties, toolTypeId);
     }
 
