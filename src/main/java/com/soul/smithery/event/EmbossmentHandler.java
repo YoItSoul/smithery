@@ -48,7 +48,7 @@ public final class EmbossmentHandler {
                 event.getPlayer() != null ? event.getPlayer().level().registryAccess() : null);
 
         event.setOutput(output);
-        event.setXpCost(EMBOSS_XP_COST);
+        event.setCost(EMBOSS_XP_COST);
         event.setMaterialCost(1);
     }
 }

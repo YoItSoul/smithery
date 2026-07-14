@@ -130,7 +130,7 @@ public final class AnvilModifierHandler {
         }
 
         event.setOutput(output);
-        event.setXpCost(APPLY_XP_COST);
+        event.setCost(APPLY_XP_COST);
         event.setMaterialCost(toConsume);
     }
 }

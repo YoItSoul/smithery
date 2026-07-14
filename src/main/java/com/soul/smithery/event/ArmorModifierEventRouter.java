@@ -7,14 +7,14 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingDamageEvent;
 import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
 import net.minecraftforge.event.entity.living.LivingFallEvent;
-import net.minecraftforge.event.entity.living.LivingIncomingDamageEvent;
-import net.minecraftforge.event.tick.PlayerTickEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -38,7 +38,7 @@ public final class ArmorModifierEventRouter {
 
     /** Routes incoming damage to {@code onHurt} callbacks; the amount they write wins. */
     @SubscribeEvent
-    public static void onIncomingDamage(LivingIncomingDamageEvent event) {
+    public static void onIncomingDamage(LivingHurtEvent event) {
         LivingEntity wearer = event.getEntity();
         if (wearer.level().isClientSide()) return;
 
@@ -55,13 +55,13 @@ public final class ArmorModifierEventRouter {
 
     /** Routes applied damage to {@code onDamaged} callbacks (retaliation, on-hit effects). */
     @SubscribeEvent
-    public static void onDamagePost(LivingDamageEvent.Post event) {
+    public static void onDamagePost(LivingDamageEvent event) {
         LivingEntity wearer = event.getEntity();
         if (wearer.level().isClientSide()) return;
 
         forEachWornPiece(wearer, m -> m.onDamaged() != null, (stack, slot, r) -> {
             Modifier.DamagedContext ctx = new Modifier.DamagedContext(
-                    stack, slot, wearer, event.getSource(), event.getNewDamage());
+                    stack, slot, wearer, event.getSource(), event.getAmount());
             r.modifier().onDamaged().onDamaged(r.effect(), ctx);
         });
     }
@@ -74,7 +74,7 @@ public final class ArmorModifierEventRouter {
 
         Modifier.DoubleAccessor distance = new Modifier.DoubleAccessor() {
             @Override public double get() { return event.getDistance(); }
-            @Override public void set(double v) { event.setDistance(Math.max(0.0, v)); }
+            @Override public void set(double v) { event.setDistance((float) Math.max(0.0, v)); }
         };
         Modifier.FloatAccessor multiplier = new Modifier.FloatAccessor() {
             @Override public float get() { return event.getDamageMultiplier(); }
@@ -100,12 +100,13 @@ public final class ArmorModifierEventRouter {
     }
 
     /**
-     * Routes server player ticks to {@code onArmorTick} callbacks. Player-only by design —
-     * keeps per-tick dispatch bounded by player count rather than entity count.
+     * Routes server player ticks (END phase) to {@code onArmorTick} callbacks. Player-only by
+     * design — keeps per-tick dispatch bounded by player count rather than entity count.
      */
     @SubscribeEvent
-    public static void onPlayerTick(PlayerTickEvent.Post event) {
-        Player wearer = event.getEntity();
+    public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        Player wearer = event.player;
         if (wearer.level().isClientSide()) return;
 
         forEachWornPiece(wearer, m -> m.onArmorTick() != null, (stack, slot, r) -> {
@@ -120,7 +121,7 @@ public final class ArmorModifierEventRouter {
         LivingEntity wearer = event.getEntity();
         if (wearer.level().isClientSide()) return;
         EquipmentSlot slot = event.getSlot();
-        if (slot.getType() != EquipmentSlot.Type.HUMANOID_ARMOR) return;
+        if (slot.getType() != EquipmentSlot.Type.ARMOR) return;
 
         dispatchEquipChange(event.getFrom(), slot, wearer, false);
         dispatchEquipChange(event.getTo(), slot, wearer, true);

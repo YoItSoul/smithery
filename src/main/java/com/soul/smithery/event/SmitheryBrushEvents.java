@@ -44,7 +44,7 @@ public final class SmitheryBrushEvents {
         if (elapsed <= 0 || elapsed % BRUSH_ADVANCE_INTERVAL_TICKS != 0) return;
 
         HitResult hr = ProjectileUtil.getHitResultOnViewVector(
-                player, EntitySelector.CAN_BE_PICKED, player.blockInteractionRange());
+                player, EntitySelector.ENTITY_STILL_ALIVE, player.getBlockReach());
         if (!(hr instanceof BlockHitResult bhr) || bhr.getType() == HitResult.Type.MISS) return;
 
         BlockEntity be = player.level().getBlockEntity(bhr.getBlockPos());

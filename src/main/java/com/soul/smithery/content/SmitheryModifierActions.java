@@ -6,7 +6,7 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.modifier.ModifierAction;
 import com.soul.smithery.api.modifier.ModifierEffect;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -120,8 +120,10 @@ public final class SmitheryModifierActions {
             if (target.level().getRandom().nextFloat() >= roll) return;
             int duration = effect.paramInt("duration_ticks", durationTicks);
             int amp = effect.paramInt("amplifier", amplifier);
-            BuiltInRegistries.MOB_EFFECT.get(effectId).ifPresent(holder ->
-                    target.addEffect(new MobEffectInstance(holder, duration, amp)));
+            var mobEffect = ForgeRegistries.MOB_EFFECTS.getValue(effectId);
+            if (mobEffect != null) {
+                target.addEffect(new MobEffectInstance(mobEffect, duration, amp));
+            }
         }
     }
 
@@ -280,21 +282,10 @@ public final class SmitheryModifierActions {
                 ).apply(i, ApplyEnchantment::new)));
         @Override public ResourceLocation type() { return TYPE.id(); }
         @Override public void apply(Modifier.ComposeContext ctx, ModifierEffect effect) {
-            net.minecraft.core.HolderLookup.Provider lookup = ctx.lookup();
-            if (lookup == null) return;
-            var enchRegistry = lookup.lookup(net.minecraft.core.registries.Registries.ENCHANTMENT).orElse(null);
-            if (enchRegistry == null) return;
-            net.minecraft.resources.ResourceKey<net.minecraft.world.item.enchantment.Enchantment> key =
-                    net.minecraft.resources.ResourceKey.create(
-                            net.minecraft.core.registries.Registries.ENCHANTMENT, enchantmentId);
-            var holder = enchRegistry.get(key).orElse(null);
-            if (holder == null) return;
+            var enchantment = ForgeRegistries.ENCHANTMENTS.getValue(enchantmentId);
+            if (enchantment == null) return;
             int lvl = effect.paramInt("level", level);
-            if (ctx.stack().get(net.minecraft.core.component.DataComponents.ENCHANTMENTS) == null) {
-                ctx.stack().set(net.minecraft.core.component.DataComponents.ENCHANTMENTS,
-                        net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY);
-            }
-            ctx.stack().enchant(holder, lvl);
+            ctx.stack().enchant(enchantment, lvl);
         }
     }
 

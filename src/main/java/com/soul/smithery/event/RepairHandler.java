@@ -58,7 +58,7 @@ public final class RepairHandler {
         output.setDamageValue(Math.max(0, gear.getDamageValue() - repairPerStone * toConsume));
 
         event.setOutput(output);
-        event.setXpCost(REPAIR_XP_COST);
+        event.setCost(REPAIR_XP_COST);
         event.setMaterialCost(toConsume);
     }
 

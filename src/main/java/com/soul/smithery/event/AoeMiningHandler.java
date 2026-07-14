@@ -16,7 +16,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.event.level.block.BreakBlockEvent;
+import net.minecraftforge.event.level.BlockEvent;
 
 /**
  * 3x3 mining for the mining hammer: when a hammer breaks a block, the eight neighbours in the
@@ -34,7 +34,7 @@ public final class AoeMiningHandler {
     private static final ThreadLocal<Boolean> SPREADING = ThreadLocal.withInitial(() -> false);
 
     @SubscribeEvent
-    public static void onBreakBlock(BreakBlockEvent event) {
+    public static void onBreakBlock(BlockEvent.BreakEvent event) {
         if (SPREADING.get()) return;
         if (!(event.getPlayer() instanceof ServerPlayer player)) return;
         if (!(player.level() instanceof ServerLevel level)) return;
@@ -94,7 +94,7 @@ public final class AoeMiningHandler {
         SPREADING.set(true);
         try {
             for (BlockPos pos : planeNeighbours(center, face, radius)) {
-                if (tool.isEmpty() || tool.isBroken()) break;
+                if (tool.isEmpty()) break;
                 BlockState state = level.getBlockState(pos);
                 if (state.isAir()) continue;
                 float hardness = state.getDestroySpeed(level, pos);
@@ -102,7 +102,7 @@ public final class AoeMiningHandler {
                 if (hardness > centerHardness + 0.01f && centerHardness >= 0) continue;
                 if (!tool.isCorrectToolForDrops(state)) continue;
                 if (player.gameMode.destroyBlock(pos)) {
-                    tool.hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
+                    tool.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(EquipmentSlot.MAINHAND));
                 }
             }
         } finally {
@@ -133,9 +133,9 @@ public final class AoeMiningHandler {
                         if (!seen.add(next)) continue;
                         BlockState state = level.getBlockState(next);
                         if (!state.is(net.minecraft.tags.BlockTags.LOGS)) continue;
-                        if (tool.isEmpty() || tool.isBroken()) return;
+                        if (tool.isEmpty()) return;
                         if (player.gameMode.destroyBlock(next)) {
-                            tool.hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
+                            tool.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(EquipmentSlot.MAINHAND));
                             broken++;
                             queue.add(next);
                         }
@@ -168,7 +168,7 @@ public final class AoeMiningHandler {
     private static Direction hitFace(ServerPlayer player, BlockPos target) {
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getLookAngle();
-        double reach = player.entityInteractionRange() + 4.0;
+        double reach = player.getBlockReach() + 4.0;
         BlockHitResult hit = player.level().clip(new ClipContext(
                 eye, eye.add(look.scale(reach)),
                 ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player));

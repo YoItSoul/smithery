@@ -1,16 +1,18 @@
 package com.soul.smithery.event;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.mojang.serialization.JsonOps;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.alloy.AlloyRecipe;
 import com.soul.smithery.api.alloy.AlloyRecipes;
-import net.minecraft.resources.FileToIdConverter;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.event.AddReloadListenerEvent;
 
 import java.util.Map;
 
@@ -23,34 +25,39 @@ import java.util.Map;
  * do not linger. Code-registered alloys are untouched.
  */
 @Mod.EventBusSubscriber(modid = Smithery.MODID)
-public final class AlloyReloadListener extends SimpleJsonResourceReloadListener<AlloyRecipe> {
+public final class AlloyReloadListener extends SimpleJsonResourceReloadListener {
+
+    private static final Gson GSON = new Gson();
 
     private AlloyReloadListener() {
-        super(AlloyRecipe.CODEC, FileToIdConverter.json("smithery/alloy"));
+        super(GSON, "smithery/alloy");
     }
 
     @Override
-    protected void apply(Map<ResourceLocation, AlloyRecipe> entries,
-                          ResourceManager manager, ProfilerFiller profiler) {
+    protected void apply(Map<ResourceLocation, JsonElement> files,
+                         ResourceManager manager, ProfilerFiller profiler) {
         AlloyRecipes.clearDataEntries();
         int registered = 0;
-        for (Map.Entry<ResourceLocation, AlloyRecipe> e : entries.entrySet()) {
-            AlloyRecipes.registerDataEntry(e.getKey(), e.getValue());
+        for (Map.Entry<ResourceLocation, JsonElement> e : files.entrySet()) {
+            AlloyRecipe recipe = AlloyRecipe.CODEC
+                    .parse(JsonOps.INSTANCE, e.getValue())
+                    .resultOrPartial(err -> Smithery.LOGGER.warn(
+                            "smithery:alloy file {} failed to parse: {}", e.getKey(), err))
+                    .orElse(null);
+            if (recipe == null) continue;
+            AlloyRecipes.registerDataEntry(e.getKey(), recipe);
             registered++;
         }
         Smithery.LOGGER.info("Loaded {} alloy recipes from data packs", registered);
     }
 
     /**
-     * Registers this listener with the server reload pipeline under the {@code smithery:alloys}
-     * id.
+     * Registers this listener with the server reload pipeline.
      *
-     * @param event the NeoForge add-reload-listeners event
+     * @param event Forge's add-reload-listener event
      */
     @SubscribeEvent
     public static void onAddReloadListeners(AddReloadListenerEvent event) {
-        event.addListener(
-                new ResourceLocation(Smithery.MODID, "alloys"),
-                new AlloyReloadListener());
+        event.addListener(new AlloyReloadListener());
     }
 }

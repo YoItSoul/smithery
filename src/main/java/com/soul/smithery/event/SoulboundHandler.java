@@ -3,15 +3,15 @@ package com.soul.smithery.event;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.content.SmitheryModifiers;
-import com.soul.smithery.registry.SmitheryAttachments;
 import com.soul.smithery.item.tool.SmitheryToolData;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingDropsEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -19,9 +19,10 @@ import java.util.List;
 
 /**
  * Keeps soulbound-modified smithery gear through death. On player death, stacks carrying the
- * {@code smithery:soulbound} modifier are pulled out of the drop list into a {@code copyOnDeath}
- * attachment ({@link SmitheryAttachments#SOULBOUND_STASH}); when the respawned player joins the
- * level, the stash pays back into their inventory (or drops at their feet if full).
+ * {@code smithery:soulbound} modifier are pulled out of the drop list into the player's
+ * {@link SoulboundStash} capability; the stash is copied across the death clone and pays back
+ * into the respawned player's inventory (or drops at their feet if full) when they join the
+ * level.
  */
 @Mod.EventBusSubscriber(modid = Smithery.MODID)
 public final class SoulboundHandler {
@@ -32,18 +33,35 @@ public final class SoulboundHandler {
     public static void onPlayerDrops(LivingDropsEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
+        SoulboundStash stash = SoulboundStash.get(player).orElse(null);
+        if (stash == null) return;
+
         List<ItemStack> stashed = null;
         Iterator<ItemEntity> it = event.getDrops().iterator();
         while (it.hasNext()) {
             ItemStack stack = it.next().getItem();
             if (!isSoulbound(stack)) continue;
-            if (stashed == null) stashed = new ArrayList<>(player.getData(SmitheryAttachments.SOULBOUND_STASH));
+            if (stashed == null) stashed = new ArrayList<>(stash.items());
             stashed.add(stack.copy());
             it.remove();
         }
         if (stashed != null) {
-            player.setData(SmitheryAttachments.SOULBOUND_STASH, List.copyOf(stashed));
+            stash.setItems(stashed);
         }
+    }
+
+    /**
+     * Copies the stash from the dead player onto the respawn clone — 1.20.1 capabilities do
+     * not survive death on their own.
+     */
+    @SubscribeEvent
+    public static void onPlayerClone(PlayerEvent.Clone event) {
+        if (!event.isWasDeath()) return;
+        event.getOriginal().reviveCaps();
+        SoulboundStash.get(event.getOriginal()).ifPresent(original ->
+                SoulboundStash.get(event.getEntity()).ifPresent(clone ->
+                        clone.copyFrom(original)));
+        event.getOriginal().invalidateCaps();
     }
 
     /** Returns stashed soulbound items to the respawned player. */
@@ -52,12 +70,14 @@ public final class SoulboundHandler {
         if (event.getLevel().isClientSide()) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        List<ItemStack> stashed = player.getData(SmitheryAttachments.SOULBOUND_STASH);
-        if (stashed.isEmpty()) return;
-        player.setData(SmitheryAttachments.SOULBOUND_STASH, List.of());
+        SoulboundStash stash = SoulboundStash.get(player).orElse(null);
+        if (stash == null || stash.items().isEmpty()) return;
+        List<ItemStack> stashed = stash.items();
+        stash.setItems(List.of());
         for (ItemStack stack : stashed) {
-            if (!player.getInventory().add(stack)) {
-                player.drop(stack, false);
+            ItemStack copy = stack.copy();
+            if (!player.getInventory().add(copy)) {
+                player.drop(copy, false);
             }
         }
     }

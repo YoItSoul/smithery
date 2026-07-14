@@ -1,17 +1,20 @@
 package com.soul.smithery.event;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.mojang.serialization.JsonOps;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.modifier.ModifierSources;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.FileToIdConverter;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.event.AddReloadListenerEvent;
 
 import java.util.Map;
 
@@ -29,24 +32,28 @@ import java.util.Map;
  * accepted at load time and surface at apply time as the anvil hook rejects them.
  */
 @Mod.EventBusSubscriber(modid = Smithery.MODID)
-public final class ModifierSourceReloadListener
-        extends SimpleJsonResourceReloadListener<ModifierSources.JsonEntry> {
+public final class ModifierSourceReloadListener extends SimpleJsonResourceReloadListener {
+
+    private static final Gson GSON = new Gson();
 
     private ModifierSourceReloadListener() {
-        super(ModifierSources.JsonEntry.CODEC,
-              FileToIdConverter.json("smithery/modifier_source"));
+        super(GSON, "smithery/modifier_source");
     }
 
     @Override
-    protected void apply(Map<ResourceLocation, ModifierSources.JsonEntry> entries,
-                          ResourceManager manager, ProfilerFiller profiler) {
+    protected void apply(Map<ResourceLocation, JsonElement> files,
+                         ResourceManager manager, ProfilerFiller profiler) {
         ModifierSources.clearDataEntries();
         int registered = 0;
-        for (Map.Entry<ResourceLocation, ModifierSources.JsonEntry> e : entries.entrySet()) {
-            ModifierSources.JsonEntry parsed = e.getValue();
-            Item item = BuiltInRegistries.ITEM.get(parsed.sourceItem())
-                    .<Item>map(holder -> holder.value()).orElse(null);
-            if (item == null) {
+        for (Map.Entry<ResourceLocation, JsonElement> e : files.entrySet()) {
+            ModifierSources.JsonEntry parsed = ModifierSources.JsonEntry.CODEC
+                    .parse(JsonOps.INSTANCE, e.getValue())
+                    .resultOrPartial(err -> Smithery.LOGGER.warn(
+                            "smithery:modifier_source file {} failed to parse: {}", e.getKey(), err))
+                    .orElse(null);
+            if (parsed == null) continue;
+            Item item = BuiltInRegistries.ITEM.get(parsed.sourceItem());
+            if (item == Items.AIR) {
                 Smithery.LOGGER.warn("smithery:modifier_source file {} → source_item {} not in registry; skipping",
                         e.getKey(), parsed.sourceItem());
                 continue;
@@ -60,15 +67,12 @@ public final class ModifierSourceReloadListener
     }
 
     /**
-     * Registers this listener with the server reload pipeline under the
-     * {@code smithery:modifier_sources} id.
+     * Registers this listener with the server reload pipeline.
      *
-     * @param event the NeoForge add-reload-listeners event
+     * @param event Forge's add-reload-listener event
      */
     @SubscribeEvent
     public static void onAddReloadListeners(AddReloadListenerEvent event) {
-        event.addListener(
-                new ResourceLocation(Smithery.MODID, "modifier_sources"),
-                new ModifierSourceReloadListener());
+        event.addListener(new ModifierSourceReloadListener());
     }
 }

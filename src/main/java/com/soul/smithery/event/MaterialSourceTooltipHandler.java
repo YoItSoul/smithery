@@ -59,7 +59,6 @@ public final class MaterialSourceTooltipHandler {
         if (stack.is(ItemTags.LOGS))         return SmitheryMaterials.WOOD;
         if (stack.is(Items.FLINT))           return SmitheryMaterials.FLINT;
         if (stack.is(Items.SLIME_BALL))      return SmitheryMaterials.SLIME;
-        if (stack.is(Items.RESIN_CLUMP))     return SmitheryMaterials.RESIN;
         if (isCoralBlockItem(stack))         return SmitheryMaterials.CORAL;
 
         if (stack.is(Items.STRING))                              return SmitheryMaterials.STRING;
