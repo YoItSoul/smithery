@@ -7,6 +7,7 @@ import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.modifier.ModifierSources;
 import com.soul.smithery.item.tool.SmitheryToolItem;
 import com.soul.smithery.item.tool.ToolComposition;
+import com.soul.smithery.item.tool.ToolCompositions;
 import com.soul.smithery.registry.SmitheryDataComponents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
@@ -50,7 +51,7 @@ public final class AnvilModifierHandler {
         ItemStack tool = event.getLeft();
         ItemStack source = event.getRight();
         if (tool.isEmpty() || source.isEmpty()) return;
-        if (!(tool.getItem() instanceof SmitheryToolItem)) return;
+        if (!ToolCompositions.isComposable(tool)) return;
 
         if (source.is(net.minecraft.world.item.Items.ENCHANTED_BOOK)) {
             event.setOutput(ItemStack.EMPTY);
@@ -79,6 +80,11 @@ public final class AnvilModifierHandler {
         }
 
         Modifier mod = SmitheryAPI.MODIFIERS.get(modifierId);
+        if (mod != null) {
+            boolean isArmor = tool.getItem() instanceof com.soul.smithery.item.tool.SmitheryArmorItem;
+            if (mod.appliesTo() == Modifier.AppliesTo.ARMOR && !isArmor) return;
+            if (mod.appliesTo() == Modifier.AppliesTo.TOOLS && isArmor) return;
+        }
         int maxLevel = mod != null ? mod.maxLevel() : 1;
         if (currentLevel >= maxLevel) return;
 
@@ -119,7 +125,7 @@ public final class AnvilModifierHandler {
 
             net.minecraft.core.HolderLookup.Provider lookup = event.getPlayer() != null
                     ? event.getPlayer().level().registryAccess() : null;
-            SmitheryToolItem.applyComposition(output, comp, lookup);
+            ToolCompositions.apply(output, comp, lookup);
         } else {
             newProgressMap.put(modifierId, newUnits);
             output.set(SmitheryDataComponents.MODIFIER_PROGRESS.get(), newProgressMap);

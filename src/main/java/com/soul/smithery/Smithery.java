@@ -125,7 +125,7 @@ public class Smithery {
             CREATIVE_MODE_TABS.register("tools_tab", () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup." + MODID + ".tools"))
                     .withTabsBefore(CreativeModeTabs.COMBAT)
-                    .icon(() -> com.soul.smithery.item.tool.SmitheryToolItem.applyComposition(
+                    .icon(() -> com.soul.smithery.item.tool.ToolCompositions.apply(
                             SmitheryItems.SWORD.get().getDefaultInstance(),
                             com.soul.smithery.content.SmitheryToolPresets.iron(SmitheryToolTypes.SWORD)))
                     .displayItems((params, output) -> {
@@ -134,14 +134,33 @@ public class Smithery {
                                 var toolItem = net.minecraft.core.registries.BuiltInRegistries.ITEM
                                         .getValue(tt.id());
                                 if (toolItem == null) continue;
+                                if (toolItem instanceof com.soul.smithery.item.tool.SmitheryArmorItem) continue;
                                 var stack = new net.minecraft.world.item.ItemStack(toolItem);
                                 var comp = com.soul.smithery.content.SmitheryToolPresets.uniform(tt, mat.id());
-                                if (toolItem instanceof com.soul.smithery.item.tool.SmitheryArmorItem) {
-                                    if (!mat.stats().supportsArmor()) continue;
-                                    output.accept(com.soul.smithery.item.tool.SmitheryArmorItem.applyComposition(stack, comp));
-                                } else {
-                                    output.accept(com.soul.smithery.item.tool.SmitheryToolItem.applyComposition(stack, comp));
-                                }
+                                output.accept(com.soul.smithery.item.tool.ToolCompositions.apply(stack, comp));
+                            }
+                        }
+                    })
+                    .build());
+
+    /** Creative tab listing one example composed armor piece per (material x armor slot) pair. */
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> ARMOR_TAB =
+            CREATIVE_MODE_TABS.register("armor_tab", () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup." + MODID + ".armor"))
+                    .withTabsBefore(CreativeModeTabs.COMBAT)
+                    .icon(() -> com.soul.smithery.item.tool.ToolCompositions.apply(
+                            SmitheryItems.CHESTPLATE.get().getDefaultInstance(),
+                            com.soul.smithery.content.SmitheryToolPresets.iron(SmitheryToolTypes.CHESTPLATE)))
+                    .displayItems((params, output) -> {
+                        for (var mat : com.soul.smithery.api.SmitheryAPI.MATERIALS.all()) {
+                            if (!mat.stats().supportsArmor()) continue;
+                            for (var tt : com.soul.smithery.api.SmitheryAPI.TOOL_TYPES.all()) {
+                                var toolItem = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                                        .getValue(tt.id());
+                                if (!(toolItem instanceof com.soul.smithery.item.tool.SmitheryArmorItem)) continue;
+                                var stack = new net.minecraft.world.item.ItemStack(toolItem);
+                                var comp = com.soul.smithery.content.SmitheryToolPresets.uniform(tt, mat.id());
+                                output.accept(com.soul.smithery.item.tool.ToolCompositions.apply(stack, comp));
                             }
                         }
                     })
@@ -178,6 +197,7 @@ public class Smithery {
         com.soul.smithery.registry.SmitheryMenus.register(modEventBus);
         com.soul.smithery.registry.SmitheryFluids.register(modEventBus);
         com.soul.smithery.registry.SmitheryEntityTypes.register(modEventBus);
+        com.soul.smithery.registry.SmitheryAttachments.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
 
         modEventBus.addListener(this::commonSetup);

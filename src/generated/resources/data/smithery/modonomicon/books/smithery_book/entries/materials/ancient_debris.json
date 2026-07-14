@@ -1,0 +1,44 @@
+{
+  "background": {
+    "height": 26,
+    "sprite": "modonomicon:modonomicon/themes/default/node/entry_backgrounds/square_gray",
+    "width": 26
+  },
+  "category": "materials",
+  "description": "book.smithery.smithery_book.materials.ancient_debris.description",
+  "hide_while_locked": false,
+  "icon": {
+    "id": "minecraft:ancient_debris"
+  },
+  "name": "book.smithery.smithery_book.materials.ancient_debris.name",
+  "pages": [
+    {
+      "type": "modonomicon:spotlight",
+      "anchor": "",
+      "condition": {
+        "type": "modonomicon:none"
+      },
+      "item": {
+        "id": "minecraft:ancient_debris"
+      },
+      "text": "book.smithery.smithery_book.materials.ancient_debris.page0.text",
+      "title": "book.smithery.smithery_book.materials.ancient_debris.page0.title"
+    },
+    {
+      "type": "modonomicon:spotlight",
+      "anchor": "",
+      "condition": {
+        "type": "modonomicon:none"
+      },
+      "item": {
+        "id": "minecraft:paper"
+      },
+      "text": "book.smithery.smithery_book.materials.ancient_debris.page1.text",
+      "title": "book.smithery.smithery_book.materials.ancient_debris.page1.title"
+    }
+  ],
+  "show_when_any_parent_unlocked": false,
+  "sort_number": 13,
+  "x": 0,
+  "y": 0
+}

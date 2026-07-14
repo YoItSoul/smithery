@@ -3,6 +3,7 @@ package com.soul.smithery.item.tool;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.synergy.SynergyDefinition;
 import com.soul.smithery.api.tool.ToolType;
@@ -21,6 +22,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.DyedItemColor;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.component.TooltipDisplay;
 
@@ -60,6 +62,29 @@ public class SmitheryArmorItem extends Item {
     }
 
     /**
+     * Smithery armor never shatters. Damage is clamped one point short of the vanilla break
+     * threshold, so the piece survives at "broken" (see {@link #isBrokenArmor}) where it grants
+     * no attributes until repaired — losing the armor investment to one creeper would erase
+     * the whole part-crafting loop.
+     */
+    @Override
+    public <T extends net.minecraft.world.entity.LivingEntity> int damageItem(
+            ItemStack stack, int amount, T entity, Consumer<Item> onBroken) {
+        return Math.min(amount, Math.max(0, stack.getMaxDamage() - 1 - stack.getDamageValue()));
+    }
+
+    /**
+     * True when {@code stack} is smithery armor sitting at its damage cap (max - 1, the
+     * clamp from {@link #damageItem}). Broken armor stays equipped and repairable but grants
+     * no attribute modifiers — {@code BrokenArmorHandler} strips them live.
+     */
+    public static boolean isBrokenArmor(ItemStack stack) {
+        return stack.getItem() instanceof SmitheryArmorItem
+                && stack.isDamageableItem()
+                && stack.getDamageValue() >= stack.getMaxDamage() - 1;
+    }
+
+    /**
      * Maps a Smithery armor tool-type path to its vanilla {@link EquipmentSlot}. Unknown paths
      * fall back to the chest slot so a malformed binding still equips somewhere sensible.
      */
@@ -74,27 +99,37 @@ public class SmitheryArmorItem extends Item {
     }
 
     /**
-     * Writes the composition-derived durability and attribute modifiers (armor, toughness,
-     * knockback resistance) onto the stack. Mirrors {@link SmitheryToolItem#applyComposition}
-     * for tools but uses armor-slot attributes instead of attack damage / attack speed.
+     * Writes the composition-derived durability and attribute modifiers (armor, toughness)
+     * onto the stack, then fires compose hooks so armor modifiers behave exactly like tool
+     * modifiers. Mirrors {@link SmitheryToolItem#applyComposition} for tools but uses
+     * armor-slot attributes instead of attack damage / attack speed.
+     *
+     * <p>Prefer {@link ToolCompositions#apply} unless the stack is known to be armor —
+     * it dispatches by item family and can resolve {@code lookup}.
+     *
+     * @param lookup registry access for compose actions; pass null only when no live
+     *               registry is available, in which case affected actions skip silently
      */
-    public static ItemStack applyComposition(ItemStack stack, ToolComposition comp) {
+    public static ItemStack applyComposition(ItemStack stack, ToolComposition comp,
+                                             net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
         stack.remove(DataComponents.ENCHANTMENTS);
 
-        java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
+        List<ModifierEffect> applied =
+                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.of());
         ToolStats stats = ToolStats.compute(comp, applied);
 
         stack.set(SmitheryDataComponents.TOOL_COMPOSITION.get(), comp);
+        int priorDamage = stack.getOrDefault(DataComponents.DAMAGE, 0);
         stack.set(DataComponents.MAX_DAMAGE, stats.maxDurability);
         stack.set(DataComponents.MAX_STACK_SIZE, 1);
-        stack.set(DataComponents.DAMAGE, 0);
+        // Preserve wear across recomposition — see SmitheryToolItem.applyComposition.
+        stack.set(DataComponents.DAMAGE, Math.min(priorDamage, stats.maxDurability - 1));
 
         ToolType tt = comp.toolType();
         EquipmentSlot slot = tt != null ? slotForToolTypeId(tt.id()) : EquipmentSlot.CHEST;
         EquipmentSlotGroup group = EquipmentSlotGroup.bySlot(slot);
         Identifier armorId = Identifier.fromNamespaceAndPath(Smithery.MODID,
-                "armor." + (comp.toolType() != null ? comp.toolType().id().getPath() : "unknown"));
+                "armor." + (tt != null ? tt.id().getPath() : "unknown"));
 
         ItemAttributeModifiers.Builder attrs = ItemAttributeModifiers.builder();
         attrs.add(Attributes.ARMOR,
@@ -107,7 +142,25 @@ public class SmitheryArmorItem extends Item {
         }
         stack.set(DataComponents.ATTRIBUTE_MODIFIERS, attrs.build());
 
+        applyWornTint(stack, tt, comp);
+
+        ToolCompositions.fireComposeHooks(stack, stats, lookup);
         return stack;
+    }
+
+    /**
+     * Writes the core material's part color into DYED_COLOR so the shared grayscale
+     * equipment-asset layers render in the material's color on the player. The dye line is
+     * hidden from the tooltip — the color is derived state, not a player-applied dye.
+     */
+    private static void applyWornTint(ItemStack stack, ToolType tt, ToolComposition comp) {
+        Identifier coreMaterial = tt != null ? primaryAdditiveMaterial(tt, comp) : null;
+        Material material = coreMaterial != null ? SmitheryAPI.MATERIALS.get(coreMaterial) : null;
+        if (material == null) return;
+        stack.set(DataComponents.DYED_COLOR,
+                new DyedItemColor(material.stats().partColor() & 0xFFFFFF));
+        TooltipDisplay display = stack.getOrDefault(DataComponents.TOOLTIP_DISPLAY, TooltipDisplay.DEFAULT);
+        stack.set(DataComponents.TOOLTIP_DISPLAY, display.withHidden(DataComponents.DYED_COLOR, true));
     }
 
     @Override
@@ -146,10 +199,15 @@ public class SmitheryArmorItem extends Item {
             return;
         }
 
-        java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
-                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
+        List<ModifierEffect> applied =
+                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), List.of());
         ToolStats stats = ToolStats.compute(comp, applied);
         SmitheryTooltips.Tier tier = SmitheryTooltips.currentTier();
+
+        if (isBrokenArmor(stack)) {
+            tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".armor.broken")
+                    .withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
+        }
 
         tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".section.summary")
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
@@ -172,6 +230,11 @@ public class SmitheryArmorItem extends Item {
                     "tooltip." + Smithery.MODID + ".armor.toughness",
                     String.format("%.1f", stats.armorToughness))));
         }
+
+        comp.embossedMaterial().ifPresent(donor -> tooltip.accept(
+                SmitheryTooltips.statLine(Component.translatable(
+                        "tooltip." + Smithery.MODID + ".tool.embossed",
+                        Component.translatable(PartItem.materialTranslationKey(donor))))));
 
         tooltip.accept(SmitheryTooltips.sectionHeader(
                 Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")));

@@ -1,0 +1,38 @@
+{
+  "type": "modonomicon:dense",
+  "mapping": {
+    "#": {
+      "type": "modonomicon:block",
+      "block": "smithery:furnace_bricks"
+    },
+    "C": {
+      "type": "modonomicon:block",
+      "block": "smithery:forge_controller"
+    },
+    "D": {
+      "type": "modonomicon:block",
+      "block": "smithery:forge_drain"
+    },
+    "F": {
+      "type": "modonomicon:block",
+      "block": "smithery:forge_fuel_port"
+    }
+  },
+  "pattern": [
+    [
+      "###",
+      "# #",
+      "###"
+    ],
+    [
+      "#F#",
+      "#0#",
+      "#C#"
+    ],
+    [
+      "###",
+      "#D#",
+      "###"
+    ]
+  ]
+}

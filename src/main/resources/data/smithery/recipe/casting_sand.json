@@ -7,8 +7,8 @@
     "SSS"
   ],
   "key": {
-    "S": { "item": "minecraft:sand" },
-    "C": { "item": "minecraft:clay_ball" }
+    "S": "minecraft:sand",
+    "C": "minecraft:clay_ball"
   },
   "result": {
     "id": "smithery:casting_sand",

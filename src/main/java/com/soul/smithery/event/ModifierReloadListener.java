@@ -63,7 +63,8 @@ public final class ModifierReloadListener
             List<ModifierAction.OnBlockDrops> onBlockDrops,
             List<ModifierAction.OnKill>      onKill,
             List<ModifierAction.OnMobDrops>  onMobDrops,
-            List<ModifierAction.OnCompose>   onCompose
+            List<ModifierAction.OnCompose>   onCompose,
+            String appliesTo
     ) {
         /** Codec that pulls each action list through the matching action registry's dispatch codec. */
         public static final Codec<ModifierJson> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -88,7 +89,9 @@ public final class ModifierReloadListener
                 ModifierAction.ON_MOB_DROPS.dispatchCodec().listOf()
                         .optionalFieldOf("on_mob_drops", List.of()).forGetter(ModifierJson::onMobDrops),
                 ModifierAction.ON_COMPOSE.dispatchCodec().listOf()
-                        .optionalFieldOf("on_compose", List.of()).forGetter(ModifierJson::onCompose)
+                        .optionalFieldOf("on_compose", List.of()).forGetter(ModifierJson::onCompose),
+                Codec.STRING.optionalFieldOf("applies_to", "both")
+                        .forGetter(ModifierJson::appliesTo)
         ).apply(i, ModifierJson::new));
 
         /**
@@ -104,7 +107,12 @@ public final class ModifierReloadListener
                     .durabilityMultiplier(durabilityMultiplier)
                     .maxLevel(maxLevel)
                     .levelCost(levelCost)
-                    .levelCostScaling(levelCostScaling);
+                    .levelCostScaling(levelCostScaling)
+                    .appliesTo(switch (appliesTo) {
+                        case "tools" -> Modifier.AppliesTo.TOOLS;
+                        case "armor" -> Modifier.AppliesTo.ARMOR;
+                        default      -> Modifier.AppliesTo.BOTH;
+                    });
             if (!passives.isEmpty()) {
                 b.passive((effect, stats) -> {
                     for (ModifierAction.Passive a : passives) a.apply(stats, effect);

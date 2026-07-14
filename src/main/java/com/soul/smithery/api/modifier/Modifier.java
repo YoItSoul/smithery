@@ -21,13 +21,22 @@ public final class Modifier {
     private final int levelCost;
     private final float levelCostScaling;
     private final float durabilityMultiplier;
+    private final AppliesTo appliesTo;
+    private final boolean durabilityScaled;
     private final PassiveBehavior passive;
     private final OnAttackEntity onAttack;
+    private final OnDealDamage onDealDamage;
     private final OnBlockBreak onBreak;
     private final OnBlockDrops onBlockDrops;
     private final OnKill onKill;
     private final OnMobDrops onMobDrops;
     private final OnCompose onCompose;
+    private final OnHurt onHurt;
+    private final OnDamaged onDamaged;
+    private final OnFall onFall;
+    private final OnJump onJump;
+    private final OnArmorTick onArmorTick;
+    private final OnEquipChange onEquipChange;
 
     private Modifier(Builder b) {
         this.id = Objects.requireNonNull(b.id);
@@ -36,13 +45,22 @@ public final class Modifier {
         this.levelCost = Math.max(1, b.levelCost);
         this.levelCostScaling = b.levelCostScaling;
         this.durabilityMultiplier = b.durabilityMultiplier;
+        this.appliesTo = b.appliesTo;
+        this.durabilityScaled = b.durabilityScaled;
         this.passive = b.passive;
         this.onAttack = b.onAttack;
+        this.onDealDamage = b.onDealDamage;
         this.onBreak = b.onBreak;
         this.onBlockDrops = b.onBlockDrops;
         this.onKill = b.onKill;
         this.onMobDrops = b.onMobDrops;
         this.onCompose = b.onCompose;
+        this.onHurt = b.onHurt;
+        this.onDamaged = b.onDamaged;
+        this.onFall = b.onFall;
+        this.onJump = b.onJump;
+        this.onArmorTick = b.onArmorTick;
+        this.onEquipChange = b.onEquipChange;
     }
 
     /** Identifier for this modifier. */
@@ -95,6 +113,71 @@ public final class Modifier {
 
     /** Optional tool-compose-time callback. */
     public OnCompose onCompose() { return onCompose; }
+
+    /** Optional armor pre-damage callback (wearer about to take damage; amount is writable). */
+    public OnHurt onHurt() { return onHurt; }
+
+    /** Optional armor post-damage callback (damage was applied to the wearer). */
+    public OnDamaged onDamaged() { return onDamaged; }
+
+    /** Optional armor fall callback (fall distance / damage multiplier are writable). */
+    public OnFall onFall() { return onFall; }
+
+    /** Optional armor jump callback. */
+    public OnJump onJump() { return onJump; }
+
+    /** Optional per-tick callback while the armor is worn by a player. */
+    public OnArmorTick onArmorTick() { return onArmorTick; }
+
+    /** Optional equip/unequip callback. */
+    public OnEquipChange onEquipChange() { return onEquipChange; }
+
+    /** True if any armor lifecycle hook is present. */
+    public boolean hasArmorHooks() {
+        return onHurt != null || onDamaged != null || onFall != null
+                || onJump != null || onArmorTick != null || onEquipChange != null;
+    }
+
+    /** Gear family this modifier may be anvil-applied to. */
+    public AppliesTo appliesTo() { return appliesTo; }
+
+    /**
+     * True when this modifier's passive reads {@code missingDurability} — signals the tool item
+     * to re-stamp stats whenever the damage value changes.
+     */
+    public boolean durabilityScaled() { return durabilityScaled; }
+
+    /** Optional attacker-side damage-modify callback (fires when the holder deals damage). */
+    public OnDealDamage onDealDamage() { return onDealDamage; }
+
+    /** Which gear family a modifier may be anvil-applied to. Grants ignore this. */
+    public enum AppliesTo { TOOLS, ARMOR, BOTH }
+
+    /**
+     * Callback fired when the tool's holder is about to deal damage to an entity (NeoForge
+     * {@code LivingIncomingDamageEvent}, attacker side). The amount accessor is writable —
+     * unlike {@link OnAttackEntity}, which fires after damage lands and cannot change it.
+     */
+    @FunctionalInterface
+    public interface OnDealDamage {
+        /** Fires when the holder deals damage; write the amount to modify it. */
+        void onDealDamage(ModifierEffect effect, DealDamageContext ctx);
+    }
+
+    /**
+     * Context for {@link OnDealDamage} hooks.
+     *
+     * @param tool     the attacker's main-hand smithery tool
+     * @param attacker the attacking entity
+     * @param target   the entity about to take damage
+     * @param amount   read/write access to the damage amount
+     */
+    public record DealDamageContext(
+            net.minecraft.world.item.ItemStack tool,
+            net.minecraft.world.entity.LivingEntity attacker,
+            net.minecraft.world.entity.LivingEntity target,
+            FloatAccessor amount
+    ) {}
 
     /** Begins building a {@link Modifier} with the given id. */
     public static Builder builder(Identifier id) { return new Builder(id); }
@@ -177,6 +260,69 @@ public final class Modifier {
         void apply(ModifierEffect effect, ComposeContext ctx);
     }
 
+    /**
+     * Armor callback fired BEFORE damage is applied to the wearer (NeoForge
+     * {@code LivingIncomingDamageEvent}). The context's amount accessor is writable —
+     * set it to reduce, amplify, or (at 0) fully negate the hit. Fires once per worn,
+     * non-broken smithery armor piece carrying the modifier.
+     */
+    @FunctionalInterface
+    public interface OnHurt {
+        /** Fires when the wearer is about to take damage. */
+        void onHurt(ModifierEffect effect, HurtContext ctx);
+    }
+
+    /**
+     * Armor callback fired AFTER damage was applied to the wearer (NeoForge
+     * {@code LivingDamageEvent.Post}). Use for retaliation (thorns), on-hit buffs, and
+     * durability side-effects — the damage itself can no longer be changed here.
+     */
+    @FunctionalInterface
+    public interface OnDamaged {
+        /** Fires after the wearer took damage. */
+        void onDamaged(ModifierEffect effect, DamagedContext ctx);
+    }
+
+    /**
+     * Armor callback fired when the wearer lands from a fall (NeoForge {@code LivingFallEvent}).
+     * Distance and damage multiplier are writable; setting the multiplier to 0 negates fall
+     * damage entirely (slime-boot style).
+     */
+    @FunctionalInterface
+    public interface OnFall {
+        /** Fires when the wearer lands from a fall. */
+        void onFall(ModifierEffect effect, FallContext ctx);
+    }
+
+    /** Armor callback fired when the wearer jumps. */
+    @FunctionalInterface
+    public interface OnJump {
+        /** Fires when the wearer jumps. */
+        void onJump(ModifierEffect effect, JumpContext ctx);
+    }
+
+    /**
+     * Armor callback fired every player tick (server side) while the piece is worn.
+     * Player-only by design — mob-worn smithery armor skips tick behaviour so the dispatch
+     * cost stays bounded by player count, not entity count.
+     */
+    @FunctionalInterface
+    public interface OnArmorTick {
+        /** Fires each server tick while worn by a player. */
+        void onTick(ModifierEffect effect, ArmorTickContext ctx);
+    }
+
+    /**
+     * Armor callback fired when the piece is equipped into or removed from an armor slot
+     * (NeoForge {@code LivingEquipmentChangeEvent}). Use to add/remove persistent state;
+     * prefer attribute modifiers via compose for plain stat bonuses.
+     */
+    @FunctionalInterface
+    public interface OnEquipChange {
+        /** Fires on equip ({@code equipped=true}) and unequip ({@code equipped=false}). */
+        void onEquipChange(ModifierEffect effect, EquipChangeContext ctx);
+    }
+
     /** Mutable holder for passive stat adjustments accumulated during tool assembly. */
     public static final class MutablePassiveStats {
         /** Bonus attack damage to add. */
@@ -185,6 +331,12 @@ public final class Modifier {
         public float bonusMiningSpeed = 0f;
         /** Final durability multiplier (1.0 = unchanged). */
         public float durabilityMultiplier = 1f;
+        /**
+         * INPUT (read-only for passives): fraction of durability currently missing, 0 (pristine)
+         * to ~1 (about to break). Passives that read this must be registered
+         * {@link Builder#durabilityScaled()} so stats re-stamp as the tool wears.
+         */
+        public float missingDurability = 0f;
     }
 
     /**
@@ -300,6 +452,114 @@ public final class Modifier {
             java.util.Collection<net.minecraft.world.entity.item.ItemEntity> drops
     ) {}
 
+    /** Tiny indirection for armor callbacks that adjust a float (damage amount, multiplier). */
+    public interface FloatAccessor {
+        /** Reads the current value. */
+        float get();
+        /** Overrides the value. */
+        void set(float value);
+    }
+
+    /**
+     * Context for {@link OnHurt} hooks — pre-damage, amount writable.
+     *
+     * @param armor   the worn armor piece carrying the modifier
+     * @param slot    the equipment slot the piece occupies
+     * @param wearer  the entity taking the damage
+     * @param source  the damage source
+     * @param amount  read/write access to the incoming damage amount
+     */
+    public record HurtContext(
+            net.minecraft.world.item.ItemStack armor,
+            net.minecraft.world.entity.EquipmentSlot slot,
+            net.minecraft.world.entity.LivingEntity wearer,
+            net.minecraft.world.damagesource.DamageSource source,
+            FloatAccessor amount
+    ) {}
+
+    /**
+     * Context for {@link OnDamaged} hooks — post-damage, read-only amount.
+     *
+     * @param armor   the worn armor piece carrying the modifier
+     * @param slot    the equipment slot the piece occupies
+     * @param wearer  the entity that took the damage
+     * @param source  the damage source
+     * @param damage  the final damage that was applied
+     */
+    public record DamagedContext(
+            net.minecraft.world.item.ItemStack armor,
+            net.minecraft.world.entity.EquipmentSlot slot,
+            net.minecraft.world.entity.LivingEntity wearer,
+            net.minecraft.world.damagesource.DamageSource source,
+            float damage
+    ) {}
+
+    /**
+     * Context for {@link OnFall} hooks.
+     *
+     * @param armor             the worn armor piece carrying the modifier
+     * @param slot              the equipment slot the piece occupies
+     * @param wearer            the falling entity
+     * @param distance          read/write fall distance in blocks
+     * @param damageMultiplier  read/write damage multiplier (0 negates fall damage)
+     */
+    public record FallContext(
+            net.minecraft.world.item.ItemStack armor,
+            net.minecraft.world.entity.EquipmentSlot slot,
+            net.minecraft.world.entity.LivingEntity wearer,
+            DoubleAccessor distance,
+            FloatAccessor damageMultiplier
+    ) {}
+
+    /** Tiny indirection for armor callbacks that adjust a double (fall distance). */
+    public interface DoubleAccessor {
+        /** Reads the current value. */
+        double get();
+        /** Overrides the value. */
+        void set(double value);
+    }
+
+    /**
+     * Context for {@link OnJump} hooks.
+     *
+     * @param armor   the worn armor piece carrying the modifier
+     * @param slot    the equipment slot the piece occupies
+     * @param wearer  the jumping entity
+     */
+    public record JumpContext(
+            net.minecraft.world.item.ItemStack armor,
+            net.minecraft.world.entity.EquipmentSlot slot,
+            net.minecraft.world.entity.LivingEntity wearer
+    ) {}
+
+    /**
+     * Context for {@link OnArmorTick} hooks.
+     *
+     * @param armor   the worn armor piece carrying the modifier
+     * @param slot    the equipment slot the piece occupies
+     * @param wearer  the player wearing the piece (server side)
+     */
+    public record ArmorTickContext(
+            net.minecraft.world.item.ItemStack armor,
+            net.minecraft.world.entity.EquipmentSlot slot,
+            net.minecraft.world.entity.player.Player wearer
+    ) {}
+
+    /**
+     * Context for {@link OnEquipChange} hooks.
+     *
+     * @param armor     the armor piece being equipped or removed
+     * @param slot      the equipment slot involved
+     * @param wearer    the entity changing equipment
+     * @param equipped  true when the piece was just equipped, false when removed
+     */
+    public record EquipChangeContext(
+            net.minecraft.world.item.ItemStack armor,
+            net.minecraft.world.entity.EquipmentSlot slot,
+            net.minecraft.world.entity.LivingEntity wearer,
+            boolean equipped
+    ) {}
+
     /** Fluent builder for {@link Modifier}. */
     public static final class Builder {
         private final Identifier id;
@@ -308,15 +568,29 @@ public final class Modifier {
         private int levelCost = 1;
         private float levelCostScaling = 1.0f;
         private float durabilityMultiplier = 1.0f;
+        private AppliesTo appliesTo = AppliesTo.BOTH;
+        private boolean durabilityScaled = false;
         private PassiveBehavior passive;
         private OnAttackEntity onAttack;
+        private OnDealDamage onDealDamage;
         private OnBlockBreak onBreak;
         private OnBlockDrops onBlockDrops;
         private OnKill onKill;
         private OnMobDrops onMobDrops;
         private OnCompose onCompose;
+        private OnHurt onHurt;
+        private OnDamaged onDamaged;
+        private OnFall onFall;
+        private OnJump onJump;
+        private OnArmorTick onArmorTick;
+        private OnEquipChange onEquipChange;
 
         private Builder(Identifier id) { this.id = id; }
+
+        private Builder active() {
+            if (category == ModifierCategory.PASSIVE) category = ModifierCategory.BOTH;
+            return this;
+        }
 
         /** Overrides the auto-derived category bucket. */
         public Builder category(ModifierCategory c) { this.category = c; return this; }
@@ -353,6 +627,33 @@ public final class Modifier {
 
         /** Attaches a tool-compose-time callback; treated as PASSIVE for category bookkeeping. */
         public Builder onCompose(OnCompose h) { this.onCompose = h; return this; }
+
+        /** Attaches an armor pre-damage callback (writable amount). */
+        public Builder onHurt(OnHurt h) { this.onHurt = h; return active(); }
+
+        /** Attaches an armor post-damage callback. */
+        public Builder onDamaged(OnDamaged h) { this.onDamaged = h; return active(); }
+
+        /** Attaches an armor fall callback (writable distance / multiplier). */
+        public Builder onFall(OnFall h) { this.onFall = h; return active(); }
+
+        /** Attaches an armor jump callback. */
+        public Builder onJump(OnJump h) { this.onJump = h; return active(); }
+
+        /** Attaches a per-tick while-worn callback (players only, server side). */
+        public Builder onArmorTick(OnArmorTick h) { this.onArmorTick = h; return active(); }
+
+        /** Attaches an equip/unequip callback. */
+        public Builder onEquipChange(OnEquipChange h) { this.onEquipChange = h; return active(); }
+
+        /** Attaches an attacker-side damage-modify callback (writable amount, pre-hit). */
+        public Builder onDealDamage(OnDealDamage h) { this.onDealDamage = h; return active(); }
+
+        /** Restricts anvil application to the given gear family. */
+        public Builder appliesTo(AppliesTo a) { this.appliesTo = a; return this; }
+
+        /** Marks the passive as durability-scaled — stats re-stamp when damage changes. */
+        public Builder durabilityScaled() { this.durabilityScaled = true; return this; }
 
         /** Finalizes and returns the built {@link Modifier}. */
         public Modifier build() { return new Modifier(this); }

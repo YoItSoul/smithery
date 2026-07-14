@@ -42,6 +42,8 @@ public final class ToolStats {
     public final List<ResolvedEffect> composeEffects;
     /** Active synergies between the composition's distinct materials. */
     public final List<SynergyDefinition> activeSynergies;
+    /** True when any effect's modifier is durability-scaled — stats change as the tool wears. */
+    public boolean hasDurabilityScaled;
 
     private ToolStats(int maxDurability, float attackDamage, float miningSpeed, int harvestLevel,
                       float armorDefense, float armorToughness,
@@ -108,6 +110,15 @@ public final class ToolStats {
      * by modifier id.
      */
     public static ToolStats compute(ToolComposition comp, List<ModifierEffect> appliedModifiers) {
+        return compute(comp, appliedModifiers, 0f);
+    }
+
+    /**
+     * Full compute with the stack's current wear ({@code missingDurability}, 0..1) exposed to
+     * durability-scaled passives (Stonebound-style). Callers without a live stack pass 0.
+     */
+    public static ToolStats compute(ToolComposition comp, List<ModifierEffect> appliedModifiers,
+                                    float missingDurability) {
         ToolType tt = comp.toolType();
         if (tt == null || !comp.isValid()) return broken();
 
@@ -152,6 +163,18 @@ public final class ToolStats {
 
         java.util.LinkedHashMap<Identifier, ResolvedEffect> effectsMap = new java.util.LinkedHashMap<>();
 
+        // Embossed donor traits collect FIRST so the tool's own material grants, synergies,
+        // and applied modifiers all win same-id collisions — embossment grafts flavor, it
+        // never overrides something the tool already earns.
+        comp.embossedMaterial().ifPresent(donorId -> {
+            Material donor = SmitheryAPI.MATERIALS.get(donorId);
+            if (donor != null) {
+                for (ModifierEffect effect : donor.stats().modifiersFor(tt)) {
+                    collectInto(effectsMap, effect);
+                }
+            }
+        });
+
         for (int i = 0; i < slots.size(); i++) {
             Material m = SmitheryAPI.MATERIALS.get(materialIds.get(i));
             if (m == null) continue;
@@ -178,11 +201,14 @@ public final class ToolStats {
         }
 
         Modifier.MutablePassiveStats passive = new Modifier.MutablePassiveStats();
+        passive.missingDurability = Math.max(0f, Math.min(1f, missingDurability));
         List<ResolvedEffect> all = new ArrayList<>(effectsMap.values());
         List<ResolvedEffect> active = new ArrayList<>();
         List<ResolvedEffect> compose = new ArrayList<>();
+        boolean anyDurabilityScaled = false;
         for (ResolvedEffect r : all) {
             applyEffect(r.modifier(), r.effect(), passive, active, compose);
+            anyDurabilityScaled |= r.modifier().durabilityScaled();
         }
 
         int finalDurability;
@@ -207,8 +233,10 @@ public final class ToolStats {
         float speed = primarySlotMaterialStat(tt, materialIds, MaterialStats::miningSpeed) + passive.bonusMiningSpeed;
         int harvest = maxAdditiveSlotHarvestLevel(tt, materialIds);
 
-        return new ToolStats(finalDurability, damage, speed, harvest, finalDefense, finalToughness,
-                all, active, compose, synergies);
+        ToolStats result = new ToolStats(finalDurability, damage, speed, harvest,
+                finalDefense, finalToughness, all, active, compose, synergies);
+        result.hasDurabilityScaled = anyDurabilityScaled;
+        return result;
     }
 
     private static void collectInto(java.util.LinkedHashMap<Identifier, ResolvedEffect> map,
@@ -226,7 +254,8 @@ public final class ToolStats {
         if (mod.passive() != null) mod.passive().apply(effect, passive);
         if (mod.onAttack() != null || mod.onBreak() != null
                 || mod.onBlockDrops() != null || mod.onKill() != null
-                || mod.onMobDrops() != null) {
+                || mod.onMobDrops() != null || mod.onDealDamage() != null
+                || mod.hasArmorHooks()) {
             active.add(new ResolvedEffect(mod, effect));
         }
         if (mod.onCompose() != null) {

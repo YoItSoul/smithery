@@ -66,7 +66,8 @@ public class SmitheryBowItem extends BowItem {
         return out;
     }
 
-    private static void applySmitheryArrowDamage(AbstractArrow arrow, ItemStack projectile, ItemStack weapon) {
+    /** Shared with {@link SmitheryCrossbowItem}: scales arrow base damage by arrow + weapon stats. */
+    static void applySmitheryArrowDamage(AbstractArrow arrow, ItemStack projectile, ItemStack weapon) {
         ToolComposition arrowComp = projectile.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
         if (arrowComp == null || !arrowComp.isValid()) return;
         ToolStats arrowStats = ToolStats.compute(arrowComp);

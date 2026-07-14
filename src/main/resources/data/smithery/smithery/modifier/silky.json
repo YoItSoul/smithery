@@ -1,0 +1,12 @@
+{
+  "_comment": "Silk Touch as a pure-data modifier via the vanilla enchantment. Applied at the anvil with an emerald.",
+  "max_level": 1,
+  "applies_to": "tools",
+  "on_compose": [
+    {
+      "type": "smithery:apply_enchantment",
+      "enchantment": "minecraft:silk_touch",
+      "level": 1
+    }
+  ]
+}

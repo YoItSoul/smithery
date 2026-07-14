@@ -85,24 +85,13 @@ public class SmitheryToolItem extends Item {
     }
 
     /**
-     * Convenience overload that resolves the current server's HolderLookup.Provider
-     * implicitly. Compose actions needing registry access (such as enchantment writes)
-     * silently no-op when no server is running.
-     */
-    public static ItemStack applyComposition(ItemStack stack, ToolComposition comp) {
-        net.minecraft.core.HolderLookup.Provider lookup = null;
-        try {
-            var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
-            if (server != null) lookup = server.registryAccess();
-        } catch (Throwable ignored) { }
-        return applyComposition(stack, comp, lookup);
-    }
-
-    /**
      * Computes stats from {@code comp} plus any post-craft modifiers already on the
      * stack, then writes them onto the vanilla data components. Clears any prior
      * ENCHANTMENTS so smithery modifiers fully own enchantment state, then fires every
      * {@link Modifier.OnCompose} hook on the effective effect list.
+     *
+     * <p>Prefer {@link ToolCompositions#apply} unless the stack is known to be a
+     * non-armor tool — it dispatches by item family and can resolve {@code lookup}.
      *
      * @param lookup registry access for compose actions; pass null only when no live
      *               registry is available, in which case affected actions skip silently
@@ -113,23 +102,33 @@ public class SmitheryToolItem extends Item {
 
         java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
                 stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
-        ToolStats stats = ToolStats.compute(comp, applied);
+        int wearDamage = stack.getOrDefault(DataComponents.DAMAGE, 0);
+        int wearMax = stack.getOrDefault(DataComponents.MAX_DAMAGE, 0);
+        float missing = wearMax > 0 ? (float) wearDamage / wearMax : 0f;
+        ToolStats stats = ToolStats.compute(comp, applied, missing);
         stack.set(SmitheryDataComponents.TOOL_COMPOSITION.get(), comp);
 
-        boolean stackable = comp.toolType() != null && "arrow".equals(comp.toolType().id().getPath());
+        String composePath = comp.toolType() != null ? comp.toolType().id().getPath() : "";
+        boolean stackable = "arrow".equals(composePath) || "shuriken".equals(composePath);
         if (stackable) {
-            fireComposeHooks(stack, stats, lookup);
+            ToolCompositions.fireComposeHooks(stack, stats, lookup);
             return stack;
         }
 
+        int priorDamage = stack.getOrDefault(DataComponents.DAMAGE, 0);
         stack.set(DataComponents.MAX_DAMAGE, stats.maxDurability);
         stack.set(DataComponents.MAX_STACK_SIZE, 1);
-        stack.set(DataComponents.DAMAGE, 0);
+        // Preserve wear across recomposition (anvil modifiers, stat recomputes) — resetting to
+        // 0 here made every modifier application a free full repair.
+        stack.set(DataComponents.DAMAGE, Math.min(priorDamage, stats.maxDurability - 1));
 
+        float scaledDamage = comp.toolType() != null
+                ? stats.attackDamage * damageScaleFor(comp.toolType())
+                : stats.attackDamage;
         var attrs = ItemAttributeModifiers.builder()
                 .add(Attributes.ATTACK_DAMAGE,
                         new AttributeModifier(Item.BASE_ATTACK_DAMAGE_ID,
-                                Math.max(0f, stats.attackDamage - 1f),
+                                Math.max(0f, scaledDamage - 1f),
                                 AttributeModifier.Operation.ADD_VALUE),
                         EquipmentSlotGroup.MAINHAND)
                 .add(Attributes.ATTACK_SPEED,
@@ -145,33 +144,69 @@ public class SmitheryToolItem extends Item {
             if (tool != null) stack.set(DataComponents.TOOL, tool);
 
             String ttPath = tt.id().getPath();
-            if ("sword".equals(ttPath) || "spear".equals(ttPath)) {
+            if ("sword".equals(ttPath) || "spear".equals(ttPath)
+                    || "broadsword".equals(ttPath) || "rapier".equals(ttPath)
+                    || "cleaver".equals(ttPath) || "battlesign".equals(ttPath)) {
                 stack.set(DataComponents.WEAPON, new Weapon(1, 0.0f));
+            }
+            if ("battlesign".equals(ttPath)) {
+                applyBlockingComponents(stack, lookup);
             }
             if ("spear".equals(ttPath)) {
                 applySpearComponents(stack, comp, lookup);
             }
         }
 
-        fireComposeHooks(stack, stats, lookup);
+        ToolCompositions.fireComposeHooks(stack, stats, lookup);
         return stack;
     }
 
-    private static void fireComposeHooks(ItemStack stack, ToolStats stats,
-                                          net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
-        com.soul.smithery.api.modifier.Modifier.ComposeContext composeCtx =
-                new com.soul.smithery.api.modifier.Modifier.ComposeContext(stack, lookup);
-        for (ToolStats.ResolvedEffect r : stats.composeEffects) {
-            com.soul.smithery.api.modifier.Modifier mod =
-                    com.soul.smithery.api.SmitheryAPI.MODIFIERS.get(r.effect().modifierId());
-            if (mod == null || mod.onCompose() == null) continue;
-            try {
-                mod.onCompose().apply(r.effect(), composeCtx);
-            } catch (Throwable t) {
-                com.soul.smithery.Smithery.LOGGER.error(
-                        "Modifier {} onCompose failed: {}", r.effect().modifierId(), t.toString());
-            }
+    /**
+     * Writes the BLOCKS_ATTACKS component that makes the battlesign block while raised —
+     * the vanilla component drives the animation, use duration, damage reduction, and
+     * axe-disable with no custom item code. Battlesigns are weapons first: they block a
+     * 60° arc at 60% reduction and take disable cooldowns 20% longer than a vanilla
+     * shield. (The vanilla shield remains the dedicated full blocker by design.)
+     *
+     * <p>The BYPASSES_SHIELD exemption needs registry access; composed without a lookup
+     * (creative-tab previews) the block simply has no bypass list until a real recompose.
+     */
+    private static void applyBlockingComponents(ItemStack stack,
+                                                net.minecraft.core.HolderLookup.@org.jspecify.annotations.Nullable Provider lookup) {
+        java.util.Optional<HolderSet<net.minecraft.world.damagesource.DamageType>> bypassedBy =
+                java.util.Optional.empty();
+        if (lookup != null) {
+            bypassedBy = lookup.lookup(Registries.DAMAGE_TYPE)
+                    .flatMap(reg -> reg.get(net.minecraft.tags.DamageTypeTags.BYPASSES_SHIELD))
+                    .map(holders -> (HolderSet<net.minecraft.world.damagesource.DamageType>) holders);
         }
+        var reduction = new net.minecraft.world.item.component.BlocksAttacks.DamageReduction(
+                60.0f, java.util.Optional.empty(), 0.0f, 0.6f);
+        stack.set(DataComponents.BLOCKS_ATTACKS, new net.minecraft.world.item.component.BlocksAttacks(
+                0.25f,
+                1.2f,
+                List.of(reduction),
+                new net.minecraft.world.item.component.BlocksAttacks.ItemDamageFunction(3.0f, 1.0f, 1.0f),
+                bypassedBy,
+                java.util.Optional.of(SoundEvents.SHIELD_BLOCK),
+                java.util.Optional.of(SoundEvents.SHIELD_BREAK)));
+    }
+
+    /**
+     * Re-stamps stats whenever durability changes IF a durability-scaled modifier
+     * (Stonebound-style) is present — their mining/damage contributions depend on wear.
+     * Safe against recursion: applyComposition writes the DAMAGE component directly and
+     * never routes back through here.
+     */
+    @Override
+    public void setDamage(ItemStack stack, int damage) {
+        super.setDamage(stack, damage);
+        ToolComposition comp = stack.get(SmitheryDataComponents.TOOL_COMPOSITION.get());
+        if (comp == null || !comp.isValid()) return;
+        java.util.List<com.soul.smithery.api.modifier.ModifierEffect> applied =
+                stack.getOrDefault(SmitheryDataComponents.APPLIED_MODIFIERS.get(), java.util.List.of());
+        if (!ToolStats.compute(comp, applied).hasDurabilityScaled) return;
+        ToolCompositions.apply(stack, comp);
     }
 
     /**
@@ -242,13 +277,41 @@ public class SmitheryToolItem extends Item {
         if (tt == null) return -2.4f;
         String path = tt.id().getPath();
         return switch (path) {
-            case "sword"   -> -2.4f;
-            case "pickaxe" -> -2.8f;
-            case "axe"     -> -3.2f;
-            case "shovel"  -> -3.0f;
-            case "hoe"     -> -3.0f;
-            case "spear"   -> 1.0f / spearAttackDuration(headHarvestLevel(comp)) - 4.0f;
-            default        -> -2.6f;
+            case "sword"         -> -2.4f;
+            case "broadsword"    -> -3.0f;
+            case "rapier"        -> -1.6f;
+            case "pickaxe"       -> -2.8f;
+            case "paxel"         -> -2.9f;
+            case "mining_hammer" -> -3.4f;
+            case "axe"           -> -3.2f;
+            case "kama"          -> -2.2f;
+            case "battlesign"    -> -2.4f;
+            case "cleaver"       -> -3.4f;
+            case "lumberaxe"     -> -3.3f;
+            case "excavator"     -> -3.2f;
+            case "trident"       -> -2.9f;
+            case "shovel"        -> -3.0f;
+            case "hoe"           -> -3.0f;
+            case "spear"         -> 1.0f / spearAttackDuration(headHarvestLevel(comp)) - 4.0f;
+            default              -> -2.6f;
+        };
+    }
+
+    /**
+     * Per-tool-type multiplier on the primary material's attack damage — the weapon-identity
+     * lever: broadswords trade speed for weight, rapiers the reverse (their edge is the
+     * armor-piercing thrust, see ToolModifierEventRouter).
+     */
+    private static float damageScaleFor(ToolType tt) {
+        return switch (tt.id().getPath()) {
+            case "broadsword"    -> 1.35f;
+            case "rapier"        -> 0.7f;
+            case "mining_hammer" -> 1.2f;
+            case "cleaver"       -> 1.5f;
+            case "battlesign"    -> 0.9f;
+            case "lumberaxe"     -> 1.15f;
+            case "trident"       -> 1.1f;
+            default              -> 1.0f;
         };
     }
 
@@ -350,8 +413,44 @@ public class SmitheryToolItem extends Item {
                 if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
                 rules.add(Tool.Rule.minesAndDrops(minable, stats.miningSpeed));
             }
-            case "sword" -> {
+            case "sword", "broadsword", "rapier" -> {
                 rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.SWORD_EFFICIENT), stats.miningSpeed));
+            }
+            case "cleaver", "battlesign" -> {
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.SWORD_EFFICIENT), stats.miningSpeed));
+            }
+            case "lumberaxe" -> {
+                HolderSet<Block> incorrect = incorrectForTier(stats.harvestLevel);
+                if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
+                // Slower per-block: the identity is the whole tree, not the single log.
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.MINEABLE_WITH_AXE),
+                        stats.miningSpeed * 0.7f));
+            }
+            case "excavator" -> {
+                HolderSet<Block> incorrect = incorrectForTier(stats.harvestLevel);
+                if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.MINEABLE_WITH_SHOVEL),
+                        stats.miningSpeed * 0.6f));
+            }
+            case "kama" -> {
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.SWORD_EFFICIENT), stats.miningSpeed));
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.LEAVES), stats.miningSpeed));
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.WOOL), stats.miningSpeed));
+            }
+            case "paxel" -> {
+                HolderSet<Block> incorrect = incorrectForTier(stats.harvestLevel);
+                if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.MINEABLE_WITH_PICKAXE), stats.miningSpeed));
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.MINEABLE_WITH_AXE), stats.miningSpeed));
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.MINEABLE_WITH_SHOVEL), stats.miningSpeed));
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.MINEABLE_WITH_HOE), stats.miningSpeed));
+            }
+            case "mining_hammer" -> {
+                HolderSet<Block> incorrect = incorrectForTier(stats.harvestLevel);
+                if (incorrect != null) rules.add(new Tool.Rule(incorrect, Optional.empty(), Optional.of(false)));
+                // The hammer trades single-block speed for the 3x3 spread (AoeMiningHandler).
+                rules.add(Tool.Rule.minesAndDrops(blockTag(BlockTags.MINEABLE_WITH_PICKAXE),
+                        stats.miningSpeed * 0.6f));
             }
             default -> { return null; }
         }
@@ -439,6 +538,11 @@ public class SmitheryToolItem extends Item {
                 String.format("%.1f", stats.miningSpeed))));
         tooltip.accept(com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
                 "tooltip." + Smithery.MODID + ".part.harvest_level", stats.harvestLevel)));
+
+        comp.embossedMaterial().ifPresent(donor -> tooltip.accept(
+                com.soul.smithery.item.SmitheryTooltips.statLine(Component.translatable(
+                        "tooltip." + Smithery.MODID + ".tool.embossed",
+                        Component.translatable(PartItem.materialTranslationKey(donor))))));
 
         tooltip.accept(com.soul.smithery.item.SmitheryTooltips.sectionHeader(
                 Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")));
@@ -583,6 +687,21 @@ public class SmitheryToolItem extends Item {
             }
             case "hoe" -> {
                 if (ItemAbilities.DEFAULT_HOE_ACTIONS.contains(ability)) return true;
+            }
+            case "paxel" -> {
+                if (ItemAbilities.DEFAULT_AXE_ACTIONS.contains(ability)
+                        || ItemAbilities.DEFAULT_SHOVEL_ACTIONS.contains(ability)
+                        || ItemAbilities.DEFAULT_HOE_ACTIONS.contains(ability)) return true;
+            }
+            case "kama" -> {
+                // Kamas act as shears everywhere vanilla asks (sheep, pumpkins, tripwire, ...).
+                if (ItemAbilities.DEFAULT_SHEARS_ACTIONS.contains(ability)) return true;
+            }
+            case "lumberaxe" -> {
+                if (ItemAbilities.DEFAULT_AXE_ACTIONS.contains(ability)) return true;
+            }
+            case "excavator" -> {
+                if (ItemAbilities.DEFAULT_SHOVEL_ACTIONS.contains(ability)) return true;
             }
             default -> {}
         }

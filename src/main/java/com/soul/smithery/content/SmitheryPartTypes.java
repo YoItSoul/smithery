@@ -61,6 +61,20 @@ public final class SmitheryPartTypes {
     public static PartType INGOT;
     /** Synthetic cast target whose pour yields a vanilla nugget resolved via {@link CastResults}. */
     public static PartType NUGGET;
+    /** Large blade part — broadsword primary, twice the metal of a standard blade. */
+    public static PartType LARGE_BLADE;
+    /** Hammer head part — mining hammer primary; 8 ingots, castable only (no press mapping). */
+    public static PartType HAMMER_HEAD;
+    /** Large plate part — mining hammer cheeks, two per hammer. */
+    public static PartType LARGE_PLATE;
+    /** Kama head part — small hooked blade; shears + light harvesting. */
+    public static PartType KAMA_HEAD;
+    /** Shuriken blade part — quarter of a thrown star, half-ingot each. */
+    public static PartType SHURIKEN_BLADE;
+    /** Sharpening stone part — anvil-applied tool repair, tier-gated by its material's harvest level. */
+    public static PartType SHARPENING_STONE;
+    /** Polishing stone part — anvil-applied armor repair, the armor analog of the sharpening stone. */
+    public static PartType POLISHING_STONE;
 
     /**
      * Registers every built-in part type and the synthetic cast mappings tying iron / gold /
@@ -203,6 +217,48 @@ public final class SmitheryPartTypes {
                 .syntheticCast(true)
                 .build());
 
+        LARGE_BLADE = SmitheryAPI.registerPartType(PartType.builder(id("large_blade"))
+                .durabilityScalar(1.5f)
+                .partColorTint(true)
+                .castMb(288)
+                .build());
+
+        HAMMER_HEAD = SmitheryAPI.registerPartType(PartType.builder(id("hammer_head"))
+                .durabilityScalar(2.0f)
+                .partColorTint(true)
+                .castMb(1152)
+                .build());
+
+        LARGE_PLATE = SmitheryAPI.registerPartType(PartType.builder(id("large_plate"))
+                .durabilityScalar(0.5f)
+                .partColorTint(true)
+                .castMb(432)
+                .build());
+
+        KAMA_HEAD = SmitheryAPI.registerPartType(PartType.builder(id("kama_head"))
+                .durabilityScalar(0.9f)
+                .partColorTint(true)
+                .castMb(144)
+                .build());
+
+        SHURIKEN_BLADE = SmitheryAPI.registerPartType(PartType.builder(id("shuriken_blade"))
+                .durabilityScalar(0.25f)
+                .partColorTint(true)
+                .castMb(72)
+                .build());
+
+        SHARPENING_STONE = SmitheryAPI.registerPartType(PartType.builder(id("sharpening_stone"))
+                .durabilityScalar(0.0f)
+                .partColorTint(true)
+                .castMb(144)
+                .build());
+
+        POLISHING_STONE = SmitheryAPI.registerPartType(PartType.builder(id("polishing_stone"))
+                .durabilityScalar(0.0f)
+                .partColorTint(true)
+                .castMb(288)
+                .build());
+
         registerBuiltInCastMappings();
     }
 
@@ -222,6 +278,9 @@ public final class SmitheryPartTypes {
         CastTemplates.register(Items.COPPER_INGOT, INGOT.id());
         CastTemplates.register(Items.IRON_NUGGET,  NUGGET.id());
         CastTemplates.register(Items.GOLD_NUGGET,  NUGGET.id());
+        // Bootstrap templates so the first stone can be cast without owning one already.
+        CastTemplates.register(Items.FLINT, SHARPENING_STONE.id());
+        CastTemplates.register(Items.BRICK, POLISHING_STONE.id());
     }
 
     private static Identifier id(String path) {

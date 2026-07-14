@@ -35,6 +35,22 @@ public final class SmitheryEntityTypes {
                     .updateInterval(20)
                     .build(arrowKey()));
 
+    /** Thrown shuriken entity type; snowball-sized, renders as its item. */
+    public static final Supplier<EntityType<com.soul.smithery.entity.SmitheryShuriken>> SHURIKEN =
+            registerEntity("shuriken", () -> EntityType.Builder
+                    .<com.soul.smithery.entity.SmitheryShuriken>of(
+                            com.soul.smithery.entity.SmitheryShuriken::new, MobCategory.MISC)
+                    .noLootTable()
+                    .sized(0.25f, 0.25f)
+                    .clientTrackingRange(4)
+                    .updateInterval(10)
+                    .build(entityKey("shuriken")));
+
+    private static ResourceKey<EntityType<?>> entityKey(String path) {
+        return ResourceKey.create(Registries.ENTITY_TYPE,
+                Identifier.fromNamespaceAndPath(Smithery.MODID, path));
+    }
+
     private static ResourceKey<EntityType<?>> arrowKey() {
         return ResourceKey.create(Registries.ENTITY_TYPE,
                 Identifier.fromNamespaceAndPath(Smithery.MODID, "arrow"));

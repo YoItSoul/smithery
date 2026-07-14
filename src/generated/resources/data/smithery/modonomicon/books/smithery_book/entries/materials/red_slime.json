@@ -1,0 +1,44 @@
+{
+  "background": {
+    "height": 26,
+    "sprite": "modonomicon:modonomicon/themes/default/node/entry_backgrounds/square_gray",
+    "width": 26
+  },
+  "category": "materials",
+  "description": "book.smithery.smithery_book.materials.red_slime.description",
+  "hide_while_locked": false,
+  "icon": {
+    "id": "smithery:red_slime_pick_head"
+  },
+  "name": "book.smithery.smithery_book.materials.red_slime.name",
+  "pages": [
+    {
+      "type": "modonomicon:spotlight",
+      "anchor": "",
+      "condition": {
+        "type": "modonomicon:none"
+      },
+      "item": {
+        "id": "smithery:red_slime_pick_head"
+      },
+      "text": "book.smithery.smithery_book.materials.red_slime.page0.text",
+      "title": "book.smithery.smithery_book.materials.red_slime.page0.title"
+    },
+    {
+      "type": "modonomicon:spotlight",
+      "anchor": "",
+      "condition": {
+        "type": "modonomicon:none"
+      },
+      "item": {
+        "id": "smithery:red_slime_pick_head"
+      },
+      "text": "book.smithery.smithery_book.materials.red_slime.page1.text",
+      "title": "book.smithery.smithery_book.materials.red_slime.page1.title"
+    }
+  ],
+  "show_when_any_parent_unlocked": false,
+  "sort_number": 27,
+  "x": 0,
+  "y": 0
+}

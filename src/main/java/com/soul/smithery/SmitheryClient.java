@@ -71,6 +71,8 @@ public class SmitheryClient {
                 com.soul.smithery.client.ForgeFuelPortRenderer::new);
         event.registerEntityRenderer(com.soul.smithery.registry.SmitheryEntityTypes.ARROW.get(),
                 net.minecraft.client.renderer.entity.TippableArrowRenderer::new);
+        event.registerEntityRenderer(com.soul.smithery.registry.SmitheryEntityTypes.SHURIKEN.get(),
+                net.minecraft.client.renderer.entity.ThrownItemRenderer::new);
     }
 
     @SubscribeEvent

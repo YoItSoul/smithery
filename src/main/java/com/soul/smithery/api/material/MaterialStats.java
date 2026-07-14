@@ -216,6 +216,12 @@ public final class MaterialStats {
             return addModifier(tt, ModifierEffect.of(modifierId, params));
         }
 
+        /** Attaches the same craft-time effect to several tool types at once (e.g. every armor piece). */
+        public Builder addModifier(ModifierEffect effect, ToolType... toolTypes) {
+            for (ToolType tt : toolTypes) addModifier(tt, effect);
+            return this;
+        }
+
         /**
          * Attaches an {@link ArmorStats} block, making this material eligible for armor parts.
          *
