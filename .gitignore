@@ -63,3 +63,12 @@ reference/
 ### Smithery ###
 # Latest per-loader jars collected by the collectDist task
 dist/
+
+# Internal working docs - kept local, not published; README.md is the only tracked markdown
+/BACKPORT.md
+/CONTRIBUTING.md
+/CURSEFORGE_DESCRIPTION.md
+/FEATURE_AUDIT.md
+/PLAN.md
+/SMITHERY_DESIGN.md
+/TRANSLATIONS.md
