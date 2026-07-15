@@ -7,19 +7,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Setup JDK 25
-        uses: actions/setup-java@v4
+      # ForgeGradle 6 / Gradle 8.8 cannot run on newer JDKs; 17 also matches the
+      # Java toolchain the 1.20.1 mod compiles against.
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
         with:
-          java-version: '25'
+          java-version: '17'
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       # This is needed to be able to run ./gradlew below
       # You can run `git update-index --chmod +x gradlew` then remove this step.
