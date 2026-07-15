@@ -66,9 +66,9 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity> {
     /**
      * {@inheritDoc}
      *
-     * <p>Draws the tooth grid, template quad and slot items after the chassis. Geometry is
-     * authored in block-local [0,1] coordinates, so the GeoBlockRenderer's center translation
-     * is undone first.
+     * <p>Draws the tooth grid, template quad and slot items after the chassis. GeckoLib
+     * invokes this after popping the chassis pose, so the stack is already at the block
+     * origin and the block-local [0,1] geometry needs no re-centering.
      */
     @Override
     public void renderFinal(PoseStack poseStack, PartPressBlockEntity be, BakedGeoModel model,
@@ -82,7 +82,7 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity> {
         if (selected == null) return;
 
         poseStack.pushPose();
-        poseStack.translate(-0.5f, -0.01f, -0.5f);
+        poseStack.translate(0f, -0.01f, 0f);
 
         boolean closed = be.isClosed();
         float headY = readHeadTranslateY(model);
@@ -125,7 +125,9 @@ public class PartPressRenderer extends GeoBlockRenderer<PartPressBlockEntity> {
             ResourceLocation tmpl = selected.textureTemplate();
             ResourceLocation texLoc = ResourceLocation.fromNamespaceAndPath(
                     tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
-            final float topY = (15f / 16f) + headOffsetBlocks + (1f / 256f);
+            // 1/64 block above the head slab: enough gap to win the depth test against
+            // the coplanar chassis top (1/256 z-fights away at viewing distance).
+            final float topY = (15f / 16f) + headOffsetBlocks + (1f / 64f);
             VertexConsumer quad = bufferSource.getBuffer(RenderType.entityTranslucent(texLoc));
             drawTemplateQuad(poseStack.last(), quad, topY, 0xFFFFFFFF);
         }

@@ -113,6 +113,10 @@ public class FluidPipeBlockEntity extends BlockEntity {
     public CompoundTag getUpdateTag() {
         CompoundTag tag = super.getUpdateTag();
         saveAdditional(tag);
+        // An inert pipe produces an empty tag, which ClientboundBlockEntityDataPacket
+        // silently drops — the client would never hear about a cleared flow. Always
+        // include the tick count so the clear-flow update reaches load() on the client.
+        tag.putInt("flowTicks", intensityTicks);
         return tag;
     }
 }

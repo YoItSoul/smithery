@@ -477,6 +477,9 @@ public class ForgeFuelPortBlockEntity extends BlockEntity {
     public CompoundTag getUpdateTag() {
         CompoundTag tag = super.getUpdateTag();
         saveAdditional(tag);
+        // An empty port produces an empty tag, which ClientboundBlockEntityDataPacket
+        // silently drops — the client would keep rendering the drained fuel column.
+        tag.putInt("fuelMb", fuelMb);
         return tag;
     }
 }

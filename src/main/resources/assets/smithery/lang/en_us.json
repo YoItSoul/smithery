@@ -16,6 +16,8 @@
     "block.smithery.fluid_pipe":  "Fluid Pipe",
     "block.smithery.part_press":  "Part Press",
 
+    "container.smithery.forge_controller":  "Forge Controller",
+
     "block.smithery.casting_sand_impressed_sword_blade":  "Impressed Sand (Sword Blade)",
     "block.smithery.casting_sand_impressed_guard":        "Impressed Sand (Guard)",
     "block.smithery.casting_sand_impressed_handle":       "Impressed Sand (Handle)",

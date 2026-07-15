@@ -46,7 +46,7 @@ repositories {
 }
 
 base {
-    archivesName = mod_id
+    archivesName = "${mod_id}-forge-${minecraft_version}"
 }
 
 // Minecraft 1.20.1 ships Java 17 to end users, so mods must target Java 17.
@@ -180,6 +180,23 @@ sourceSets.main.resources.srcDir generateModMetadata
 tasks.named('jar', Jar).configure {
     finalizedBy 'reobfJar'
 }
+
+// Publish the finished (reobfuscated) jar into dist/, which holds exactly one latest
+// build per loader; stale forge jars are removed before the copy.
+def distDir = layout.projectDirectory.dir('dist')
+def distJarPrefix = "${mod_id}-forge-"
+tasks.register('collectDist', Copy) {
+    dependsOn 'reobfJar'
+    from tasks.named('jar')
+    into distDir
+    doFirst {
+        distDir.asFile.mkdirs()
+        distDir.asFile.listFiles()
+            .findAll { it.name.startsWith(distJarPrefix) && it.name.endsWith('.jar') }
+            .each { it.delete() }
+    }
+}
+tasks.named('build').configure { finalizedBy 'collectDist' }
 
 // Example configuration to allow publishing using the maven-publish plugin
 publishing {

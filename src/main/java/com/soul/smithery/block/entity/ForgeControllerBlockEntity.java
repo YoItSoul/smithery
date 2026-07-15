@@ -21,6 +21,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
+import net.minecraft.world.Containers;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +61,11 @@ import java.util.UUID;
 public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvider {
 
     private static final int VALIDATION_TICK_INTERVAL = 40;
+
+    /** Directions a melting cell must be sealed on; only the top may be open. */
+    private static final Direction[] ENCLOSURE_DIRECTIONS = {
+            Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.DOWN
+    };
 
     private static final float HEAT_AMBIENT_C        = 20.0f;
     private static final float HEAT_TARGET_LAVA_C    = 1650.0f;
@@ -521,8 +528,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
      */
     public ValidationResult validateStructure() {
         if (level == null) {
-            lastValidation = ValidationResult.invalid("no level");
-            return lastValidation;
+            return invalidate("no level");
         }
 
         Set<BlockPos> shellPool = new HashSet<>();
@@ -538,8 +544,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
         if (shellPool.size() < 2) {
-            lastValidation = ValidationResult.invalid("controller has no adjacent shell — build walls first");
-            return lastValidation;
+            return invalidate("controller has no adjacent shell — build walls first");
         }
 
         int xMin = Integer.MAX_VALUE, xMax = Integer.MIN_VALUE;
@@ -550,7 +555,6 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             if (s.getY() < yMin) yMin = s.getY(); if (s.getY() > yMax) yMax = s.getY();
             if (s.getZ() < zMin) zMin = s.getZ(); if (s.getZ() > zMax) zMax = s.getZ();
         }
-        final int yTopShell = yMax;
         final int bxMin = xMin, bxMax = xMax, byMin = yMin, byMax = yMax, bzMin = zMin, bzMax = zMax;
 
         Set<BlockPos> interior = new HashSet<>();
@@ -571,21 +575,45 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
         if (interior.isEmpty()) {
-            lastValidation = ValidationResult.invalid(
-                    "no interior air adjacent to controller (shell=" + shellPool.size() + " blocks)");
-            return lastValidation;
+            return invalidate("no interior air adjacent to controller (shell=" + shellPool.size() + " blocks)");
+        }
+
+        // Reduce to the enclosed sub-volume: a cell only counts as interior when every
+        // horizontal and downward neighbour is shell or another interior cell. Leaky
+        // cells are pruned (their gap blocks recorded as holes), so a partially built
+        // forge functions at its properly-walled extent instead of claiming the whole
+        // shell bounding box as "potential" melting space.
+        Set<BlockPos> holePositions = new HashSet<>();
+        boolean prunedAny = true;
+        while (prunedAny) {
+            prunedAny = false;
+            Iterator<BlockPos> it = interior.iterator();
+            while (it.hasNext()) {
+                BlockPos p = it.next();
+                for (Direction d : ENCLOSURE_DIRECTIONS) {
+                    BlockPos n = p.relative(d);
+                    if (interior.contains(n) || isShellBlock(level.getBlockState(n))) continue;
+                    holePositions.add(n);
+                    it.remove();
+                    prunedAny = true;
+                    break;
+                }
+            }
+        }
+        if (interior.isEmpty()) {
+            return invalidate("melting chamber leaks — seal the wall gaps around the controller");
         }
 
         Set<BlockPos> shell = new HashSet<>();
-        Set<BlockPos> holePositions = new HashSet<>();
         boolean openTop = false;
         for (BlockPos inside : interior) {
             for (Direction dir : Direction.values()) {
                 BlockPos neighbor = inside.relative(dir);
                 if (interior.contains(neighbor)) continue;
-                if (dir == Direction.UP && neighbor.getY() > yTopShell) { openTop = true; continue; }
-                if (isShellBlock(level.getBlockState(neighbor))) shell.add(neighbor);
-                else holePositions.add(neighbor);
+                if (isShellBlock(level.getBlockState(neighbor))) { shell.add(neighbor); continue; }
+                // Horizontal and downward gaps were pruned above, so any non-shell
+                // neighbour left is airspace above the pool.
+                openTop = true;
             }
         }
 
@@ -597,18 +625,16 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             else if (bs.is(SmitheryBlocks.FORGE_DRAIN.get())) drainCount++;
         }
         if (controllerCount != 1) {
-            lastValidation = ValidationResult.invalid("must have exactly 1 controller (found " + controllerCount + ")");
-            return lastValidation;
+            return invalidate("must have exactly 1 controller (found " + controllerCount + ")");
         }
         if (fuelPortCount < 1) {
-            lastValidation = ValidationResult.invalid("missing fuel port");
-            return lastValidation;
+            return invalidate("missing fuel port");
         }
         if (drainCount < 1) {
-            lastValidation = ValidationResult.invalid("missing drain");
-            return lastValidation;
+            return invalidate("missing drain");
         }
 
+        List<BlockPos> previousPositions = slotPositions;
         rebuildSlots(interior);
 
         for (BlockPos s : shell) {
@@ -625,6 +651,40 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         lastValidation = ValidationResult.valid(
                 Collections.unmodifiableSet(interior), Collections.unmodifiableSet(shell),
                 openTop, Collections.unmodifiableSet(holePositions));
+        if (!previousPositions.equals(slotPositions)) {
+            setChanged();
+            if (level instanceof ServerLevel sl) {
+                sl.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
+        return lastValidation;
+    }
+
+    /**
+     * Marks the structure invalid and evicts all interior slot state: items still melting
+     * drop at their interior positions so nothing is silently lost, and the cleared slot
+     * list syncs to clients so contents stop rendering outside a broken or incomplete
+     * structure. Stored fluid stays banked (hidden while invalid, shown again on repair).
+     */
+    private ValidationResult invalidate(String reason) {
+        lastValidation = ValidationResult.invalid(reason);
+        if (!slotPositions.isEmpty()) {
+            if (level instanceof ServerLevel sl) {
+                for (int i = 0; i < slotPositions.size(); i++) {
+                    ItemStack stack = slots.get(i);
+                    if (stack.isEmpty()) continue;
+                    BlockPos p = slotPositions.get(i);
+                    Containers.dropItemStack(sl, p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, stack);
+                }
+            }
+            slotPositions = List.of();
+            slots = NonNullList.create();
+            meltProgressPerSlot = new float[0];
+            setChanged();
+            if (level instanceof ServerLevel sl) {
+                sl.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
         return lastValidation;
     }
 
@@ -657,11 +717,20 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         float[]                newProgress = new float[newPositions.size()];
         for (int i = 0; i < newPositions.size(); i++) {
             BlockPos pos = newPositions.get(i);
-            ItemStack item = itemByPos.get(pos);
+            ItemStack item = itemByPos.remove(pos);
             if (item == null) continue;
             newSlots.set(i, item);
             Float p = progressByPos.get(pos);
             if (p != null) newProgress[i] = p;
+        }
+
+        // Items whose cell is no longer interior (structure shrank) drop instead of
+        // being silently discarded with the old slot list.
+        if (!itemByPos.isEmpty() && level instanceof ServerLevel sl) {
+            for (Map.Entry<BlockPos, ItemStack> e : itemByPos.entrySet()) {
+                BlockPos p = e.getKey();
+                Containers.dropItemStack(sl, p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, e.getValue());
+            }
         }
 
         slotPositions = List.copyOf(newPositions);
@@ -832,7 +901,18 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         }
 
         if (level != null && level.isClientSide()) {
-            List<BlockPos> posList = new ArrayList<>(pendingSlotItems.keySet());
+            // Prefer the full interior list so the fluid pool renders even in cells
+            // holding no item; older tags without it fall back to the occupied slots.
+            List<BlockPos> posList;
+            if (tag.contains("interior", Tag.TAG_LONG_ARRAY)) {
+                long[] interior = tag.getLongArray("interior");
+                posList = new ArrayList<>(interior.length);
+                for (long packed : interior) {
+                    posList.add(BlockPos.of(packed));
+                }
+            } else {
+                posList = new ArrayList<>(pendingSlotItems.keySet());
+            }
             posList.sort((a, b) -> {
                 int c = Long.compare(a.getY(), b.getY());
                 if (c != 0) return c;
@@ -869,6 +949,12 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         if (outputFluidId != null) {
             tag.putString("outputFluidId", outputFluidId.toString());
         }
+
+        long[] interior = new long[slotPositions.size()];
+        for (int i = 0; i < slotPositions.size(); i++) {
+            interior[i] = slotPositions.get(i).asLong();
+        }
+        tag.putLongArray("interior", interior);
 
         ListTag slotsOut = new ListTag();
         for (int i = 0; i < slotPositions.size(); i++) {

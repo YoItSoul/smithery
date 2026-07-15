@@ -32,10 +32,12 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Network-aware pump for the forge drain port. On the rising redstone edge it BFSes its
- * connected pipe network, then advances a wavefront each tick that refreshes pipe flow
- * markers and pushes fluid into reached sinks. Also exposes a passthrough fluid handler
- * for buckets and external mods.
+ * Network-aware pump for the forge drain port. A rising redstone edge latches a pour job:
+ * the drain BFSes its connected pipe network, then advances a wavefront each tick that
+ * refreshes pipe flow markers and pushes fluid into reached sinks. The job runs until every
+ * reachable sink stops accepting fluid (e.g. the cast is full) or the forge runs dry —
+ * a single button press always delivers exactly what the receivers need. Also exposes a
+ * passthrough fluid handler for buckets and external mods.
  */
 public class ForgeDrainBlockEntity extends BlockEntity {
 
@@ -46,6 +48,7 @@ public class ForgeDrainBlockEntity extends BlockEntity {
 
     private @Nullable BlockPos controllerPos;
 
+    private boolean lastSignal;
     private long pumpStartTick = -1L;
     private @Nullable Map<BlockPos, Integer> pipeDistances;
     private @Nullable Map<BlockPos, BlockPos> pipeParents;
@@ -79,31 +82,27 @@ public class ForgeDrainBlockEntity extends BlockEntity {
     }
 
     /**
-     * Per-tick pump logic. While powered, builds (lazily) and advances the BFS wavefront
-     * one hop per tick, refreshing pipe flow markers and inserting {@link #PUMP_RATE_MB}
-     * into each accepting sink. Drops the cached network on the falling edge.
+     * Per-tick pump logic. A rising redstone edge latches a pour job: the network is BFSed
+     * once, then the wavefront advances one hop per tick, refreshing pipe flow markers and
+     * inserting {@link #PUMP_RATE_MB} into each accepting sink. The job persists after the
+     * signal drops and ends only when every reached sink refuses fluid or the forge has
+     * nothing left to pour; the next job needs a fresh rising edge.
      */
     public void serverTick(ServerLevel level, BlockPos pos, BlockState state) {
         boolean signal = level.hasNeighborSignal(pos);
+        boolean risingEdge = signal && !lastSignal;
+        lastSignal = signal;
 
-        if (!signal) {
-            if (pumpStartTick >= 0) {
-                pumpStartTick = -1L;
-                pipeDistances = null;
-                pipeParents = null;
-                sinks = null;
-            }
-            return;
-        }
+        if (pumpStartTick < 0L && !risingEdge) return;
 
         ForgeControllerBlockEntity controller = controller();
-        if (controller == null) return;
+        if (controller == null) { endPourJob(level); return; }
         ResourceLocation outputFluidId = controller.outputFluidId();
-        if (outputFluidId == null) return;
-        if (controller.outputFluidMb() <= 0) return;
+        if (outputFluidId == null) { endPourJob(level); return; }
+        if (controller.outputFluidMb() <= 0) { endPourJob(level); return; }
 
         Fluid outputFluid = ForgeRegistries.FLUIDS.getValue(outputFluidId);
-        if (outputFluid == null || outputFluid == Fluids.EMPTY) return;
+        if (outputFluid == null || outputFluid == Fluids.EMPTY) { endPourJob(level); return; }
 
         long currentTick = level.getGameTime();
 
@@ -111,7 +110,10 @@ public class ForgeDrainBlockEntity extends BlockEntity {
             pumpStartTick = currentTick;
             bfsNetwork(level, pos);
         }
-        if (pipeDistances == null || pipeParents == null || sinks == null) return;
+        if (pipeDistances == null || pipeParents == null || sinks == null) {
+            endPourJob(level);
+            return;
+        }
 
         int wavefront = (int) (currentTick - pumpStartTick) + 1;
 
@@ -148,7 +150,15 @@ public class ForgeDrainBlockEntity extends BlockEntity {
             }
         }
 
-        if (activeSinks.isEmpty()) return;
+        if (activeSinks.isEmpty()) {
+            // Only conclude the pour once the wavefront has had a chance to reach every
+            // sink; sinks are sorted by distance, so the last entry is the farthest.
+            int farthest = sinks.isEmpty() ? 0 : sinks.get(sinks.size() - 1).distance;
+            if (wavefront >= farthest) {
+                endPourJob(level);
+            }
+            return;
+        }
 
         for (SinkRef sink : activeSinks) {
             int available = controller.outputFluidMb();
@@ -160,6 +170,25 @@ public class ForgeDrainBlockEntity extends BlockEntity {
                 controller.drainFluid(outputFluid, pushed);
             }
         }
+    }
+
+    /**
+     * Ends the active pour job: snaps off any still-glowing pipe markers and drops the
+     * cached network so the next rising edge starts fresh.
+     */
+    private void endPourJob(ServerLevel level) {
+        if (pumpStartTick < 0L) return;
+        if (pipeDistances != null) {
+            for (BlockPos pipePos : pipeDistances.keySet()) {
+                if (level.getBlockEntity(pipePos) instanceof FluidPipeBlockEntity pipe) {
+                    pipe.clearFlow();
+                }
+            }
+        }
+        pumpStartTick = -1L;
+        pipeDistances = null;
+        pipeParents = null;
+        sinks = null;
     }
 
     private void bfsNetwork(Level level, BlockPos drainPos) {
