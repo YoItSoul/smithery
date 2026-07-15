@@ -40,8 +40,8 @@ Smithery ships for two loaders from this repository:
 | [`main`](../../tree/main) | NeoForge 26.1.2.61-beta | 26.1.2 | 21+ |
 | [`forge-1.20.1`](../../tree/forge-1.20.1) | Forge 47.4.10 | 1.20.1 | 17+ |
 
-Gameplay and balance are identical across both; the 1.20.1 branch documents its handful of
-platform approximations in [`BACKPORT.md`](BACKPORT.md).
+Gameplay and balance are identical across both, with a handful of platform approximations
+on 1.20.1 where the older APIs have no equivalent.
 
 ---
 
@@ -62,8 +62,7 @@ in-game recipe browser.
 
 Smithery is in active development — the core loop (forge, melting, alloying, casting,
 pressing, tool assembly, modifiers, JEI) is playable today, with armor assembly, the
-in-game field guide, and broader datapack support still in progress. The full design and
-roadmap live in [`SMITHERY_DESIGN.md`](SMITHERY_DESIGN.md).
+in-game field guide, and broader datapack support still in progress.
 
 ---
 
@@ -84,7 +83,7 @@ Finished jars are named `smithery-<loader>-<mcversion>-<modversion>.jar` and col
 
 ## Contributing
 
-Contributions, ideas, and bug reports are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow — the short version is "fork, branch, PR." The license is intentionally fork- and PR-friendly; see below.
+Contributions, ideas, and bug reports are welcome — the workflow is the usual "fork, branch, PR." The license is intentionally fork- and PR-friendly; see below.
 
 ---
 
