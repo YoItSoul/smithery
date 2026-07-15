@@ -45,6 +45,19 @@ platform approximations in [`BACKPORT.md`](BACKPORT.md).
 
 ---
 
+## Dependencies
+
+| | NeoForge (26.1.2) | Forge (1.20.1) |
+|---|---|---|
+| **Required** | [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) 5+ | [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) 4.8+ |
+| **Optional** — in-game field guide | [Modonomicon](https://www.curseforge.com/minecraft/mc-mods/modonomicon) | [Patchouli](https://www.curseforge.com/minecraft/mc-mods/patchouli) |
+| **Optional** — recipe browsing | [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) | [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) 15+ |
+
+Without the optional mods Smithery runs normally — you just lose the field guide book or the
+in-game recipe browser.
+
+---
+
 ## Current status
 
 Smithery is in active development — the core loop (forge, melting, alloying, casting,
