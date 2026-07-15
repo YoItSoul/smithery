@@ -60,6 +60,19 @@ combinations unlock bonus effects on top. No two tools need to be the same.
 
 ---
 
+## Dependencies
+
+| | NeoForge (26.1.2) | Forge (1.20.1) |
+|---|---|---|
+| **Required** | [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) 5+ | [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) 4.8+ |
+| **Optional** — in-game field guide | [Modonomicon](https://www.curseforge.com/minecraft/mc-mods/modonomicon) | [Patchouli](https://www.curseforge.com/minecraft/mc-mods/patchouli) |
+| **Optional** — recipe browsing | [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) | [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) 15+ |
+
+Without the optional mods Smithery runs normally — you just lose the field guide book or the
+in-game recipe browser.
+
+---
+
 ## For Modders & Pack Makers
 
 Smithery is built to be extended: new materials, parts, tool types, modifiers, and alloys
