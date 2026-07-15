@@ -31,7 +31,7 @@ How each 26.1 system landed on 1.20.1:
 
 Behavior-visible differences from `main`, each the closest 1.20.1 reconstruction:
 
-- **Spear** — no vanilla spear mechanics; the thrust identity is +1.5 entity reach (`ForgeMod.ENTITY_REACH`) plus the composed attack-speed curve. Kinetic/piercing charge mechanics do not exist here.
+- **Spear** — no vanilla spear mechanics; the thrust identity is +1.5 entity reach (`ForgeMod.ENTITY_REACH`) plus the composed attack-speed curve. Kinetic/piercing charge mechanics do not exist here. 1.20.1 also ships no spear sprite, so the generated pack sources `smithery:item/iron_spear` (bundled copy of the newer vanilla texture) instead of `minecraft:item/iron_spear`.
 - **Battlesign** — blocks via the shield pipeline (`SHIELD_BLOCK` tool action); `ShieldBlockEvent` scales blocked damage to 60%.
 - **Block-drop modifiers** — no block-drops event on 1.20.1: XP-side hooks run at `BlockEvent.BreakEvent` (XP still writable); drop-side hooks run per spawned drop by correlating same-tick `ItemEntity` spawns near the break. Hooks see either an empty drop list with live XP or a one-drop list with inert XP.
 - **Amphibious** — no oxygen attribute; reimplemented as level-scaled air replenishment while submerged.

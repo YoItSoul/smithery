@@ -2,10 +2,11 @@
 
 # Smithery
 
-**Modular tool crafting for NeoForge.** Build tools from interchangeable material parts in a multiblock forge.
+**Modular tool crafting for NeoForge & Forge.** Build tools from interchangeable material parts in a multiblock forge.
 
 [![Minecraft][mc-badge]][mc-link]
 [![NeoForge][nf-badge]][nf-link]
+[![Forge][forge-badge]][forge-link]
 [![Java][java-badge]][java-link]
 [![License][lic-badge]](LICENSE)
 [![Ko-Fi][kofi-badge]][kofi-link]
@@ -16,48 +17,46 @@
 
 ## What is Smithery?
 
-Smithery is a modular, modder-friendly tool crafting mod centered on a multiblock **Forge**. Inspired by the spirit of Tinkers' Construct but rebuilt from the ground up for NeoForge 26.1.2 with a clean Java API, runtime asset generation, and growing datapack override support (alloys and modifiers today; more to come).
+Smithery is a modular, modder-friendly tool crafting mod. Inspired by the spirit of
+Tinkers' Construct but rebuilt from the ground up for modern Minecraft, it replaces
+recipe-grid tools with a smithing craft:
 
-- **Mixed-material tools.** Every tool is assembled from interchangeable parts — blade, guard, handle, binder, head. Pair an iron blade with a gold handle, a copper binder, and the stats, modifiers, and visuals stack accordingly.
-- **Per-material, per-tool-type modifiers.** Iron sword swings sharper, iron pickaxe magnetizes drops, copper poisons, gold gilds XP. Materials carry different abilities depending on which tool they're used in.
-- **Material synergies.** Specific cross-material combinations unlock bonus modifiers — Galvanic (Iron + Copper), Gilded (Iron + Gold), Verdant Veil (Copper + Gold) — at no slot cost.
-- **Multiblock Forge.** Built from Furnace Bricks plus the controller, fuel ports, drains, and item ports. Validates open-top or closed-top structures, tolerates partial builds, and allows walls without corner blocks. Melts items dropped inside (or fed through item ports), auto-alloys, scalds mobs into fluids, and drains into a fluid-pipe network.
-- **Sand casting & Part Press.** Shape molten metal on the Casting Table — impress a part into casting sand, pour, let it cool, brush it clean. Non-meltable materials (wood, flint, slime, coral) are cut on the redstone-driven Part Press instead.
-- **Designed for modders.** Register new materials, parts, tool types, modifiers, synergies, and alloys via a builder-style Java API. Models, item definitions, and tinted textures are generated at runtime from the live registry — no boilerplate JSON per material.
+- **Build a multiblock Forge** in any shape — it melts whatever you throw in, alloys
+  metals automatically, and stores the molten result.
+- **Cast or press parts** — pour molten metal into sand casts, or cut non-meltable
+  materials (wood, flint, slime…) on the Part Press.
+- **Assemble mixed-material tools and armor** at the crafting table, where every part
+  contributes its own stats, abilities, and look.
+- **Grow your gear** through material abilities, cross-material synergies, and
+  anvil-applied modifiers.
+
+Everything is driven by a clean Java API with runtime asset generation, so modders can add
+materials, parts, tool types, and modifiers without writing a single JSON model.
+
+Smithery ships for two loaders from this repository:
+
+| Branch | Loader | Minecraft | Java |
+|---|---|---|---|
+| [`main`](../../tree/main) | NeoForge 26.1.2.61-beta | 26.1.2 | 21+ |
+| [`forge-1.20.1`](../../tree/forge-1.20.1) | Forge 47.4.10 | 1.20.1 | 17+ |
+
+Gameplay and balance are identical across both; the 1.20.1 branch documents its handful of
+platform approximations in [`BACKPORT.md`](BACKPORT.md).
 
 ---
 
 ## Current status
 
-Smithery is in active development. The roadmap is documented in [`SMITHERY_DESIGN.md`](SMITHERY_DESIGN.md).
-
-| Phase | Status          |
-|---|-----------------|
-| Materials (28 built-in), parts, tools, modifiers, synergies | ✅ implemented   |
-| Crafting (shapeless tool assembly at the crafting table) | ✅ implemented   |
-| Multiblock Forge validator (open / closed / partial / no-corner) | ✅ implemented   |
-| Heat / fuel / melting simulation (multi-fuel, temperature-gated melt rates) | ✅ implemented   |
-| Molten fluids (auto-registered per material, tinted, with buckets) | ✅ implemented   |
-| Alloying (data-driven recipes, in-forge auto-processing) | ✅ implemented   |
-| Forge controller GUI (slots, tank, temp, fuel, alloy toggle) | ✅ implemented   |
-| Forge drain (redstone pump → fluid pipe network) + fluid pipes | ✅ implemented   |
-| Sand casting (casting table: impress → pour → cool → brush) | ✅ implemented   |
-| Part Press (in-world part cutting for non-meltable materials) | ✅ implemented   |
-| Anvil-applied modifiers (partial progress, per-level costs) | ✅ implemented   |
-| Mob scalding → fluid drops in the Forge | ✅ implemented   |
-| JEI integration (melting, casting, press, assembly, modifiers) | ✅ implemented   |
-| Armor stats & parts (Core / Plates / Trim) | 🚧 in progress — no assembly recipe yet |
-| Datapack JSON override loaders | 🚧 partial — alloys & modifiers reload from data; materials/melting are code-registered |
-| In-game Field Guide book | 🚧 minimal single-entry draft |
-| Tool repair (sharpening stones) | ⏳ planned       |
-| RF heat coils (Tier 1 + Tier 2) | ⏳ planned       |
-| World gen (ores) | ⏳ not planned — materials melt from vanilla resources |
+Smithery is in active development — the core loop (forge, melting, alloying, casting,
+pressing, tool assembly, modifiers, JEI) is playable today, with armor assembly, the
+in-game field guide, and broader datapack support still in progress. The full design and
+roadmap live in [`SMITHERY_DESIGN.md`](SMITHERY_DESIGN.md).
 
 ---
 
 ## Building from source
 
-You'll need **JDK 21+**.
+Check out the branch for the loader you want — **JDK 21+** for `main` (NeoForge), **JDK 17+** for `forge-1.20.1`.
 
 ```sh
 ./gradlew build         # compile + jar the mod
@@ -65,7 +64,8 @@ You'll need **JDK 21+**.
 ./gradlew runServer     # launch a dev server
 ```
 
-Built jars land in `build/libs/`.
+Finished jars are named `smithery-<loader>-<mcversion>-<modversion>.jar` and collected into
+`dist/`, which always holds the latest build per loader (raw outputs stay in `build/libs/`).
 
 ---
 
@@ -102,15 +102,18 @@ If you'd like to support continued work on Smithery:
 
 ## Acknowledgements
 
-- Built on the [NeoForge](https://neoforged.net/) mod loader.
+- Built on the [NeoForge](https://neoforged.net/) and [Forge](https://minecraftforge.net/) mod loaders.
 - Project scaffold derived from the [NeoForge MDK](https://github.com/NeoForged/MDK) template.
+- In-game field guide powered by [Modonomicon](https://github.com/klikli-dev/modonomicon) (NeoForge) and [Patchouli](https://github.com/VazkiiMods/Patchouli) (Forge 1.20.1).
 - Texture style inspired by vanilla Minecraft.
 
-[mc-badge]: https://img.shields.io/badge/Minecraft-26.1.2-62B47A?logo=minecraft&logoColor=white
+[mc-badge]: https://img.shields.io/badge/Minecraft-26.1.2_%7C_1.20.1-62B47A?logo=minecraft&logoColor=white
 [mc-link]: https://www.minecraft.net/
 [nf-badge]: https://img.shields.io/badge/NeoForge-26.1.2.61--beta-DC8A33
 [nf-link]: https://neoforged.net/
-[java-badge]: https://img.shields.io/badge/Java-21+-ED8B00?logo=openjdk&logoColor=white
+[forge-badge]: https://img.shields.io/badge/Forge-1.20.1--47.4.10-1E2D42
+[forge-link]: https://minecraftforge.net/
+[java-badge]: https://img.shields.io/badge/Java-21+_%7C_17+-ED8B00?logo=openjdk&logoColor=white
 [java-link]: https://adoptium.net/
 [lic-badge]: https://img.shields.io/badge/License-Source--Available-3B5998
 [kofi-badge]: https://img.shields.io/badge/Support_on-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white

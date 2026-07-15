@@ -868,7 +868,8 @@ public class SmitheryGeneratedPack implements PackResources {
             case "axe"     -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_axe");
             case "shovel"  -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_shovel");
             case "hoe"     -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_hoe");
-            case "spear"   -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_spear");
+            // 1.20.1 has no vanilla spear; the mod bundles the sprite the newer targets ship.
+            case "spear"   -> ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "item/iron_spear");
             case "bow"     -> {
                 String path = "item/bow" + (frameSuffix == null ? "" : "_" + frameSuffix);
                 yield ResourceLocation.fromNamespaceAndPath("minecraft", path);

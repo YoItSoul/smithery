@@ -11,6 +11,7 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
@@ -47,12 +48,8 @@ public class ForgeControllerRenderer implements BlockEntityRenderer<ForgeControl
     private static final float SPRITE_SIZE = 0.6f;
     private static final float BLOCK_SIZE  = 0.55f;
 
-    private static final ResourceLocation MOLTEN_STILL_TEXTURE =
-            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "textures/block/molten_still.png");
-
-    private static final int  FRAME_COUNT       = 16;
-    private static final long FRAME_DURATION_MS = 150L;
-    private static final float FRAME_V_STEP     = 1f / FRAME_COUNT;
+    private static final ResourceLocation MOLTEN_STILL_SPRITE =
+            ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "block/molten_still");
 
     private static final float POOL_LERP_FACTOR = 0.10f;
 
@@ -76,13 +73,17 @@ public class ForgeControllerRenderer implements BlockEntityRenderer<ForgeControl
 
         List<FluidCubeEntry> fluidCubes = computeFluidPool(be, slotPositions, origin);
         if (!fluidCubes.isEmpty()) {
-            final int frame = (int) ((System.currentTimeMillis() / FRAME_DURATION_MS) % FRAME_COUNT);
-            final float vMin = frame * FRAME_V_STEP;
-            final float vMax = (frame + 1) * FRAME_V_STEP;
-            VertexConsumer buf = bufferSource.getBuffer(RenderType.entityTranslucent(MOLTEN_STILL_TEXTURE));
+            TextureAtlasSprite sprite = Minecraft.getInstance()
+                    .getTextureAtlas(TextureAtlas.LOCATION_BLOCKS)
+                    .apply(MOLTEN_STILL_SPRITE);
+            VertexConsumer buf = bufferSource.getBuffer(RenderType.entityTranslucent(sprite.atlasLocation()));
             PoseStack.Pose pose = poseStack.last();
+            Map<Long, Float> fillByCell = new HashMap<>();
             for (FluidCubeEntry cube : fluidCubes) {
-                drawFluidCell(pose, buf, cube, vMin, vMax);
+                fillByCell.put(cellKey(cube, 0, 0, 0), cube.fillFraction());
+            }
+            for (FluidCubeEntry cube : fluidCubes) {
+                drawFluidCell(pose, buf, sprite, cube, fillByCell);
             }
         }
 
@@ -225,14 +226,25 @@ public class ForgeControllerRenderer implements BlockEntityRenderer<ForgeControl
                 .endVertex();
     }
 
-    private static void drawFluidCell(PoseStack.Pose pose, VertexConsumer buf,
-                                      FluidCubeEntry cube, float vMin, float vMax) {
+    /** Packed key of the cell {@code offset} steps from {@code cube}'s cell, for pool adjacency lookups. */
+    private static long cellKey(FluidCubeEntry cube, int dx, int dy, int dz) {
+        return BlockPos.asLong((int) cube.pos().x + dx, (int) cube.pos().y + dy, (int) cube.pos().z + dz);
+    }
+
+    /**
+     * Draws one pool cell, eliding faces shared with adjacent fluid cells so the pool reads
+     * as one continuous body instead of stacked translucent boxes. Sprite UVs cover regions
+     * proportional to each face's footprint, so partial fills sample an undistorted slice.
+     */
+    private static void drawFluidCell(PoseStack.Pose pose, VertexConsumer buf, TextureAtlasSprite sprite,
+                                      FluidCubeEntry cube, Map<Long, Float> fillByCell) {
         int color = cube.colorArgb();
         int r = (color >>> 16) & 0xFF;
         int g = (color >>> 8)  & 0xFF;
         int b = (color)        & 0xFF;
         int a = (color >>> 24) & 0xFF;
 
+        final float fill = cube.fillFraction();
         final float px = (float) cube.pos().x;
         final float py = (float) cube.pos().y;
         final float pz = (float) cube.pos().z;
@@ -241,14 +253,34 @@ public class ForgeControllerRenderer implements BlockEntityRenderer<ForgeControl
         final float z0 = pz;
         final float z1 = pz + 1f;
         final float y0 = py;
-        final float y1 = py + cube.fillFraction();
+        final float y1 = py + fill;
+
+        final float u0 = sprite.getU0();
+        final float v0 = sprite.getV0();
+        final float uFull = sprite.getU1();
+        final float vFull = sprite.getV1();
+        final float vSide = v0 + (vFull - v0) * fill;
 
         Matrix4f m = pose.pose();
-        face(m, pose, buf, x0, y0, z0,  x0, y0, z1,  x0, y1, z1,  x0, y1, z0, r, g, b, a, vMin, vMax, -1f, 0f, 0f);
-        face(m, pose, buf, x1, y0, z1,  x1, y0, z0,  x1, y1, z0,  x1, y1, z1, r, g, b, a, vMin, vMax,  1f, 0f, 0f);
-        face(m, pose, buf, x1, y0, z0,  x0, y0, z0,  x0, y1, z0,  x1, y1, z0, r, g, b, a, vMin, vMax, 0f, 0f, -1f);
-        face(m, pose, buf, x0, y0, z1,  x1, y0, z1,  x1, y1, z1,  x0, y1, z1, r, g, b, a, vMin, vMax, 0f, 0f,  1f);
-        face(m, pose, buf, x0, y1, z1,  x1, y1, z1,  x1, y1, z0,  x0, y1, z0, r, g, b, a, vMin, vMax, 0f, 1f, 0f);
+        Float west  = fillByCell.get(cellKey(cube, -1, 0, 0));
+        Float east  = fillByCell.get(cellKey(cube,  1, 0, 0));
+        Float north = fillByCell.get(cellKey(cube,  0, 0, -1));
+        Float south = fillByCell.get(cellKey(cube,  0, 0,  1));
+        boolean below = fillByCell.containsKey(cellKey(cube, 0, -1, 0));
+        boolean above = fillByCell.containsKey(cellKey(cube, 0,  1, 0));
+
+        if (west == null || west < fill)
+            face(m, pose, buf, x0, y0, z0,  x0, y0, z1,  x0, y1, z1,  x0, y1, z0, r, g, b, a, u0, uFull, v0, vSide, -1f, 0f, 0f);
+        if (east == null || east < fill)
+            face(m, pose, buf, x1, y0, z1,  x1, y0, z0,  x1, y1, z0,  x1, y1, z1, r, g, b, a, u0, uFull, v0, vSide,  1f, 0f, 0f);
+        if (north == null || north < fill)
+            face(m, pose, buf, x1, y0, z0,  x0, y0, z0,  x0, y1, z0,  x1, y1, z0, r, g, b, a, u0, uFull, v0, vSide, 0f, 0f, -1f);
+        if (south == null || south < fill)
+            face(m, pose, buf, x0, y0, z1,  x1, y0, z1,  x1, y1, z1,  x0, y1, z1, r, g, b, a, u0, uFull, v0, vSide, 0f, 0f,  1f);
+        if (!below)
+            face(m, pose, buf, x0, y0, z0,  x1, y0, z0,  x1, y0, z1,  x0, y0, z1, r, g, b, a, u0, uFull, v0, vFull, 0f, -1f, 0f);
+        if (!above)
+            face(m, pose, buf, x0, y1, z1,  x1, y1, z1,  x1, y1, z0,  x0, y1, z0, r, g, b, a, u0, uFull, v0, vFull, 0f, 1f, 0f);
     }
 
     private static void face(Matrix4f m, PoseStack.Pose pose, VertexConsumer buf,
@@ -257,12 +289,12 @@ public class ForgeControllerRenderer implements BlockEntityRenderer<ForgeControl
                              float x2, float y2, float z2,
                              float x3, float y3, float z3,
                              int r, int g, int b, int a,
-                             float vMin, float vMax,
+                             float uMin, float uMax, float vMin, float vMax,
                              float nx, float ny, float nz) {
-        addFluidVertex(m, pose, buf, x0, y0, z0, r, g, b, a, 0f, vMin, nx, ny, nz);
-        addFluidVertex(m, pose, buf, x1, y1, z1, r, g, b, a, 1f, vMin, nx, ny, nz);
-        addFluidVertex(m, pose, buf, x2, y2, z2, r, g, b, a, 1f, vMax, nx, ny, nz);
-        addFluidVertex(m, pose, buf, x3, y3, z3, r, g, b, a, 0f, vMax, nx, ny, nz);
+        addFluidVertex(m, pose, buf, x0, y0, z0, r, g, b, a, uMin, vMin, nx, ny, nz);
+        addFluidVertex(m, pose, buf, x1, y1, z1, r, g, b, a, uMax, vMin, nx, ny, nz);
+        addFluidVertex(m, pose, buf, x2, y2, z2, r, g, b, a, uMax, vMax, nx, ny, nz);
+        addFluidVertex(m, pose, buf, x3, y3, z3, r, g, b, a, uMin, vMax, nx, ny, nz);
     }
 
     private static void addFluidVertex(Matrix4f m, PoseStack.Pose pose, VertexConsumer buf,
