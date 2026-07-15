@@ -53,7 +53,7 @@ repositories {
 }
 
 base {
-    archivesName = mod_id
+    archivesName = "${mod_id}-neoforge-${minecraft_version}"
 }
 
 // Mojang ships Java 25 to end users in 26.1.2, so mods should target Java 25.
@@ -241,3 +241,19 @@ idea {
         downloadJavadoc = true
     }
 }
+
+// Publish the finished jar into dist/, which holds exactly one latest build per loader;
+// stale neoforge jars are removed before the copy.
+def distDir = layout.projectDirectory.dir('dist')
+def distJarPrefix = "${mod_id}-neoforge-"
+tasks.register('collectDist', Copy) {
+    from tasks.named('jar')
+    into distDir
+    doFirst {
+        distDir.asFile.mkdirs()
+        distDir.asFile.listFiles()
+            .findAll { it.name.startsWith(distJarPrefix) && it.name.endsWith('.jar') }
+            .each { it.delete() }
+    }
+}
+tasks.named('build').configure { finalizedBy 'collectDist' }

@@ -59,3 +59,7 @@ exported/
 ### Reference assets from other mods (extracted locally for inspiration) ###
 # Not part of the project and must not be shipped.
 reference/
+
+### Smithery ###
+# Latest per-loader jars collected by the collectDist task
+dist/
