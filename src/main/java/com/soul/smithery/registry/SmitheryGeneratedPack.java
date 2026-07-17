@@ -852,7 +852,8 @@ public class SmitheryGeneratedPack implements PackResources {
                            -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_pickaxe");
             case "crossbow"
                            -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/crossbow_standby");
-            case "kama"    -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_hoe");
+            case "kama", "scythe"
+                           -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_hoe");
             case "cleaver" -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_axe");
             case "lumberaxe"
                            -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_axe");
@@ -870,6 +871,7 @@ public class SmitheryGeneratedPack implements PackResources {
             case "hoe"     -> ResourceLocation.fromNamespaceAndPath("minecraft", "item/iron_hoe");
             // 1.20.1 has no vanilla spear; the mod bundles the sprite the newer targets ship.
             case "spear"   -> ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "item/iron_spear");
+            case "sceptre" -> ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "item/iron_sceptre");
             case "bow"     -> {
                 String path = "item/bow" + (frameSuffix == null ? "" : "_" + frameSuffix);
                 yield ResourceLocation.fromNamespaceAndPath("minecraft", path);
@@ -961,6 +963,25 @@ public class SmitheryGeneratedPack implements PackResources {
                     case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
                     case 1 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.HANDLE);
                     case 2 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+            case "sceptre" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.HANDLE);
+                    case 2 -> binder;
+                    default -> new boolean[W][H];
+                };
+            }
+            case "scythe" -> {
+                boolean[][] binder = headCenteredDisc(kind, W, H, 2);
+                return switch (slotIndex) {
+                    case 0 -> maskWhere(W, H, (x, y) -> kind[x][y] == PixelKind.METAL && !binder[x][y]);
+                    case 1 -> handleHalf(kind, W, H, true);
+                    case 2 -> handleHalf(kind, W, H, false);
+                    case 3 -> binder;
                     default -> new boolean[W][H];
                 };
             }
@@ -1211,8 +1232,7 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static boolean isMeltableMaterialPath(String matPath) {
         for (Material m : SmitheryAPI.MATERIALS.all()) {
-            if (m.id().getNamespace().equals(Smithery.MODID)
-                    && m.id().getPath().equals(matPath)
+            if (m.id().getPath().equals(matPath)
                     && m.stats().meltingTemp() > 0f) {
                 return true;
             }

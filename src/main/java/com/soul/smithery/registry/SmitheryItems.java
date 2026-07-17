@@ -93,6 +93,8 @@ public final class SmitheryItems {
 
     /** Smithery kama; shears abilities plus 3x3 double-yield crop harvesting. */
     public static final RegistryObject<SmitheryToolItem> KAMA = registerTool("kama");
+    public static final RegistryObject<SmitheryToolItem> SCYTHE = registerTool("scythe");
+    public static final RegistryObject<SmitheryToolItem> SCEPTRE = registerTool("sceptre");
     /** Smithery cleaver; slow, massive hits with an innate chance to behead. */
     public static final RegistryObject<SmitheryToolItem> CLEAVER = registerTool("cleaver");
     /** Smithery lumberaxe; fells the whole connected tree from one log. */
@@ -211,6 +213,21 @@ public final class SmitheryItems {
      */
     public static Map<String, RegistryObject<PartItem>> builtInParts() {
         return Collections.unmodifiableMap(BUILT_IN_PART_ITEMS);
+    }
+
+    /**
+     * Looks up any registered {@link PartItem} by material and part-type ids, regardless of
+     * which mod registered it. The item's registry name is
+     * {@code <materialNamespace>:<materialPath>_<partTypePath>}.
+     *
+     * @return the matching PartItem, or null if not registered
+     */
+    public static PartItem findPart(ResourceLocation materialId, ResourceLocation partTypeId) {
+        ResourceLocation itemId = ResourceLocation.fromNamespaceAndPath(
+                materialId.getNamespace(),
+                materialId.getPath() + "_" + partTypeId.getPath());
+        Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(itemId);
+        return (item instanceof PartItem p) ? p : null;
     }
 
     /**

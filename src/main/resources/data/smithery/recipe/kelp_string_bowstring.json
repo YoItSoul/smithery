@@ -3,10 +3,10 @@
   "category": "misc",
   "group": "smithery_bowstrings",
   "ingredients": [
-    "smithery:kelp_string"
+    {"item": "smithery:kelp_string"}
   ],
   "result": {
-    "id": "smithery:kelp_string_bowstring",
+    "item": "smithery:kelp_string_bowstring",
     "count": 1
   }
 }

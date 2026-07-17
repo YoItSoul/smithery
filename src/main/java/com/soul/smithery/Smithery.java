@@ -77,8 +77,13 @@ public class Smithery {
                         return part != null ? part.get().getDefaultInstance()
                                             : Items.IRON_INGOT.getDefaultInstance();
                     })
-                    .displayItems((params, output) -> SmitheryItems.builtInParts().values()
-                            .forEach(part -> output.accept(part.get())))
+                    .displayItems((params, output) -> {
+                        for (Item item : ForgeRegistries.ITEMS.getValues()) {
+                            if (item instanceof com.soul.smithery.item.PartItem) {
+                                output.accept(item);
+                            }
+                        }
+                    })
                     .build());
 
     /** Creative tab listing Smithery's placeable blocks (forge controller, casting table, etc.). */

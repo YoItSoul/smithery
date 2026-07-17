@@ -8,11 +8,11 @@
     "SSS"
   ],
   "key": {
-    "S": "minecraft:string",
-    "B": "minecraft:breeze_rod"
+    "S": {"item": "minecraft:string"},
+    "B": {"item": "minecraft:ender_pearl"}
   },
   "result": {
-    "id": "smithery:breezestring",
+    "item": "smithery:breezestring",
     "count": 1
   }
 }

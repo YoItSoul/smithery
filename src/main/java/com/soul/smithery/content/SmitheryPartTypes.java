@@ -69,6 +69,7 @@ public final class SmitheryPartTypes {
     public static PartType LARGE_PLATE;
     /** Kama head part — small hooked blade; shears + light harvesting. */
     public static PartType KAMA_HEAD;
+    public static PartType ARCANE_FOCUS;
     /** Shuriken blade part — quarter of a thrown star, half-ingot each. */
     public static PartType SHURIKEN_BLADE;
     /** Sharpening stone part — anvil-applied tool repair, tier-gated by its material's harvest level. */
@@ -240,6 +241,22 @@ public final class SmitheryPartTypes {
                 .partColorTint(true)
                 .castMb(144)
                 .build());
+
+        // Sceptre head (TConEvo port). Allow-listed to magic-flavored materials so the
+        // per-material part explosion stays small; packs can extend the list via the
+        // part_eligibility datapack layer.
+        ARCANE_FOCUS = SmitheryAPI.registerPartType(PartType.builder(id("arcane_focus"))
+                .durabilityScalar(1.0f)
+                .partColorTint(true)
+                .castMb(144)
+                .build());
+        for (String mat : new String[]{
+                "thaumium", "void_metal", "starmetal", "manasteel", "terrasteel",
+                "elementium", "gaia", "draconium", "awakened", "hallowed_gold",
+                "soul_stained_steel", "aurorium", "lumix", "astrium"}) {
+            com.soul.smithery.api.part.PartEligibility.allow(id("arcane_focus"),
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("soa_additions", mat));
+        }
 
         SHURIKEN_BLADE = SmitheryAPI.registerPartType(PartType.builder(id("shuriken_blade"))
                 .durabilityScalar(0.25f)

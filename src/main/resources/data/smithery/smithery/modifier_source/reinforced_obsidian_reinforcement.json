@@ -1,0 +1,9 @@
+{
+  "_comment": "1 obsidian reinforcement = 4 units toward smithery:reinforced (level costs 1/2/4 with 2.0x scaling). One item covers any single level upgrade.",
+  "source_item": "tconstruct:obsidian_reinforcement",
+  "modifier": "smithery:reinforced",
+  "params": {
+    "level": 1
+  },
+  "unit_value": 4
+}

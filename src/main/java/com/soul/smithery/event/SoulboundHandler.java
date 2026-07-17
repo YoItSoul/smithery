@@ -4,6 +4,7 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.content.SmitheryModifiers;
 import com.soul.smithery.item.tool.SmitheryToolData;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -82,9 +83,17 @@ public final class SoulboundHandler {
         }
     }
 
+    private static final ResourceLocation SOA_SOULBOUND =
+            ResourceLocation.fromNamespaceAndPath("soa_additions", "soulbound");
+    private static final ResourceLocation SOA_SOULBOUND_ARMOR =
+            ResourceLocation.fromNamespaceAndPath("soa_additions", "soulbound_armor");
+
     private static boolean isSoulbound(ItemStack stack) {
         for (ModifierEffect e : SmitheryToolData.getAppliedModifiers(stack)) {
-            if (e.modifierId().equals(SmitheryModifiers.SOULBOUND)) return true;
+            ResourceLocation id = e.modifierId();
+            if (id.equals(SmitheryModifiers.SOULBOUND)
+                    || id.equals(SOA_SOULBOUND)
+                    || id.equals(SOA_SOULBOUND_ARMOR)) return true;
         }
         return false;
     }

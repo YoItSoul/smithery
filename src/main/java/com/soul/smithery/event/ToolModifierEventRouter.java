@@ -177,7 +177,8 @@ public final class ToolModifierEventRouter {
         ItemStack tool = match.tool();
         if (!(tool.getItem() instanceof SmitheryToolItem toolItem)) return;
 
-        if ("kama".equals(toolItem.toolTypeId().getPath()) && match.state().is(BlockTags.CROPS)) {
+        String routerToolPath = toolItem.toolTypeId().getPath();
+        if (("kama".equals(routerToolPath) || "scythe".equals(routerToolPath)) && match.state().is(BlockTags.CROPS)) {
             ItemStack doubled = drop.getItem().copy();
             doubled.setCount(Math.min(doubled.getMaxStackSize(), doubled.getCount() * 2));
             drop.setItem(doubled);

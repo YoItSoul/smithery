@@ -59,6 +59,27 @@ public final class AoeMiningHandler {
             return;
         }
 
+        // Scythe: harvests every crop/plant in a 3x3x3 cube around the broken block.
+        if ("scythe".equals(toolPath)) {
+            BlockState center = event.getState();
+            if (!center.is(net.minecraft.tags.BlockTags.CROPS)
+                    && !center.is(net.minecraft.tags.BlockTags.SWORD_EFFICIENT)) return;
+            SPREADING.set(true);
+            try {
+                for (BlockPos pos : BlockPos.betweenClosed(
+                        event.getPos().offset(-1, -1, -1), event.getPos().offset(1, 1, 1))) {
+                    if (pos.equals(event.getPos())) continue;
+                    BlockState state = level.getBlockState(pos);
+                    if (!state.is(net.minecraft.tags.BlockTags.CROPS)
+                            && !state.is(net.minecraft.tags.BlockTags.SWORD_EFFICIENT)) continue;
+                    player.gameMode.destroyBlock(pos.immutable());
+                }
+            } finally {
+                SPREADING.set(false);
+            }
+            return;
+        }
+
         // Lumberaxe: breaking a log fells the whole connected tree above and around it.
         if ("lumberaxe".equals(toolPath)) {
             if (!event.getState().is(net.minecraft.tags.BlockTags.LOGS)) return;

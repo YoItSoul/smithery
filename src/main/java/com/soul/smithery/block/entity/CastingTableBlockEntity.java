@@ -262,9 +262,9 @@ public class CastingTableBlockEntity extends BlockEntity {
         Item explicit = CastResults.resolve(entry.materialId, impressedPartTypeId);
         if (explicit != null) return new ItemStack(explicit);
 
-        var partItem = SmitheryItems.getBuiltInPart(entry.materialId, impressedPartTypeId);
+        var partItem = SmitheryItems.findPart(entry.materialId, impressedPartTypeId);
         if (partItem == null) return ItemStack.EMPTY;
-        return new ItemStack(partItem.get());
+        return new ItemStack(partItem);
     }
 
     /**

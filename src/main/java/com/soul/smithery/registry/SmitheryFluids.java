@@ -188,7 +188,7 @@ public final class SmitheryFluids {
         }
     }
 
-    private static void registerOne(Material material) {
+    public static void registerOne(Material material) {
         ResourceLocation matId = material.id();
         String name = "molten_" + matId.getPath();
         MaterialStats stats = material.stats();

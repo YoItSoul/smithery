@@ -3,17 +3,17 @@
   "category": "misc",
   "group": "smithery_bowstrings",
   "ingredients": [
-    "minecraft:redstone",
-    "minecraft:redstone",
-    "minecraft:redstone",
-    "minecraft:redstone",
-    "minecraft:slime_ball",
-    "minecraft:slime_ball",
-    "minecraft:slime_ball",
-    "minecraft:slime_ball"
+    {"item": "minecraft:redstone"},
+    {"item": "minecraft:redstone"},
+    {"item": "minecraft:redstone"},
+    {"item": "minecraft:redstone"},
+    {"item": "minecraft:slime_ball"},
+    {"item": "minecraft:slime_ball"},
+    {"item": "minecraft:slime_ball"},
+    {"item": "minecraft:slime_ball"}
   ],
   "result": {
-    "id": "smithery:red_slime",
+    "item": "smithery:red_slime",
     "count": 4
   }
 }

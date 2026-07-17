@@ -40,6 +40,10 @@ public final class MaterialStats {
     private final float meltingTemp;
     private final int moltenColor;
     private final int partColor;
+    private final int[] colorCycle;
+    private final int colorCyclePeriodTicks;
+    private final boolean foil;
+    private final boolean emissive;
     private final float binderMultiplier;
     private final boolean castOnly;
     private final FluidBase fluidBase;
@@ -55,6 +59,10 @@ public final class MaterialStats {
         this.meltingTemp = b.meltingTemp;
         this.moltenColor = b.moltenColor;
         this.partColor = b.partColor != 0 ? b.partColor : darken(b.moltenColor);
+        this.colorCycle = b.colorCycle.clone();
+        this.colorCyclePeriodTicks = b.colorCyclePeriodTicks;
+        this.foil = b.foil;
+        this.emissive = b.emissive;
         this.binderMultiplier = b.binderMultiplier;
         this.castOnly = b.castOnly;
         this.fluidBase = b.fluidBase;
@@ -109,6 +117,40 @@ public final class MaterialStats {
     /** ARGB color used by the item tint handler to color grayscale part textures. */
     public int partColor() { return partColor; }
 
+    /**
+     * ARGB keyframe colors this material's tint cycles through over time, in order.
+     * Empty (the default) means the static {@link #partColor()} is always used.
+     *
+     * <p>The animated color is resolved client-side by
+     * {@code MaterialColorAnimator.currentColor(stats)}; on the server (and for materials
+     * without a cycle) that resolver falls back to {@link #partColor()}, so the cycle is a
+     * pure render-time effect with no gameplay impact.
+     *
+     * @return a defensive copy of the keyframe array; never null
+     */
+    public int[] colorCycle() { return colorCycle.clone(); }
+
+    /** Raw (uncopied) keyframe array — for hot render-path use only; callers must not mutate. */
+    public int[] colorCycleRaw() { return colorCycle; }
+
+    /** Full duration of one color cycle in client ticks (20 ticks = 1 second). */
+    public int colorCyclePeriodTicks() { return colorCyclePeriodTicks; }
+
+    /** True iff this material animates its tint (two or more cycle keyframes declared). */
+    public boolean hasColorCycle() { return colorCycle.length >= 2; }
+
+    /** True iff parts and gear made of this material render with the enchantment-glint shimmer. */
+    public boolean foil() { return foil; }
+
+    /**
+     * True iff parts (and composed gear containing this material) render full-bright,
+     * ignoring world light — used for materials whose source item glows.
+     */
+    public boolean emissive() { return emissive; }
+
+    /** True iff this material declares any render effect (cycle, foil, or emissive). */
+    public boolean hasRenderEffects() { return hasColorCycle() || foil || emissive; }
+
     /** Durability multiplier applied when this material is used as the binder slot. */
     public float binderMultiplier() { return binderMultiplier; }
 
@@ -157,6 +199,10 @@ public final class MaterialStats {
         private float meltingTemp = 1000f;
         private int moltenColor = 0xFFAAAAAA;
         private int partColor = 0;
+        private int[] colorCycle = new int[0];
+        private int colorCyclePeriodTicks = 60;
+        private boolean foil = false;
+        private boolean emissive = false;
         private float binderMultiplier = 1.0f;
         private boolean castOnly = false;
         private FluidBase fluidBase = FluidBase.MOLTEN;
@@ -184,6 +230,34 @@ public final class MaterialStats {
 
         /** Sets the ARGB tint applied to part textures (defaults to a darkened molten color). */
         public Builder partColor(int argb) { this.partColor = argb; return this; }
+
+        /**
+         * Declares an animated tint: the part color smoothly cycles through {@code argbColors}
+         * over {@code periodTicks} client ticks, looping. Pass at least two colors; a single
+         * color (or none) leaves the material on its static {@link #partColor(int)}.
+         *
+         * <p>Render-time only — server-side stat logic always sees the static part color.
+         *
+         * @param periodTicks full loop duration in ticks (clamped to at least 2)
+         * @param argbColors  ordered ARGB keyframes to cycle through
+         */
+        public Builder colorCycle(int periodTicks, int... argbColors) {
+            this.colorCyclePeriodTicks = Math.max(2, periodTicks);
+            this.colorCycle = argbColors != null ? argbColors.clone() : new int[0];
+            return this;
+        }
+
+        /** Renders parts and gear of this material with the enchantment-glint shimmer. */
+        public Builder foil() { return foil(true); }
+
+        /** Sets whether parts and gear of this material render with the enchantment glint. */
+        public Builder foil(boolean v) { this.foil = v; return this; }
+
+        /** Renders parts (and gear containing this material) full-bright, ignoring world light. */
+        public Builder emissive() { return emissive(true); }
+
+        /** Sets whether parts and gear of this material render full-bright. */
+        public Builder emissive(boolean v) { this.emissive = v; return this; }
 
         /** Sets the durability multiplier applied when this material occupies a binder slot. */
         public Builder binderMultiplier(float v) { this.binderMultiplier = v; return this; }
