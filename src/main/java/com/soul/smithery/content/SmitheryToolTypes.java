@@ -40,6 +40,8 @@ public final class SmitheryToolTypes {
     public static ToolType CROSSBOW;
     /** Tool type for kamas (kama head + handle + binder) — shears + 3x3 double-yield harvesting. */
     public static ToolType KAMA;
+    public static ToolType SCYTHE;
+    public static ToolType SCEPTRE;
     /** Tool type for cleavers (large blade + large plate + 2 handles + binder) — slow, huge hits, beheading. */
     public static ToolType CLEAVER;
     /** Tool type for lumberaxes (2 axe heads + large plate + handle + binder) — fells whole trees. */
@@ -143,6 +145,20 @@ public final class SmitheryToolTypes {
         KAMA = SmitheryAPI.registerToolType(ToolType.builder(id("kama"))
                 .addPart(SmitheryPartTypes.KAMA_HEAD, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.HANDLE, DurabilityRole.ADDITIVE)
+                .addPart(SmitheryPartTypes.BINDER, DurabilityRole.MULTIPLIER)
+                .build());
+
+        // TConEvo sceptre: magic weapon - right-click fires an arcane bolt.
+        SCEPTRE = SmitheryAPI.registerToolType(ToolType.builder(id("sceptre"))
+                .addPart(SmitheryPartTypes.ARCANE_FOCUS, DurabilityRole.ADDITIVE)
+                .addPart(SmitheryPartTypes.HANDLE, DurabilityRole.ADDITIVE)
+                .addPart(SmitheryPartTypes.BINDER, DurabilityRole.MULTIPLIER)
+                .build());
+
+        // GC-staple harvest weapon: long two-handed kama that clears a 3x3x3 of plants.
+        SCYTHE = SmitheryAPI.registerToolType(ToolType.builder(id("scythe"))
+                .addPart(SmitheryPartTypes.KAMA_HEAD, DurabilityRole.ADDITIVE)
+                .addPart(SmitheryPartTypes.HANDLE, DurabilityRole.ADDITIVE, 2)
                 .addPart(SmitheryPartTypes.BINDER, DurabilityRole.MULTIPLIER)
                 .build());
 

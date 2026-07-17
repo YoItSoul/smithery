@@ -195,10 +195,10 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         if (pt == null) return;
         ResourceLocation materialId = resolveMaterialFor(input);
         if (materialId == null) return;
-        var partItem = SmitheryItems.getBuiltInPart(materialId, pt.id());
+        var partItem = SmitheryItems.findPart(materialId, pt.id());
         if (partItem == null) return;
 
-        ItemStack produced = new ItemStack(partItem.get());
+        ItemStack produced = new ItemStack(partItem);
         if (!output.isEmpty()) {
             if (!ItemStack.isSameItemSameTags(output, produced)) return;
             if (output.getCount() >= output.getMaxStackSize()) return;

@@ -3,10 +3,10 @@
   "category": "misc",
   "group": "smithery_bowstrings",
   "ingredients": [
-    "minecraft:string"
+    {"item": "minecraft:string"}
   ],
   "result": {
-    "id": "smithery:string_bowstring",
+    "item": "smithery:string_bowstring",
     "count": 1
   }
 }

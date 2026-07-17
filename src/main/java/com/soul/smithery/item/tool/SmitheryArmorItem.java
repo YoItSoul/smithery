@@ -5,6 +5,7 @@ import com.google.common.collect.Multimap;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.material.MaterialColorAnimator;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.synergy.SynergyDefinition;
@@ -265,6 +266,44 @@ public class SmitheryArmorItem extends ArmorItem implements DyeableLeatherItem {
             }
         }
         return null;
+    }
+
+    /** Resolves the core (primary additive) material of {@code stack}, or null. */
+    private Material coreMaterialOf(ItemStack stack) {
+        if (stack.getTag() == null) return null;
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
+        ToolType tt = toolType();
+        if (comp == null || tt == null) return null;
+        ResourceLocation id = primaryAdditiveMaterial(tt, comp);
+        return id != null ? SmitheryAPI.MATERIALS.get(id) : null;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Core materials with an animated color cycle are resolved live through
+     * {@link MaterialColorAnimator} so the worn armor layers (and the leather-style item
+     * tint fallback) pulse with the material; static materials keep the color baked into
+     * the dye NBT by {@link #applyWornTint}.
+     */
+    @Override
+    public int getColor(ItemStack stack) {
+        Material core = coreMaterialOf(stack);
+        if (core != null && core.stats().hasColorCycle()) {
+            return MaterialColorAnimator.currentColor(core.stats()) & 0xFFFFFF;
+        }
+        return DyeableLeatherItem.super.getColor(stack);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Armor containing a foil material shimmers with the enchantment glint, both as an
+     * item and worn (the armor layer checks the same hook).
+     */
+    @Override
+    public boolean isFoil(ItemStack stack) {
+        return super.isFoil(stack) || SmitheryToolItem.hasFoilMaterial(stack);
     }
 
     @Override

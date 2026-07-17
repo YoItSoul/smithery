@@ -52,12 +52,24 @@ public class PartItem extends Item {
     public PartType partType() { return SmitheryAPI.PART_TYPES.get(partTypeId); }
 
     /**
-     * Returns the ARGB tint colour used by the client-side ItemColor for layer 0;
-     * defaults to opaque white when the material can't be resolved.
+     * Returns the static ARGB tint colour for this part's material; defaults to opaque white
+     * when the material can't be resolved. The live (possibly animated) render color is
+     * resolved by the item color handler via {@code MaterialColorAnimator}.
      */
     public int tintColor() {
         Material m = material();
         return m != null ? m.stats().partColor() : 0xFFFFFFFF;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Parts of foil materials shimmer with the enchantment glint.
+     */
+    @Override
+    public boolean isFoil(ItemStack stack) {
+        Material m = material();
+        return (m != null && m.stats().foil()) || super.isFoil(stack);
     }
 
     @Override

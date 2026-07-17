@@ -5,6 +5,7 @@ import com.google.common.collect.Multimap;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
+import com.soul.smithery.api.material.MaterialColorAnimator;
 import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.part.PartType;
@@ -254,11 +255,58 @@ public class SmitheryToolItem extends Item {
         return sb.toString();
     }
 
+    /**
+     * Returns bonus modifier slots granted by modifiers carrying a {@code bonus_slots}
+     * parameter (writable, modifiable, extra-trait modifiers). Checks both post-craft
+     * applied modifiers AND composition-granted material traits, deduped by modifier id
+     * (applied wins on collision).
+     */
+    public static int bonusModifierSlots(ItemStack stack) {
+        int bonus = 0;
+        java.util.Set<ResourceLocation> seen = new java.util.HashSet<>();
+        for (ModifierEffect e : SmitheryToolData.getAppliedModifiers(stack)) {
+            seen.add(e.modifierId());
+            int b = e.paramInt("bonus_slots", 0);
+            if (b > 0) bonus += b;
+        }
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
+        if (comp != null) {
+            ToolType tt = comp.toolType();
+            if (tt != null) {
+                ResourceLocation embossedId = comp.embossedMaterial().orElse(null);
+                if (embossedId != null) {
+                    Material donor = SmitheryAPI.MATERIALS.get(embossedId);
+                    if (donor != null) {
+                        for (ModifierEffect e : donor.stats().modifiersFor(tt)) {
+                            if (seen.add(e.modifierId())) {
+                                int b = e.paramInt("bonus_slots", 0);
+                                if (b > 0) bonus += b;
+                            }
+                        }
+                    }
+                }
+                List<ResourceLocation> matIds = comp.slotMaterials();
+                for (int i = 0; i < tt.slots().size() && i < matIds.size(); i++) {
+                    Material m = SmitheryAPI.MATERIALS.get(matIds.get(i));
+                    if (m == null) continue;
+                    for (ModifierEffect e : m.stats().modifiersFor(tt)) {
+                        if (seen.add(e.modifierId())) {
+                            int b = e.paramInt("bonus_slots", 0);
+                            if (b > 0) bonus += b;
+                        }
+                    }
+                }
+            }
+        }
+        return bonus;
+    }
+
     /** Returns the modifier slots remaining on {@code stack}, clamped to non-negative. */
     public static int freeModifierSlots(ItemStack stack) {
         ToolComposition comp = SmitheryToolData.getComposition(stack);
         if (comp == null) return 0;
-        return Math.max(0, totalModifierSlots(comp) - appliedModifierCount(stack));
+        int bonus = bonusModifierSlots(stack);
+        return Math.max(0, totalModifierSlots(comp) + bonus - appliedModifierCount(stack));
     }
 
     private static float attackSpeedFor(ToolComposition comp) {
@@ -274,6 +322,8 @@ public class SmitheryToolItem extends Item {
             case "mining_hammer" -> -3.4f;
             case "axe"           -> -3.2f;
             case "kama"          -> -2.2f;
+            case "scythe"        -> -3.0f;
+            case "sceptre"       -> -2.4f;
             case "battlesign"    -> -2.4f;
             case "cleaver"       -> -3.4f;
             case "lumberaxe"     -> -3.3f;
@@ -347,6 +397,10 @@ public class SmitheryToolItem extends Item {
                     new MiningRule(BlockTags.SWORD_EFFICIENT, 1.0f),
                     new MiningRule(BlockTags.LEAVES, 1.0f),
                     new MiningRule(BlockTags.WOOL, 1.0f));
+            case "scythe"        -> List.of(
+                    new MiningRule(BlockTags.SWORD_EFFICIENT, 1.0f),
+                    new MiningRule(BlockTags.LEAVES, 1.0f),
+                    new MiningRule(BlockTags.MINEABLE_WITH_HOE, 1.0f));
             case "paxel"         -> List.of(
                     new MiningRule(BlockTags.MINEABLE_WITH_PICKAXE, 1.0f),
                     new MiningRule(BlockTags.MINEABLE_WITH_AXE, 1.0f),
@@ -360,7 +414,7 @@ public class SmitheryToolItem extends Item {
     /** True when this tool family respects harvest tiers (sword-family blocks always drop). */
     private static boolean usesHarvestTier(String toolTypePath) {
         return switch (toolTypePath) {
-            case "sword", "broadsword", "rapier", "cleaver", "battlesign", "kama" -> false;
+            case "sword", "broadsword", "rapier", "cleaver", "battlesign", "kama", "scythe", "sceptre" -> false;
             default -> true;
         };
     }
@@ -430,7 +484,70 @@ public class SmitheryToolItem extends Item {
             player.startUsingItem(hand);
             return InteractionResultHolder.consume(stack);
         }
+        if (isSceptre()) {
+            ItemStack stack = player.getItemInHand(hand);
+            fireSceptreBolt(level, player, stack);
+            player.getCooldowns().addCooldown(this, 20);
+            return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
+        }
         return super.use(level, player, hand);
+    }
+
+    /**
+     * Sceptre attack (TConEvo port): a 16-block arcane ray dealing the wielder's
+     * composed attack damage as magic damage to the first entity hit. Costs 1 durability.
+     */
+    private void fireSceptreBolt(Level level, Player player, ItemStack stack) {
+        net.minecraft.world.phys.Vec3 from = player.getEyePosition();
+        net.minecraft.world.phys.Vec3 dir = player.getLookAngle();
+        net.minecraft.world.phys.Vec3 to = from.add(dir.scale(16.0));
+
+        if (level.isClientSide()) return;
+
+        net.minecraft.world.phys.BlockHitResult blockHit = level.clip(new net.minecraft.world.level.ClipContext(
+                from, to, net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                net.minecraft.world.level.ClipContext.Fluid.NONE, player));
+        double range = blockHit.getType() == net.minecraft.world.phys.HitResult.Type.MISS
+                ? 16.0 : Math.sqrt(blockHit.getLocation().distanceToSqr(from));
+
+        net.minecraft.world.entity.LivingEntity target = null;
+        double best = range;
+        for (net.minecraft.world.entity.LivingEntity candidate : level.getEntitiesOfClass(
+                net.minecraft.world.entity.LivingEntity.class,
+                player.getBoundingBox().expandTowards(dir.scale(range)).inflate(1.0),
+                e -> e != player && e.isAlive() && e.isPickable())) {
+            java.util.Optional<net.minecraft.world.phys.Vec3> clip =
+                    candidate.getBoundingBox().inflate(0.3).clip(from, to);
+            if (clip.isPresent()) {
+                double d = Math.sqrt(clip.get().distanceToSqr(from));
+                if (d < best) { best = d; target = candidate; }
+            }
+        }
+
+        float damage = (float) player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+        if (target != null) {
+            target.hurt(level.damageSources().indirectMagic(player, player), damage);
+        }
+        if (level instanceof net.minecraft.server.level.ServerLevel sl) {
+            net.minecraft.world.phys.Vec3 end = from.add(dir.scale(best));
+            int steps = Math.max(2, (int) (best * 2.0));
+            for (int i = 1; i <= steps; i++) {
+                net.minecraft.world.phys.Vec3 p = from.add(dir.scale(best * i / steps));
+                sl.sendParticles(net.minecraft.core.particles.ParticleTypes.WITCH,
+                        p.x, p.y, p.z, 1, 0.02, 0.02, 0.02, 0.0);
+            }
+            sl.sendParticles(net.minecraft.core.particles.ParticleTypes.CRIT,
+                    end.x, end.y, end.z, 8, 0.2, 0.2, 0.2, 0.1);
+        }
+        level.playSound(null, player.blockPosition(),
+                net.minecraft.sounds.SoundEvents.EVOKER_CAST_SPELL,
+                net.minecraft.sounds.SoundSource.PLAYERS, 0.7f, 1.4f);
+        stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(player.getUsedItemHand()));
+    }
+
+    private boolean isSceptre() {
+        ToolType tt = toolType();
+        return tt != null && "sceptre".equals(tt.id().getPath());
     }
 
     /** {@inheritDoc} The battlesign holds the shield blocking pose. */
@@ -736,6 +853,7 @@ public class SmitheryToolItem extends Item {
      * Returns the ARGB tint colour for {@code stack}'s primary additive material; opaque
      * white when no composition is present or the material can't be resolved. Static so
      * the bow and arrow items (which don't extend SmitheryToolItem) can share it.
+     * Animated materials resolve through {@link MaterialColorAnimator}.
      */
     public static int primaryTintColorFor(ItemStack stack) {
         ToolComposition comp = SmitheryToolData.getComposition(stack);
@@ -746,9 +864,36 @@ public class SmitheryToolItem extends Item {
             if (tt.slots().get(i).role() == DurabilityRole.ADDITIVE) {
                 ResourceLocation matId = comp.slotMaterials().get(i);
                 Material m = matId != null ? SmitheryAPI.MATERIALS.get(matId) : null;
-                return m != null ? (m.stats().partColor() | 0xFF000000) : 0xFFFFFFFF;
+                return m != null ? MaterialColorAnimator.currentColor(m.stats()) : 0xFFFFFFFF;
             }
         }
         return 0xFFFFFFFF;
+    }
+
+    /**
+     * True when any slot material of {@code stack}'s composition is a foil material.
+     * Shared by the tool and armor {@code isFoil} overrides; the cheap null-tag check
+     * keeps uncomposed stacks free.
+     */
+    public static boolean hasFoilMaterial(ItemStack stack) {
+        if (stack.getTag() == null) return false;
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
+        if (comp == null) return false;
+        for (ResourceLocation matId : comp.slotMaterials()) {
+            Material m = matId != null ? SmitheryAPI.MATERIALS.get(matId) : null;
+            if (m != null && m.stats().foil()) return true;
+        }
+        return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Tools containing a foil material shimmer with the enchantment glint even without
+     * enchantments.
+     */
+    @Override
+    public boolean isFoil(ItemStack stack) {
+        return super.isFoil(stack) || hasFoilMaterial(stack);
     }
 }

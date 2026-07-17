@@ -210,9 +210,8 @@ public final class SmitheryJeiRecipes {
             return result != null ? new ItemStack(result) : ItemStack.EMPTY;
         }
         if (material.stats().castOnly()) return ItemStack.EMPTY;
-        if (!Smithery.MODID.equals(material.id().getNamespace())) return ItemStack.EMPTY;
-        var di = SmitheryItems.getBuiltInPart(material.id(), partType.id());
-        return di == null ? ItemStack.EMPTY : new ItemStack(di.get());
+        var part = SmitheryItems.findPart(material.id(), partType.id());
+        return part != null ? new ItemStack(part) : ItemStack.EMPTY;
     }
 
     /**
@@ -258,9 +257,9 @@ public final class SmitheryJeiRecipes {
         if (materialId == null) return;
         Material material = SmitheryAPI.MATERIALS.get(materialId);
         if (material == null) return;
-        var di = SmitheryItems.getBuiltInPart(materialId, pt.id());
-        if (di == null) return;
-        out.add(new JeiPartPress(input, material, pt, new ItemStack(di.get())));
+        var part = SmitheryItems.findPart(materialId, pt.id());
+        if (part == null) return;
+        out.add(new JeiPartPress(input, material, pt, new ItemStack(part)));
     }
 
     /**
@@ -284,14 +283,13 @@ public final class SmitheryJeiRecipes {
             for (Material material : SmitheryAPI.MATERIALS.all()) {
                 if (material.stats().castOnly()) continue;
                 if (isHiddenFromJei(material.id())) continue;
-                if (!Smithery.MODID.equals(material.id().getNamespace())) continue;
 
                 List<ItemStack> slotParts = new ArrayList<>(toolType.slots().size());
                 boolean missingPart = false;
                 for (var slot : toolType.slots()) {
-                    var di = SmitheryItems.getBuiltInPart(material.id(), slot.partType().id());
-                    if (di == null) { missingPart = true; break; }
-                    slotParts.add(new ItemStack(di.get()));
+                    var part = SmitheryItems.findPart(material.id(), slot.partType().id());
+                    if (part == null) { missingPart = true; break; }
+                    slotParts.add(new ItemStack(part));
                 }
                 if (missingPart) continue;
 
@@ -383,8 +381,8 @@ public final class SmitheryJeiRecipes {
             if (s.role() == DurabilityRole.ADDITIVE) { primary = s.partType(); break; }
         }
         if (primary != null) {
-            var di = SmitheryItems.getBuiltInPart(material.id(), primary.id());
-            if (di != null) return new ItemStack(di.get());
+            var part = SmitheryItems.findPart(material.id(), primary.id());
+            if (part != null) return new ItemStack(part);
         }
         return representativeMaterialItem(material.id());
     }
@@ -398,11 +396,11 @@ public final class SmitheryJeiRecipes {
     private static ItemStack representativeMaterialItem(ResourceLocation materialId) {
         Item ingot = CastResults.resolve(materialId, SmitheryPartTypes.INGOT.id());
         if (ingot != null) return new ItemStack(ingot);
-        var binder = SmitheryItems.getBuiltInPart(materialId, SmitheryPartTypes.BINDER.id());
-        if (binder != null) return new ItemStack(binder.get());
+        var binder = SmitheryItems.findPart(materialId, SmitheryPartTypes.BINDER.id());
+        if (binder != null) return new ItemStack(binder);
         for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
-            var di = SmitheryItems.getBuiltInPart(materialId, pt.id());
-            if (di != null) return new ItemStack(di.get());
+            var part = SmitheryItems.findPart(materialId, pt.id());
+            if (part != null) return new ItemStack(part);
         }
         return ItemStack.EMPTY;
     }

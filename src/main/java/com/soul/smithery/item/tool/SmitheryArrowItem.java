@@ -141,4 +141,10 @@ public class SmitheryArrowItem extends ArrowItem {
     public boolean isBarVisible(ItemStack stack) {
         return stack.getDamageValue() > 0;
     }
+
+    /** Ranged/thrown gear containing a foil material shimmers with the enchantment glint. */
+    @Override
+    public boolean isFoil(net.minecraft.world.item.ItemStack stack) {
+        return super.isFoil(stack) || SmitheryToolItem.hasFoilMaterial(stack);
+    }
 }

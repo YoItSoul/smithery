@@ -8,11 +8,11 @@
     "SSS"
   ],
   "key": {
-    "S": "minecraft:string",
-    "B": "minecraft:blaze_powder"
+    "S": {"item": "minecraft:string"},
+    "B": {"item": "minecraft:blaze_powder"}
   },
   "result": {
-    "id": "smithery:flamestring",
+    "item": "smithery:flamestring",
     "count": 1
   }
 }

@@ -3,17 +3,17 @@
   "category": "misc",
   "group": "smithery_kelp_string",
   "ingredients": [
-    "minecraft:kelp",
-    "minecraft:kelp",
-    "minecraft:kelp",
-    "minecraft:kelp",
-    "minecraft:string",
-    "minecraft:string",
-    "minecraft:string",
-    "minecraft:string"
+    {"item": "minecraft:kelp"},
+    {"item": "minecraft:kelp"},
+    {"item": "minecraft:kelp"},
+    {"item": "minecraft:kelp"},
+    {"item": "minecraft:string"},
+    {"item": "minecraft:string"},
+    {"item": "minecraft:string"},
+    {"item": "minecraft:string"}
   ],
   "result": {
-    "id": "smithery:unfinished_kelp_string_1",
+    "item": "smithery:unfinished_kelp_string_1",
     "count": 1
   }
 }
