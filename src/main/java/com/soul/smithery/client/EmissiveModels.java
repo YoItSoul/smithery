@@ -47,7 +47,7 @@ public final class EmissiveModels {
     private EmissiveModels() {}
 
     @SubscribeEvent
-    static void onModifyBakingResult(ModelEvent.ModifyBakingResult event) {
+    public static void onModifyBakingResult(ModelEvent.ModifyBakingResult event) {
         FullbrightBakedModel.clearCache();
         Map<ResourceLocation, BakedModel> models = event.getModels();
 

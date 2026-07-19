@@ -1,0 +1,6 @@
+{
+  "parent": "bettercombat:pickaxe",
+  "attributes": {
+    "category": "shovel"
+  }
+}

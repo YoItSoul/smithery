@@ -69,7 +69,6 @@ public class SmitheryGeneratedPack implements PackResources {
         ResourceLocation vanillaSlimeBall = ResourceLocation.fromNamespaceAndPath("minecraft", "item/slime_ball");
         SIMPLE_ITEMS = java.util.Map.of(
                 "flamestring",              new SimpleItem(vanillaString,    0xFFFF6622),
-                "breezestring",             new SimpleItem(vanillaString,    0xFFB0E2FF),
                 "kelp_string",              new SimpleItem(vanillaString,    0xFF3F8E45),
                 "unfinished_kelp_string_1", new SimpleItem(vanillaString,    0xFF7C9479),
                 "unfinished_kelp_string_2", new SimpleItem(vanillaString,    0xFF5F9059),
@@ -97,8 +96,40 @@ public class SmitheryGeneratedPack implements PackResources {
      * (model, blockstate, item definition). Returns null for anything outside the
      * client-resources pack type or that doesn't match a recognized path.
      */
+    /** Data-side path of the dynamic lava fluid tag covering every molten smithery fluid. */
+    private static final String LAVA_TAG_PATH = "tags/fluids/lava.json";
+
+    /**
+     * Builds the {@code minecraft:lava} fluid-tag JSON listing every molten-base smithery
+     * fluid (source + flowing). Tagging them as lava is what gives molten metal lava's
+     * gameplay semantics for free: entities burn and take lava damage, dropped items are
+     * destroyed, fire resistance protects, and water contact solidifies — all of that logic
+     * keys off {@code FluidTags.LAVA} in vanilla entity/block code. Water-base materials
+     * (blood etc.) are excluded.
+     */
+    private static InputStream lavaTagJson() {
+        StringBuilder sb = new StringBuilder("{\"replace\":false,\"values\":[");
+        boolean first = true;
+        for (Material m : SmitheryAPI.MATERIALS.all()) {
+            if (m.stats().meltingTemp() <= 0f) continue;
+            if (m.stats().fluidBase() != com.soul.smithery.api.material.MaterialStats.FluidBase.MOLTEN) continue;
+            String base = Smithery.MODID + ":molten_" + m.id().getPath();
+            if (!first) sb.append(',');
+            sb.append('"').append(base).append("\",\"").append(base).append("_flowing\"");
+            first = false;
+        }
+        sb.append("]}");
+        return new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
     @Override
     public @Nullable IoSupplier<InputStream> getResource(PackType type, ResourceLocation location) {
+        if (type == PackType.SERVER_DATA) {
+            if ("minecraft".equals(location.getNamespace()) && LAVA_TAG_PATH.equals(location.getPath())) {
+                return SmitheryGeneratedPack::lavaTagJson;
+            }
+            return null;
+        }
         if (type != PackType.CLIENT_RESOURCES) return null;
         String path = location.getPath();
         String namespace = location.getNamespace();
@@ -121,6 +152,18 @@ public class SmitheryGeneratedPack implements PackResources {
                     path.length() - PNG_SUFFIX.length());
             if (RED_SLIME_BLOCK.equals(blockName)) {
                 return () -> emitPng(synthesizeRedSlimeTexture());
+            }
+            IoSupplier<InputStream> cycleTex = resolveMoltenCycleTexture(blockName);
+            if (cycleTex != null) return cycleTex;
+        }
+
+        if (path.startsWith(BLOCK_TEX_PREFIX) && path.endsWith(PNG_SUFFIX + ".mcmeta")
+                && Smithery.MODID.equals(namespace)) {
+            String blockName = path.substring(BLOCK_TEX_PREFIX.length(),
+                    path.length() - (PNG_SUFFIX + ".mcmeta").length());
+            if (moltenCycleMaterial(blockName) != null) {
+                return () -> new ByteArrayInputStream(
+                        "{\"animation\":{\"frametime\":2}}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
         }
 
@@ -163,6 +206,17 @@ public class SmitheryGeneratedPack implements PackResources {
      */
     @Override
     public void listResources(PackType type, String namespace, String directory, ResourceOutput output) {
+        if (type == PackType.SERVER_DATA) {
+            if ("minecraft".equals(namespace)) {
+                String dataPrefix = directory.isEmpty() ? ""
+                        : directory.endsWith("/") ? directory : directory + "/";
+                if (LAVA_TAG_PATH.startsWith(dataPrefix)) {
+                    output.accept(ResourceLocation.fromNamespaceAndPath("minecraft", LAVA_TAG_PATH),
+                            SmitheryGeneratedPack::lavaTagJson);
+                }
+            }
+            return;
+        }
         if (type != PackType.CLIENT_RESOURCES) return;
 
         String prefix = directory.isEmpty() ? "" : directory.endsWith("/") ? directory : directory + "/";
@@ -232,6 +286,21 @@ public class SmitheryGeneratedPack implements PackResources {
                         () -> resolveBlockModelJson(namespace, fluidId), output);
                 emitIfMatches(namespace, MODELS_PREFIX       + bucketId + JSON_SUFFIX, prefix,
                         () -> resolveModelJson(namespace, bucketId), output);
+                if (m.stats().hasColorCycle()) {
+                    for (String suffix : new String[]{"_cycle_still", "_cycle_flow"}) {
+                        String tex = fluidId + suffix;
+                        emitIfMatches(namespace, BLOCK_TEX_PREFIX + tex + PNG_SUFFIX, prefix,
+                                () -> resolveMoltenCycleTexture(tex), output);
+                        // The atlas directory scan pairs a sprite with its animation metadata
+                        // by finding the .mcmeta in the SAME listing — omit this and the
+                        // stitcher bakes the whole frame strip as one static texture.
+                        emitIfMatches(namespace, BLOCK_TEX_PREFIX + tex + PNG_SUFFIX + ".mcmeta", prefix,
+                                () -> () -> new ByteArrayInputStream(
+                                        "{\"animation\":{\"frametime\":2}}"
+                                                .getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                                output);
+                    }
+                }
             }
         }
 
@@ -306,6 +375,7 @@ public class SmitheryGeneratedPack implements PackResources {
      */
     @Override
     public Set<String> getNamespaces(PackType type) {
+        if (type == PackType.SERVER_DATA) return Set.of("minecraft");
         if (type != PackType.CLIENT_RESOURCES) return Set.of();
         Set<String> ns = new HashSet<>();
         ns.add(Smithery.MODID);
@@ -571,6 +641,101 @@ public class SmitheryGeneratedPack implements PackResources {
           .append("\"texture\": \"#sand\"}");
     }
 
+    /**
+     * Resolves {@code molten_<material>_cycle_still|_cycle_flow} names to the owning
+     * color-cycling material, or null when the name isn't a cycle-fluid texture.
+     */
+    private static com.soul.smithery.api.material.MaterialStats moltenCycleMaterial(String blockName) {
+        if (!blockName.startsWith(MOLTEN_PREFIX)) return null;
+        String rest = blockName.substring(MOLTEN_PREFIX.length());
+        String matPath;
+        if (rest.endsWith("_cycle_still")) matPath = rest.substring(0, rest.length() - "_cycle_still".length());
+        else if (rest.endsWith("_cycle_flow")) matPath = rest.substring(0, rest.length() - "_cycle_flow".length());
+        else return null;
+        for (Material m : SmitheryAPI.MATERIALS.all()) {
+            if (m.id().getPath().equals(matPath) && m.stats().hasColorCycle()
+                    && m.stats().meltingTemp() > 0f) {
+                return m.stats();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Bakes the merged molten animation for a color-cycling material: every logical frame of
+     * the shared grayscale molten flow animation (following its mcmeta frame sequence, so the
+     * ping-pong ordering is preserved) is repeated through the material's color cycle, each
+     * output frame multiplied by the palette color at its position in the cycle. The result is
+     * a plain stacked-frame sprite whose mcmeta is a bare frametime — flow motion and metal
+     * color pulse in one texture, no tint or chunk rebuilds required.
+     */
+    private @Nullable IoSupplier<InputStream> resolveMoltenCycleTexture(String blockName) {
+        com.soul.smithery.api.material.MaterialStats stats = moltenCycleMaterial(blockName);
+        if (stats == null) return null;
+        boolean still = blockName.endsWith("_cycle_still");
+        return () -> {
+            BufferedImage base = readTemplateTexture(ResourceLocation.fromNamespaceAndPath(
+                    Smithery.MODID, "block/" + (still ? "molten_still" : "molten_flow")));
+            int frameW = base.getWidth();
+            int physFrames = Math.max(1, base.getHeight() / frameW);
+            int[] seq = readTemplateFrameSequence(
+                    still ? "molten_still" : "molten_flow", physFrames);
+            int frametime = 2;
+            // repeat the flow sequence enough times that one texture loop approximates the
+            // material's cycle period, capped to keep the atlas strip reasonable
+            int repeats = Math.max(1, Math.min(3,
+                    Math.round(stats.colorCyclePeriodTicks() / (float) (seq.length * frametime))));
+            int total = seq.length * repeats;
+            BufferedImage out = new BufferedImage(frameW, frameW * total, BufferedImage.TYPE_INT_ARGB);
+            for (int k = 0; k < total; k++) {
+                int srcFrame = seq[k % seq.length];
+                int tint = com.soul.smithery.api.material.MaterialColorAnimator
+                        .colorAt(stats, k / (float) total);
+                int tr = (tint >>> 16) & 0xFF, tg = (tint >>> 8) & 0xFF, tb = tint & 0xFF;
+                int srcY = srcFrame * frameW, dstY = k * frameW;
+                for (int y = 0; y < frameW; y++) {
+                    for (int x = 0; x < frameW; x++) {
+                        int argb = base.getRGB(x, srcY + y);
+                        int a = (argb >>> 24) & 0xFF;
+                        if (a == 0) { out.setRGB(x, dstY + y, 0); continue; }
+                        int r = ((argb >>> 16) & 0xFF) * tr / 255;
+                        int g = ((argb >>> 8) & 0xFF) * tg / 255;
+                        int b = (argb & 0xFF) * tb / 255;
+                        out.setRGB(x, dstY + y, (a << 24) | (r << 16) | (g << 8) | b);
+                    }
+                }
+            }
+            return emitPng(out);
+        };
+    }
+
+    /** Reads the base texture's mcmeta frame sequence, defaulting to 0..physFrames-1. */
+    private static int[] readTemplateFrameSequence(String baseName, int physFrames) {
+        ResourceLocation loc = ResourceLocation.fromNamespaceAndPath(
+                Smithery.MODID, "textures/block/" + baseName + ".png.mcmeta");
+        try {
+            var rm = net.minecraft.client.Minecraft.getInstance().getResourceManager();
+            var res = rm.getResource(loc);
+            if (res.isPresent()) {
+                try (InputStream in = res.get().open()) {
+                    var json = com.google.gson.JsonParser.parseReader(
+                            new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+                    var anim = json.getAsJsonObject().getAsJsonObject("animation");
+                    if (anim != null && anim.has("frames")) {
+                        var arr = anim.getAsJsonArray("frames");
+                        int[] seq = new int[arr.size()];
+                        for (int i = 0; i < arr.size(); i++) seq[i] = arr.get(i).getAsInt();
+                        return seq;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        int[] seq = new int[physFrames];
+        for (int i = 0; i < physFrames; i++) seq[i] = i;
+        return seq;
+    }
+
     private static BufferedImage readTemplateTexture(ResourceLocation tmplId) throws IOException {
         ResourceLocation resourceLoc = ResourceLocation.fromNamespaceAndPath(
                 tmplId.getNamespace(), "textures/" + tmplId.getPath() + ".png");
@@ -630,24 +795,12 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private @Nullable IoSupplier<InputStream> resolveSynthesizedPartTemplate(String partName) {
         return switch (partName) {
-            case "bow_limb"        -> () -> emitPng(synthesizeBowLimbTemplate());
-            case "bowstring"       -> () -> emitPng(synthesizeBowstringTemplate());
-            case "arrow_shaft"     -> () -> emitPng(synthesizeArrowShaftTemplate());
-            case "fletching"       -> () -> emitPng(synthesizeFletchingTemplate());
-            case "helmet_core"     -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_helmet"));
-            case "chestplate_core" -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_chestplate"));
-            case "leggings_core"   -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_leggings"));
-            case "boots_core"      -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_boots"));
-            case "armor_plates"    -> () -> emitPng(synthesizeArmorPlatesTemplate());
-            case "armor_trim"      -> () -> emitPng(synthesizeArmorTrimTemplate());
-            case "sharpening_stone" -> () -> emitPng(synthesizeNormalizedTemplate("item/flint"));
-            case "polishing_stone"  -> () -> emitPng(synthesizeNormalizedTemplate("item/brick"));
-            case "large_blade"      -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_sword"));
-            case "hammer_head"      -> () -> emitPng(synthesizeNormalizedTemplate("block/iron_block"));
-            case "large_plate"      -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_ingot"));
-            case "kama_head"        -> () -> emitPng(synthesizeArmorPartTemplate("item/iron_hoe"));
-            case "shuriken_blade"   -> () -> emitPng(synthesizeNormalizedTemplate("item/nether_star"));
-            default                -> null;
+            case "bow_limb"       -> () -> emitPng(synthesizeBowLimbTemplate());
+            case "bowstring"      -> () -> emitPng(synthesizeBowstringTemplate());
+            case "arrow_shaft"    -> () -> emitPng(synthesizeArrowShaftTemplate());
+            case "fletching"      -> () -> emitPng(synthesizeFletchingTemplate());
+            case "shuriken_blade" -> () -> emitPng(synthesizeNormalizedTemplate("item/nether_star"));
+            default               -> null;
         };
     }
 
@@ -676,15 +829,10 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     /**
-     * Reads a vanilla armor-piece item texture (iron helmet/chest/leggings/boots) and desaturates
-     * it to grayscale so the per-material part-color tint can recolor it at render time.
-     *
-     * <p>Used to ship a viable placeholder armor-part icon for every (material × armor core)
-     * combination without hand-painting each one. The vanilla iron piece's silhouette is the
-     * familiar shape; the grayscale conversion strips iron's gray-blue cast so tinting reads
-     * cleanly across all materials.
+     * Reads a vanilla item texture and desaturates it to grayscale so the per-material
+     * part-color tint can recolor it at render time.
      */
-    private static BufferedImage synthesizeArmorPartTemplate(String vanillaPath) throws IOException {
+    private static BufferedImage synthesizeGrayscaleTemplate(String vanillaPath) throws IOException {
         BufferedImage src = readTemplateTexture(
                 ResourceLocation.fromNamespaceAndPath("minecraft", vanillaPath));
         int W = src.getWidth(), H = src.getHeight();
@@ -705,29 +853,12 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     /**
-     * Synthesizes the armor-plates template from a grayscale-desaturated iron ingot icon — the
-     * plates part conceptually sits between the core and trim, so the ingot silhouette is the
-     * natural placeholder for "an extra layer of metal applied to armor".
-     */
-    private static BufferedImage synthesizeArmorPlatesTemplate() throws IOException {
-        return synthesizeArmorPartTemplate("item/iron_ingot");
-    }
-
-    /**
-     * Synthesizes the armor-trim template from a grayscale-desaturated iron nugget icon — the
-     * trim part is the smallest contribution to armor, mirrored by the nugget's small silhouette.
-     */
-    private static BufferedImage synthesizeArmorTrimTemplate() throws IOException {
-        return synthesizeArmorPartTemplate("item/iron_nugget");
-    }
-
-    /**
-     * Like {@link #synthesizeArmorPartTemplate} but rescales so the brightest opaque pixel lands
-     * at 230 — needed for naturally dark vanilla sources (flint, brick) where a plain desaturate
-     * would multiply every material tint toward black.
+     * Like {@link #synthesizeGrayscaleTemplate} but rescales so the brightest opaque pixel lands
+     * at 230 — needed for naturally dark vanilla sources where a plain desaturate would multiply
+     * every material tint toward black.
      */
     private static BufferedImage synthesizeNormalizedTemplate(String vanillaPath) throws IOException {
-        BufferedImage out = synthesizeArmorPartTemplate(vanillaPath);
+        BufferedImage out = synthesizeGrayscaleTemplate(vanillaPath);
         int W = out.getWidth(), H = out.getHeight();
         int peak = 0;
         for (int y = 0; y < H; y++) {

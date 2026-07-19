@@ -78,22 +78,22 @@ public final class SoulboundStash {
 
     /** Registers the capability class with Forge. */
     @Mod.EventBusSubscriber(modid = Smithery.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
-    static final class Registrar {
+    public static final class Registrar {
         private Registrar() {}
 
         @SubscribeEvent
-        static void onRegisterCapabilities(RegisterCapabilitiesEvent event) {
+        public static void onRegisterCapabilities(RegisterCapabilitiesEvent event) {
             event.register(SoulboundStash.class);
         }
     }
 
     /** Attaches a serializable stash to every player. */
     @Mod.EventBusSubscriber(modid = Smithery.MODID)
-    static final class Attacher {
+    public static final class Attacher {
         private Attacher() {}
 
         @SubscribeEvent
-        static void onAttachCapabilities(AttachCapabilitiesEvent<net.minecraft.world.entity.Entity> event) {
+        public static void onAttachCapabilities(AttachCapabilitiesEvent<net.minecraft.world.entity.Entity> event) {
             if (event.getObject() instanceof Player) {
                 event.addCapability(ID, new Provider());
             }

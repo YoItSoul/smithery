@@ -29,5 +29,9 @@ public final class SmitheryJeiTypes {
     public static final RecipeType<SmitheryJeiRecipes.JeiModifier> MODIFIER =
             RecipeType.create(Smithery.MODID, "modifier", SmitheryJeiRecipes.JeiModifier.class);
 
+    /** Recipe type for the alloying category. */
+    public static final RecipeType<SmitheryJeiRecipes.JeiAlloying> ALLOYING =
+            RecipeType.create(Smithery.MODID, "alloying", SmitheryJeiRecipes.JeiAlloying.class);
+
     private SmitheryJeiTypes() {}
 }

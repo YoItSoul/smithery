@@ -134,6 +134,18 @@ public final class SmitheryJeiRecipes {
     public record JeiSynergyGrant(SynergyDefinition synergy, ToolType toolType, ModifierEffect effect,
                                   ItemStack itemA, ItemStack itemB) {}
 
+    /**
+     * One entry per registered alloy recipe: every input fluid with its required mB, the produced
+     * fluid, and the minimum forge temperature.
+     *
+     * @param inputs   required input fluids, amounts set to the recipe's mB
+     * @param output   produced fluid, amount set to the recipe's mB
+     * @param minTempC minimum forge temperature in degrees Celsius (0 = no gate)
+     */
+    public record JeiAlloying(List<net.minecraftforge.fluids.FluidStack> inputs,
+                              net.minecraftforge.fluids.FluidStack output,
+                              float minTempC) {}
+
     private SmitheryJeiRecipes() {}
 
     /**
@@ -172,6 +184,40 @@ public final class SmitheryJeiRecipes {
                     material,
                     recipe.outputMb(),
                     material.stats().meltingTemp()));
+        }
+        return out;
+    }
+
+    /**
+     * Builds the snapshot list of alloying recipes from {@link com.soul.smithery.api.alloy.AlloyRecipes}.
+     *
+     * <p>Skips recipes whose input or output materials are hidden from JEI or have no registered
+     * molten fluid — a fluid-less material can't be rendered (and can't exist in the forge either,
+     * so such a recipe is dormant anyway).
+     *
+     * @return list of alloying category rows
+     */
+    public static List<JeiAlloying> buildAlloyingRecipes() {
+        List<JeiAlloying> out = new ArrayList<>();
+        for (com.soul.smithery.api.alloy.AlloyRecipe recipe : com.soul.smithery.api.alloy.AlloyRecipes.all()) {
+            if (isHiddenFromJei(recipe.result().material())) continue;
+            SmitheryFluids.Entry outEntry = SmitheryFluids.forMaterial(recipe.result().material());
+            if (outEntry == null) continue;
+
+            List<net.minecraftforge.fluids.FluidStack> inputs = new ArrayList<>(recipe.inputs().size());
+            boolean renderable = true;
+            for (com.soul.smithery.api.alloy.AlloyRecipe.Input in : recipe.inputs()) {
+                if (isHiddenFromJei(in.material())) { renderable = false; break; }
+                SmitheryFluids.Entry inEntry = SmitheryFluids.forMaterial(in.material());
+                if (inEntry == null) { renderable = false; break; }
+                inputs.add(new net.minecraftforge.fluids.FluidStack(inEntry.source.get(), in.mb()));
+            }
+            if (!renderable) continue;
+
+            out.add(new JeiAlloying(
+                    inputs,
+                    new net.minecraftforge.fluids.FluidStack(outEntry.source.get(), recipe.result().mb()),
+                    recipe.minTemperatureC()));
         }
         return out;
     }

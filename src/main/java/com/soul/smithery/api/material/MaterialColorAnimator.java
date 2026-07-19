@@ -53,6 +53,22 @@ public final class MaterialColorAnimator {
         return color;
     }
 
+    /**
+     * Samples the cycle palette at a fixed fraction of one full period (0..1) — the static
+     * counterpart of {@link #currentColor} used when baking animation frames into textures.
+     * Non-cycling materials return their part color for any fraction.
+     */
+    public static int colorAt(MaterialStats stats, float fraction) {
+        if (stats == null) return 0xFFFFFFFF;
+        if (!stats.hasColorCycle()) return stats.partColor() | 0xFF000000;
+        int[] cycle = stats.colorCycleRaw();
+        int n = cycle.length;
+        float pos = (fraction - (float) Math.floor(fraction)) * n;
+        int idx = (int) pos;
+        if (idx >= n) idx = n - 1;
+        return lerpArgb(cycle[idx], cycle[(idx + 1) % n], pos - idx) | 0xFF000000;
+    }
+
     /** Smoothly interpolates between the cycle keyframes at the given tick. */
     private static int computeCycleColor(MaterialStats stats, long tick) {
         int[] cycle = stats.colorCycleRaw();

@@ -103,12 +103,20 @@ public final class SmitheryItemColors {
         return MaterialColorAnimator.currentColor(mat.stats());
     }
 
-    /** Molten buckets: layer 1 (the fluid window) takes the molten color. */
+    /**
+     * Molten buckets: layer 1 (the fluid window) takes the molten color — live-animated
+     * through the material's palette for color-cycling materials, so the bucket's window
+     * pulses in step with the material's parts and fluid.
+     */
     private static int bucketColor(ItemStack stack, int tintIndex) {
         if (tintIndex != 1) return -1;
         ResourceLocation itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
         SmitheryFluids.Entry entry = SmitheryFluids.forBucketItemId(itemId);
         if (entry == null) return -1;
-        return entry.material.stats().moltenColor() | 0xFF000000;
+        var stats = entry.material.stats();
+        if (stats.hasColorCycle()) {
+            return MaterialColorAnimator.currentColor(stats);
+        }
+        return stats.moltenColor() | 0xFF000000;
     }
 }

@@ -20,7 +20,7 @@ public final class MaterialEffectsTicker {
     private MaterialEffectsTicker() {}
 
     @SubscribeEvent
-    static void onClientTick(TickEvent.ClientTickEvent event) {
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             MaterialColorAnimator.advanceTick();
         }

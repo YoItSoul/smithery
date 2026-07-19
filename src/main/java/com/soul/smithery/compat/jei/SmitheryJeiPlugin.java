@@ -45,7 +45,8 @@ public class SmitheryJeiPlugin implements IModPlugin {
                 new CastingJeiCategory(guiHelper),
                 new PartPressJeiCategory(guiHelper),
                 new ToolAssemblyJeiCategory(guiHelper),
-                new ModifierJeiCategory(guiHelper)
+                new ModifierJeiCategory(guiHelper),
+                new AlloyingJeiCategory(guiHelper)
         );
     }
 
@@ -56,6 +57,7 @@ public class SmitheryJeiPlugin implements IModPlugin {
         registration.addRecipes(SmitheryJeiTypes.PART_PRESS,    SmitheryJeiRecipes.buildPartPressRecipes());
         registration.addRecipes(SmitheryJeiTypes.TOOL_ASSEMBLY, SmitheryJeiRecipes.buildToolAssemblyRecipes());
         registration.addRecipes(SmitheryJeiTypes.MODIFIER,      SmitheryJeiRecipes.buildModifierRecipes());
+        registration.addRecipes(SmitheryJeiTypes.ALLOYING,      SmitheryJeiRecipes.buildAlloyingRecipes());
     }
 
     @Override
@@ -65,6 +67,7 @@ public class SmitheryJeiPlugin implements IModPlugin {
         registration.addRecipeCatalyst(new ItemStack(SmitheryBlocks.PART_PRESS_ITEM.get()),       SmitheryJeiTypes.PART_PRESS);
         registration.addRecipeCatalyst(new ItemStack(Items.CRAFTING_TABLE),                       SmitheryJeiTypes.TOOL_ASSEMBLY);
         registration.addRecipeCatalyst(new ItemStack(Items.ANVIL),                                SmitheryJeiTypes.MODIFIER);
+        registration.addRecipeCatalyst(new ItemStack(SmitheryBlocks.FORGE_CONTROLLER_ITEM.get()), SmitheryJeiTypes.ALLOYING);
     }
 
     @Override

@@ -54,7 +54,8 @@ public final class SmitheryItems {
      */
     private static RegistryObject<SmitheryToolItem> registerTool(String name) {
         return ITEMS.register(name,
-                () -> new SmitheryToolItem(new Item.Properties().durability(1), id(name)));
+                () -> com.soul.smithery.compat.draconic.DraconicCompat.newTool(
+                        new Item.Properties().durability(1), id(name)));
     }
 
     /**
@@ -63,7 +64,8 @@ public final class SmitheryItems {
      */
     private static RegistryObject<SmitheryArmorItem> registerArmor(String name, ArmorItem.Type type) {
         return ITEMS.register(name,
-                () -> new SmitheryArmorItem(type, new Item.Properties(), id(name)));
+                () -> com.soul.smithery.compat.draconic.DraconicCompat.newArmor(
+                        type, new Item.Properties(), id(name)));
     }
 
     /** Smithery sword tool item; per-stack composition lives in the stack's {@code tool_composition} NBT. */
@@ -133,9 +135,6 @@ public final class SmitheryItems {
     /** Flame-string crafting item; part-press input that produces flamestring material parts. */
     public static final RegistryObject<Item> FLAMESTRING =
             ITEMS.register("flamestring", () -> new Item(new Item.Properties()));
-    /** Breeze-string crafting item; part-press input that produces breezestring material parts. */
-    public static final RegistryObject<Item> BREEZESTRING =
-            ITEMS.register("breezestring", () -> new Item(new Item.Properties()));
     /** Red slime crafting item; part-press input that produces red_slime material parts. */
     public static final RegistryObject<Item> RED_SLIME =
             ITEMS.register("red_slime", () -> new Item(new Item.Properties()));

@@ -73,8 +73,6 @@ public final class SmitheryMaterials {
     public static ResourceLocation STRING;
     /** ResourceLocation of the flame-themed bowstring-class material. */
     public static ResourceLocation FLAMESTRING;
-    /** ResourceLocation of the breeze-themed bowstring-class material. */
-    public static ResourceLocation BREEZESTRING;
     /** ResourceLocation of the red-slime material (bowstring-eligible and unrestricted general use). */
     public static ResourceLocation RED_SLIME;
     /** ResourceLocation of the kelp-string bowstring-class material. */
@@ -457,16 +455,6 @@ public final class SmitheryMaterials {
                 .partColor(0xFFFF6622)
                 .binderMultiplier(1.0f), 2).build());
 
-        BREEZESTRING = id("breezestring");
-        SmitheryAPI.registerMaterial(BREEZESTRING, binderSlots(MaterialStats.builder()
-                .harvestLevel(0)
-                .miningSpeed(1.0f)
-                .attackDamage(0.5f)
-                .durabilityPerIngot(140)
-                .meltingTemp(0f)
-                .partColor(0xFFB0E2FF)
-                .binderMultiplier(1.1f), 2).build());
-
         RED_SLIME = id("red_slime");
         SmitheryAPI.registerMaterial(RED_SLIME, binderSlots(MaterialStats.builder()
                 .harvestLevel(0)
@@ -495,13 +483,11 @@ public final class SmitheryMaterials {
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, STRING);
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, SLIME);
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, FLAMESTRING);
-        com.soul.smithery.api.part.PartEligibility.allow(bowstringId, BREEZESTRING);
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, RED_SLIME);
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, KELP_STRING);
 
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(STRING,       bowstringId);
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(FLAMESTRING,  bowstringId);
-        com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(BREEZESTRING, bowstringId);
         com.soul.smithery.api.part.PartEligibility.restrictMaterialTo(KELP_STRING,  bowstringId);
     }
 

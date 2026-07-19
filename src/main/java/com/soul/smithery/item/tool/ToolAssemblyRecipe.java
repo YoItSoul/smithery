@@ -70,7 +70,9 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
             if (stack.isEmpty()) continue;
             nonEmpty++;
             if (!(stack.getItem() instanceof PartItem partItem)) return false;
-            if (stack.getCount() != 1) return false;
+            // No stack-count gate: vanilla crafting semantics consume one item per slot per
+            // craft regardless of slot count — rejecting count>1 broke assembly whenever a
+            // player placed a whole stack (the default left-click, and the norm in creative).
             provided.merge(partItem.partTypeId(), 1, Integer::sum);
         }
 

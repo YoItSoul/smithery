@@ -36,7 +36,7 @@ public final class SmitheryClient {
     private SmitheryClient() {}
 
     @SubscribeEvent
-    static void onClientSetup(FMLClientSetupEvent event) {
+    public static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             MenuScreens.register(SmitheryMenus.FORGE_CONTROLLER.get(), ForgeControllerScreen::new);
 
@@ -57,7 +57,7 @@ public final class SmitheryClient {
     }
 
     @SubscribeEvent
-    static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
+    public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FORGE_CONTROLLER.get(), ForgeControllerRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.CASTING_TABLE.get(), CastingTableRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FLUID_PIPE.get(), FluidPipeRenderer::new);
@@ -68,7 +68,7 @@ public final class SmitheryClient {
     }
 
     @SubscribeEvent
-    static void onRegisterItemColors(RegisterColorHandlersEvent.Item event) {
+    public static void onRegisterItemColors(RegisterColorHandlersEvent.Item event) {
         SmitheryItemColors.onRegisterItemColors(event);
     }
 }

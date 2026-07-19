@@ -96,3 +96,11 @@ Example mod description.
     versionRange="[15.0,)"
     ordering="AFTER"
     side="BOTH"
+
+# Better Combat picks up data/smithery/weapon_attributes/ for animated combos; optional.
+[[dependencies.${mod_id}]]
+    modId="bettercombat"
+    mandatory=false
+    versionRange="[1.9.0,)"
+    ordering="AFTER"
+    side="BOTH"

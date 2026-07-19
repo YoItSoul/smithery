@@ -70,3 +70,9 @@ dist/
 /PLAN.md
 /SMITHERY_DESIGN.md
 /TRANSLATIONS.md
+
+### Local dev dependencies (third-party jars, not redistributable) ###
+libs/
+
+### Texture working files (contains external reference art) ###
+texture_review/

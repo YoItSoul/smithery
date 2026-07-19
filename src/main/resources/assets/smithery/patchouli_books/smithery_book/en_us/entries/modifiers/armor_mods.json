@@ -1,6 +1,6 @@
 {
   "name": "Armor Modifiers",
-  "icon": "minecraft:turtle_scute",
+  "icon": "minecraft:scute",
   "category": "smithery:modifiers",
   "sortnum": 2,
   "pages": [
@@ -24,8 +24,8 @@
     },
     {
       "type": "patchouli:spotlight",
-      "item": "minecraft:turtle_scute",
-      "text": "Reduces projectile damage taken per level, per piece.$(br2)$(l)Apply with:$() Turtle Scute at an anvil.",
+      "item": "minecraft:scute",
+      "text": "Reduces projectile damage taken per level, per piece.$(br2)$(l)Apply with:$() Scute at an anvil.",
       "title": "Projectile Resistant"
     },
     {

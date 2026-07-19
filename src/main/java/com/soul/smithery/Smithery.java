@@ -138,7 +138,6 @@ public class Smithery {
                     .icon(() -> SmitheryItems.FLAMESTRING.get().getDefaultInstance())
                     .displayItems((params, output) -> {
                         output.accept(SmitheryItems.FLAMESTRING.get());
-                        output.accept(SmitheryItems.BREEZESTRING.get());
                         output.accept(SmitheryItems.RED_SLIME.get());
                         output.accept(SmitheryItems.UNFINISHED_KELP_STRING_1.get());
                         output.accept(SmitheryItems.UNFINISHED_KELP_STRING_2.get());
@@ -198,6 +197,8 @@ public class Smithery {
      */
     public Smithery() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+        com.soul.smithery.compat.draconic.DraconicCompat.init();
 
         SmitheryPartTypes.register();
         SmitheryToolTypes.register();

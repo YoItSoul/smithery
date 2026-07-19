@@ -57,7 +57,12 @@ public final class MaterialStats {
         this.attackDamage = b.attackDamage;
         this.durabilityPerIngot = b.durabilityPerIngot;
         this.meltingTemp = b.meltingTemp;
-        this.moltenColor = b.moltenColor;
+        // The default molten gray only stands when no partColor was given either — most
+        // materials declare only partColor, and gray molten fluids for all of them was a
+        // long-standing visual bug. Derived molten color is the part color pushed toward
+        // white for a heat-glow read.
+        this.moltenColor = (b.moltenColor == Builder.DEFAULT_MOLTEN_COLOR && b.partColor != 0)
+                ? brighten(b.partColor) : b.moltenColor;
         this.partColor = b.partColor != 0 ? b.partColor : darken(b.moltenColor);
         this.colorCycle = b.colorCycle.clone();
         this.colorCyclePeriodTicks = b.colorCyclePeriodTicks;
@@ -190,14 +195,27 @@ public final class MaterialStats {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
+    /** Pushes a color 35% toward white — molten metal reads hotter than its solid form. */
+    private static int brighten(int argb) {
+        int a = (argb >>> 24) & 0xFF;
+        int r = (argb >>> 16) & 0xFF, g = (argb >>> 8) & 0xFF, b = argb & 0xFF;
+        r += (255 - r) * 35 / 100;
+        g += (255 - g) * 35 / 100;
+        b += (255 - b) * 35 / 100;
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
     /** Fluent builder for {@link MaterialStats}. */
     public static final class Builder {
+        /** Sentinel gray: an unchanged moltenColor means "derive from partColor" at build. */
+        static final int DEFAULT_MOLTEN_COLOR = 0xFFAAAAAA;
+
         private int harvestLevel = 0;
         private float miningSpeed = 1.0f;
         private float attackDamage = 0.0f;
         private int durabilityPerIngot = 60;
         private float meltingTemp = 1000f;
-        private int moltenColor = 0xFFAAAAAA;
+        private int moltenColor = DEFAULT_MOLTEN_COLOR;
         private int partColor = 0;
         private int[] colorCycle = new int[0];
         private int colorCyclePeriodTicks = 60;

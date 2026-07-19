@@ -1,0 +1,6 @@
+{
+  "parent": "bettercombat:sickle",
+  "attributes": {
+    "category": "hoe"
+  }
+}

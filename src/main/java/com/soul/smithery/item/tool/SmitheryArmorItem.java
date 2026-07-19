@@ -53,7 +53,11 @@ import java.util.function.Consumer;
  * ({@link #getAttributeModifiers}, {@link #getMaxDamage}). The worn model renders the shared
  * grayscale layers dyed with the core material's color via {@link DyeableLeatherItem}.
  */
-public class SmitheryArmorItem extends ArmorItem implements DyeableLeatherItem {
+// Extends DyeableArmorItem (not plain ArmorItem): vanilla's HumanoidArmorLayer only applies
+// the dye tint to worn layers for DyeableArmorItem instances — implementing the
+// DyeableLeatherItem interface alone tints the ITEM icon but leaves the WORN model untinted,
+// which made every smithery armor set read as iron in third person.
+public class SmitheryArmorItem extends net.minecraft.world.item.DyeableArmorItem implements DyeableLeatherItem {
 
     /** Stable armor/toughness modifier UUIDs, one per armor slot (vanilla convention). */
     private static final UUID[] ARMOR_MODIFIER_UUIDS = {
@@ -237,9 +241,17 @@ public class SmitheryArmorItem extends ArmorItem implements DyeableLeatherItem {
      *
      * <p>Both worn layers point at the shared grayscale armor textures;
      * {@link DyeableLeatherItem} tints them with the composed color at render time.
+     *
+     * <p>The armor layer renders dyeable armor in two passes: the base texture tinted with
+     * {@link #getColor}, then an untinted {@code type="overlay"} pass on top (leather's
+     * trim-detail pass). Serving the base texture for both passes would paint the untinted
+     * grayscale over the tint, so the overlay pass gets a fully transparent texture instead.
      */
     @Override
     public String getArmorTexture(ItemStack stack, Entity entity, EquipmentSlot slot, String type) {
+        if ("overlay".equals(type)) {
+            return Smithery.MODID + ":textures/models/armor/armor_layer_overlay.png";
+        }
         int layer = slot == EquipmentSlot.LEGS ? 2 : 1;
         return Smithery.MODID + ":textures/models/armor/armor_layer_" + layer + ".png";
     }
@@ -292,7 +304,7 @@ public class SmitheryArmorItem extends ArmorItem implements DyeableLeatherItem {
         if (core != null && core.stats().hasColorCycle()) {
             return MaterialColorAnimator.currentColor(core.stats()) & 0xFFFFFF;
         }
-        return DyeableLeatherItem.super.getColor(stack);
+        return super.getColor(stack);
     }
 
     /**

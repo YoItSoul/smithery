@@ -63,7 +63,6 @@ public final class MaterialSourceTooltipHandler {
 
         if (stack.is(Items.STRING))                              return SmitheryMaterials.STRING;
         if (stack.is(SmitheryItems.FLAMESTRING.get()))           return SmitheryMaterials.FLAMESTRING;
-        if (stack.is(SmitheryItems.BREEZESTRING.get()))          return SmitheryMaterials.BREEZESTRING;
         if (stack.is(SmitheryItems.RED_SLIME.get()))             return SmitheryMaterials.RED_SLIME;
         if (stack.is(SmitheryItems.KELP_STRING.get()))           return SmitheryMaterials.KELP_STRING;
         return null;

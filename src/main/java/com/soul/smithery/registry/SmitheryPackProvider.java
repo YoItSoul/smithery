@@ -28,17 +28,22 @@ public final class SmitheryPackProvider {
      */
     @SubscribeEvent
     public static void onAddPackFinders(AddPackFindersEvent event) {
-        if (event.getPackType() != PackType.CLIENT_RESOURCES) return;
+        // Registered for BOTH pack types: client resources (models/textures) and server data
+        // (the dynamic minecraft:lava fluid tag that gives molten metals lava semantics).
+        PackType type = event.getPackType();
+        String id = type == PackType.CLIENT_RESOURCES
+                ? SmitheryGeneratedPack.PACK_ID
+                : SmitheryGeneratedPack.PACK_ID + "_data";
 
-        Pack.ResourcesSupplier supplier = id -> new SmitheryGeneratedPack();
+        Pack.ResourcesSupplier supplier = packId -> new SmitheryGeneratedPack();
 
         event.addRepositorySource(consumer -> {
             Pack pack = Pack.readMetaAndCreate(
-                    SmitheryGeneratedPack.PACK_ID,
+                    id,
                     Component.literal("Smithery Generated"),
                     true,
                     supplier,
-                    PackType.CLIENT_RESOURCES,
+                    type,
                     Pack.Position.TOP,
                     PackSource.BUILT_IN
             );

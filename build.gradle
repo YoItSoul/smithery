@@ -151,6 +151,12 @@ dependencies {
     compileOnly fg.deobf("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}")
     compileOnly fg.deobf("mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}")
     localRuntime fg.deobf("mezz.jei:jei-${minecraft_version}-forge:${jei_version}")
+
+    // Draconic Evolution module-system integration (compat/draconic) — optional at runtime,
+    // gated behind ModList.isLoaded("draconicevolution") in DraconicCompat.
+    compileOnly fg.deobf(files("libs/Draconic-Evolution-1.20.1-3.1.2.621-universal.jar"))
+    compileOnly fg.deobf(files("libs/BrandonsCore-1.20.1-3.2.1.302-universal.jar"))
+    compileOnly fg.deobf(files("libs/CodeChickenLib-1.20.1-4.4.0.516-universal.jar"))
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

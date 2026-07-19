@@ -9,10 +9,10 @@
   ],
   "key": {
     "S": {"item": "minecraft:string"},
-    "B": {"item": "minecraft:ender_pearl"}
+    "B": {"item": "minecraft:blaze_powder"}
   },
   "result": {
-    "item": "smithery:breezestring",
+    "item": "smithery:flamestring",
     "count": 1
   }
 }
