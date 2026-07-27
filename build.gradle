@@ -43,6 +43,16 @@ repositories {
             includeGroup "vazkii.patchouli"
         }
     }
+    // Draconic Evolution, BrandonsCore, and CodeChickenLib. covers1624's maven
+    // is the official host for all three.
+    maven {
+        url = "https://maven.covers1624.net/"
+        content {
+            includeGroup "com.brandon3055.draconicevolution"
+            includeGroup "com.brandon3055.brandonscore"
+            includeGroup "io.codechicken"
+        }
+    }
 }
 
 base {
@@ -154,9 +164,9 @@ dependencies {
 
     // Draconic Evolution module-system integration (compat/draconic) — optional at runtime,
     // gated behind ModList.isLoaded("draconicevolution") in DraconicCompat.
-    compileOnly fg.deobf(files("libs/Draconic-Evolution-1.20.1-3.1.2.621-universal.jar"))
-    compileOnly fg.deobf(files("libs/BrandonsCore-1.20.1-3.2.1.302-universal.jar"))
-    compileOnly fg.deobf(files("libs/CodeChickenLib-1.20.1-4.4.0.516-universal.jar"))
+    compileOnly fg.deobf("com.brandon3055.draconicevolution:Draconic-Evolution:1.20.1-3.1.2.621:universal")
+    compileOnly fg.deobf("com.brandon3055.brandonscore:BrandonsCore:1.20.1-3.2.1.302:universal")
+    compileOnly fg.deobf("io.codechicken:CodeChickenLib:1.20.1-4.4.0.516:universal")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
