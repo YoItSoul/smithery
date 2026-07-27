@@ -39,9 +39,6 @@ run/
 repo/
 !**/src/**/repo/
 
-### Local tooling data (not part of the project) ###
-.claude/
-
 ### Local working notes (not part of the project) ###
 PLAN.md
 
