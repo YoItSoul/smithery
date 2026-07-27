@@ -7,6 +7,7 @@ import com.soul.smithery.compat.jei.SmitheryJeiRecipes.JeiAnvilSource;
 import com.soul.smithery.compat.jei.SmitheryJeiRecipes.JeiMaterialGrant;
 import com.soul.smithery.compat.jei.SmitheryJeiRecipes.JeiModifier;
 import com.soul.smithery.compat.jei.SmitheryJeiRecipes.JeiSynergyGrant;
+import com.soul.smithery.item.PartItem;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.builder.IRecipeSlotBuilder;
 import mezz.jei.api.helpers.IGuiHelper;
@@ -186,11 +187,11 @@ public class ModifierJeiCategory extends SmitheryJeiCategory<JeiModifier> {
     }
 
     /**
-     * Builds the modifier's translated description from its identifier path
-     * ({@code smithery.modifier.<namespace>.<path>.description}).
+     * The modifier's translated description, falling back to a localized "No description" when
+     * none is set. Shares {@link PartItem#modifierDescription} with the in-world tooltips.
      */
     private static Component descriptionOf(ResourceLocation id) {
-        return Component.translatable("smithery.modifier." + id.getNamespace() + "." + id.getPath() + ".description");
+        return PartItem.modifierDescription(id);
     }
 
     /**

@@ -160,11 +160,8 @@ public class PartItem extends Item {
                 }
                 tooltip.accept(SmitheryTooltips.subLine(line));
 
-                String descKey = modifierDescriptionKey(effect.modifierId());
-                if (I18n.exists(descKey)) {
-                    tooltip.accept(SmitheryTooltips.subLine(
-                            SmitheryTooltips.description(Component.translatable(descKey))));
-                }
+                tooltip.accept(SmitheryTooltips.subLine(
+                        SmitheryTooltips.description(modifierDescription(effect.modifierId()))));
 
                 if (tier == SmitheryTooltips.Tier.FULL && !effect.params().isEmpty()) {
                     for (var p : effect.params().entrySet()) {
@@ -211,5 +208,20 @@ public class PartItem extends Item {
     /** Translation key for the description text shown in tooltips when Shift is held. */
     public static String modifierDescriptionKey(ResourceLocation modifierId) {
         return modifierTranslationKey(modifierId) + ".description";
+    }
+
+    /**
+     * Modifier description for display, falling back to a localized "No description" when neither
+     * Smithery nor the contributing mod supplies one. Callers can therefore always render a
+     * description line without gating on {@link net.minecraft.client.resources.language.I18n}.
+     *
+     * @param modifierId id of the modifier
+     * @return the modifier's description component, or the "No description" fallback
+     */
+    public static Component modifierDescription(ResourceLocation modifierId) {
+        String key = modifierDescriptionKey(modifierId);
+        return I18n.exists(key)
+                ? Component.translatable(key)
+                : Component.translatable("smithery.modifier.no_description");
     }
 }

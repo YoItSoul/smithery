@@ -9,6 +9,7 @@ import com.soul.smithery.api.part.PartEligibility;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.content.SmitheryMaterials;
 import com.soul.smithery.item.PartItem;
+import com.soul.smithery.registry.SmitheryFluids;
 import com.soul.smithery.registry.SmitheryItems;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -105,7 +106,7 @@ public final class MaterialSourceTooltipHandler {
 
         ResourceLocation outMat = recipe.outputMaterialId();
         tooltip.add(Component.translatable("tooltip." + Smithery.MODID + ".source.melt",
-                Component.translatable(moltenFluidLangKey(outMat)))
+                SmitheryFluids.moltenName(outMat))
                 .withStyle(ChatFormatting.GRAY));
 
         Set<ResourceLocation> producedAlloys = new LinkedHashSet<>();
@@ -128,7 +129,4 @@ public final class MaterialSourceTooltipHandler {
         }
     }
 
-    private static String moltenFluidLangKey(ResourceLocation materialId) {
-        return "fluid." + materialId.getNamespace() + ".molten_" + materialId.getPath();
-    }
 }

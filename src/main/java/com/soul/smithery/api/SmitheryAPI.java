@@ -68,19 +68,42 @@ public final class SmitheryAPI {
      */
     public static final Map<ResourceLocation, MeltingRecipe> MELTING_RECIPES = new HashMap<>();
 
-    /** Registers a {@link PartType}. */
+    /**
+     * Registers a {@link PartType}.
+     *
+     * <p><b>Provide the part's display name</b> as a lang entry keyed
+     * {@code smithery.part.<namespace>.<path>} in your own resource pack. Smithery composes
+     * part-item names ({@code "<material> <part>"}) and impressed-casting-sand names
+     * ({@code "Impressed Sand (<part>)"}) from that one atom — neither needs a per-part lang key.
+     */
     public static PartType registerPartType(PartType pt) { return PART_TYPES.register(pt); }
 
-    /** Registers a {@link ToolType}. */
+    /**
+     * Registers a {@link ToolType}.
+     *
+     * <p><b>Provide the tool's display name</b> as {@code smithery.tool.<namespace>.<path>};
+     * assembled tools compose {@code "<material> <tool>"} from it.
+     */
     public static ToolType registerToolType(ToolType tt) { return TOOL_TYPES.register(tt); }
 
-    /** Registers a {@link Modifier}. */
+    /**
+     * Registers a {@link Modifier}.
+     *
+     * <p>Provide the modifier's display name as {@code smithery.modifier.<namespace>.<path>} and,
+     * optionally, a description as {@code smithery.modifier.<namespace>.<path>.description}. A
+     * missing description falls back to a localized "No description"; a missing name renders the
+     * raw key.
+     */
     public static Modifier registerModifier(Modifier m) { return MODIFIERS.register(m); }
 
     /** Registers an {@link AlloyDefinition}. */
     public static AlloyDefinition registerAlloy(AlloyDefinition a) { return ALLOYS.register(a); }
 
-    /** Registers a {@link SynergyDefinition}. */
+    /**
+     * Registers a {@link SynergyDefinition} (two-material bonus effect).
+     *
+     * <p>Provide the synergy's display name as {@code smithery.synergy.<namespace>.<path>}.
+     */
     public static SynergyDefinition registerSynergy(SynergyDefinition s) { return SYNERGIES.register(s); }
 
     /** Register or replace the melting recipe for {@code recipe.inputItemId()}. */
@@ -95,7 +118,22 @@ public final class SmitheryAPI {
                 ResourceLocation.parse(inputItem), ResourceLocation.parse(material), mb));
     }
 
-    /** Creates and registers a {@link Material} with the given id and stats. */
+    /**
+     * Creates and registers a {@link Material} with the given id and stats.
+     *
+     * <p><b>Modders must supply the material's display name</b> as a lang entry keyed
+     * {@code smithery.material.<namespace>.<path>} — e.g. {@code smithery.material.mymod.mithril}
+     * for {@code mymod:mithril} — in their own resource pack. Smithery composes every derived
+     * name from that single atom, so no per-fluid or per-bucket lang keys are needed:
+     * a meltable material ({@code meltingTemp > 0}) auto-registers a molten fluid, block and bucket
+     * displayed as {@code "Molten <name>"} and {@code "Molten <name> Bucket"} (or {@code "<name>"} /
+     * {@code "<name> Bucket"} for {@link MaterialStats.FluidBase#WATER} materials), and part items
+     * compose {@code "<name> <part>"}. A material without its name atom renders the raw key.
+     *
+     * @param id    unique material id (use your own mod namespace)
+     * @param stats material stat block
+     * @return the registered material
+     */
     public static Material registerMaterial(ResourceLocation id, MaterialStats stats) {
         return MATERIALS.register(new Material(id, stats));
     }

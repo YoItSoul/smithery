@@ -266,7 +266,7 @@ public class SmitheryToolItem extends Item {
         java.util.Set<ResourceLocation> seen = new java.util.HashSet<>();
         for (ModifierEffect e : SmitheryToolData.getAppliedModifiers(stack)) {
             seen.add(e.modifierId());
-            int b = e.paramInt("bonus_slots", 0);
+            int b = e.paramInt("bonus_slots", 0) + e.paramInt("bonus_slots_per_level", 0) * Math.max(1, e.paramInt("level", 1));
             if (b > 0) bonus += b;
         }
         ToolComposition comp = SmitheryToolData.getComposition(stack);
@@ -279,7 +279,7 @@ public class SmitheryToolItem extends Item {
                     if (donor != null) {
                         for (ModifierEffect e : donor.stats().modifiersFor(tt)) {
                             if (seen.add(e.modifierId())) {
-                                int b = e.paramInt("bonus_slots", 0);
+                                int b = e.paramInt("bonus_slots", 0) + e.paramInt("bonus_slots_per_level", 0) * Math.max(1, e.paramInt("level", 1));
                                 if (b > 0) bonus += b;
                             }
                         }
@@ -291,7 +291,7 @@ public class SmitheryToolItem extends Item {
                     if (m == null) continue;
                     for (ModifierEffect e : m.stats().modifiersFor(tt)) {
                         if (seen.add(e.modifierId())) {
-                            int b = e.paramInt("bonus_slots", 0);
+                            int b = e.paramInt("bonus_slots", 0) + e.paramInt("bonus_slots_per_level", 0) * Math.max(1, e.paramInt("level", 1));
                             if (b > 0) bonus += b;
                         }
                     }
@@ -670,11 +670,8 @@ public class SmitheryToolItem extends Item {
             }
             tooltip.accept(SmitheryTooltips.bullet(line));
 
-            String descKey = PartItem.modifierDescriptionKey(r.effect().modifierId());
-            if (I18n.exists(descKey)) {
-                tooltip.accept(SmitheryTooltips.subLine(
-                        SmitheryTooltips.description(Component.translatable(descKey))));
-            }
+            tooltip.accept(SmitheryTooltips.subLine(
+                    SmitheryTooltips.description(PartItem.modifierDescription(r.effect().modifierId()))));
 
             if (tier == SmitheryTooltips.Tier.FULL) {
                 appendModifierFullDetails(tooltip, r.effect(), r.modifier());

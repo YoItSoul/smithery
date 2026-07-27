@@ -4,9 +4,13 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.material.MaterialStats;
+import com.soul.smithery.item.PartItem;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LiquidBlock;
@@ -146,6 +150,39 @@ public final class SmitheryFluids {
         }
     }
 
+    /**
+     * Composed display name for a material's fluid and its in-world block. Molten-base materials
+     * render as {@code "Molten <material>"}; water-base ones (e.g. blood) render as the bare
+     * material name, since "Molten Blood" reads wrong. The material name comes from the material
+     * atom, so any material — including ones contributed at runtime by other mods — renders
+     * correctly with no per-fluid lang entry.
+     *
+     * @param materialId id of the source material
+     * @return the composed fluid/block display name
+     */
+    public static MutableComponent moltenName(ResourceLocation materialId) {
+        MutableComponent matName = Component.translatable(PartItem.materialTranslationKey(materialId));
+        return isWaterBase(materialId) ? matName : Component.translatable("smithery.molten.name", matName);
+    }
+
+    /**
+     * Composed display name for a material's bucket: {@code "Molten <material> Bucket"} for
+     * molten-base materials, {@code "<material> Bucket"} for water-base ones. See {@link #moltenName}.
+     *
+     * @param materialId id of the source material
+     * @return the composed bucket display name
+     */
+    public static MutableComponent moltenBucketName(ResourceLocation materialId) {
+        MutableComponent matName = Component.translatable(PartItem.materialTranslationKey(materialId));
+        return Component.translatable(
+                isWaterBase(materialId) ? "smithery.molten.bucket_water" : "smithery.molten.bucket", matName);
+    }
+
+    private static boolean isWaterBase(ResourceLocation materialId) {
+        Material mat = SmitheryAPI.MATERIALS.get(materialId);
+        return mat != null && mat.stats().fluidBase() == MaterialStats.FluidBase.WATER;
+    }
+
     private static final ResourceLocation MOLTEN_STILL =
             ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "block/molten_still");
     private static final ResourceLocation MOLTEN_FLOW =
@@ -165,14 +202,21 @@ public final class SmitheryFluids {
     private static final class MoltenFluidType extends FluidType {
         private final boolean waterBase;
         private final com.soul.smithery.api.material.MaterialStats stats;
-        private final String materialPath;
+        private final ResourceLocation materialId;
 
         MoltenFluidType(Properties properties, boolean waterBase,
-                        com.soul.smithery.api.material.MaterialStats stats, String materialPath) {
+                        com.soul.smithery.api.material.MaterialStats stats, ResourceLocation materialId) {
             super(properties);
             this.waterBase = waterBase;
             this.stats = stats;
-            this.materialPath = materialPath;
+            this.materialId = materialId;
+        }
+
+        // Fluid display name (JEI ingredients, tanks, Jade) composes from the material's own name
+        // rather than a per-fluid lang key — see SmitheryFluids#moltenName.
+        @Override
+        public Component getDescription() {
+            return moltenName(materialId);
         }
 
         @Override
@@ -190,12 +234,12 @@ public final class SmitheryFluids {
 
                 @Override public ResourceLocation getStillTexture() {
                     if (cycle()) return ResourceLocation.fromNamespaceAndPath(Smithery.MODID,
-                            "block/molten_" + materialPath + "_cycle_still");
+                            "block/molten_" + materialId.getPath() + "_cycle_still");
                     return waterBase ? WATER_STILL : MOLTEN_STILL;
                 }
                 @Override public ResourceLocation getFlowingTexture() {
                     if (cycle()) return ResourceLocation.fromNamespaceAndPath(Smithery.MODID,
-                            "block/molten_" + materialPath + "_cycle_flow");
+                            "block/molten_" + materialId.getPath() + "_cycle_flow");
                     return waterBase ? WATER_FLOW : MOLTEN_FLOW;
                 }
                 @Override public int getTintColor() {
@@ -288,7 +332,6 @@ public final class SmitheryFluids {
 
         RegistryObject<FluidType> type = FLUID_TYPES.register(name,
                 () -> new MoltenFluidType(FluidType.Properties.create()
-                        .descriptionId("fluid." + Smithery.MODID + "." + name)
                         .lightLevel(15)
                         .density(7000)
                         .viscosity(6000)
@@ -300,7 +343,7 @@ public final class SmitheryFluids {
                         .canExtinguish(false)
                         .canConvertToSource(false)
                         .supportsBoating(false),
-                        waterBase, stats, matId.getPath()));
+                        waterBase, stats, matId));
 
         // The fluid properties reference source/flowing/block/bucket before those registry
         // objects exist, so single-element arrays break the circular dependency lazily.
@@ -337,7 +380,13 @@ public final class SmitheryFluids {
                         .noLootTable()
                         .liquid()
                         .pushReaction(PushReaction.DESTROY)
-                        .sound(SoundType.EMPTY)));
+                        .sound(SoundType.EMPTY)) {
+                    // In-world block name (Jade/TOP) composes from the material name.
+                    @Override
+                    public MutableComponent getName() {
+                        return moltenName(matId);
+                    }
+                });
 
         // Molten buckets double as furnace fuel, scaled by how hot the metal is: a lava
         // bucket's 20,000 ticks at a 1000°C reference, so molten copper roughly matches lava
@@ -351,7 +400,12 @@ public final class SmitheryFluids {
                         .craftRemainder(Items.BUCKET)
                         .stacksTo(1)) {
                     @Override
-                    public int getBurnTime(net.minecraft.world.item.ItemStack stack,
+                    public Component getName(ItemStack stack) {
+                        return moltenBucketName(matId);
+                    }
+
+                    @Override
+                    public int getBurnTime(ItemStack stack,
                                            @org.jetbrains.annotations.Nullable net.minecraft.world.item.crafting.RecipeType<?> recipeType) {
                         return burnTime;
                     }

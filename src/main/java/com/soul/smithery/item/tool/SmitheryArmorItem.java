@@ -14,7 +14,6 @@ import com.soul.smithery.api.tool.ToolType;
 import com.soul.smithery.item.PartItem;
 import com.soul.smithery.item.SmitheryTooltips;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -393,11 +392,8 @@ public class SmitheryArmorItem extends net.minecraft.world.item.DyeableArmorItem
                             .withStyle(ChatFormatting.AQUA));
                 }
                 tooltip.accept(SmitheryTooltips.bullet(line));
-                String descKey = PartItem.modifierDescriptionKey(r.effect().modifierId());
-                if (I18n.exists(descKey)) {
-                    tooltip.accept(SmitheryTooltips.subLine(
-                            SmitheryTooltips.description(Component.translatable(descKey))));
-                }
+                tooltip.accept(SmitheryTooltips.subLine(
+                        SmitheryTooltips.description(PartItem.modifierDescription(r.effect().modifierId()))));
             }
         }
 

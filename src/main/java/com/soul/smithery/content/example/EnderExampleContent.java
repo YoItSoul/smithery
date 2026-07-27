@@ -26,6 +26,12 @@ import java.util.Map;
  * <p>Must run after {@link SmitheryPartTypes#register()}, {@link SmitheryToolTypes#register()},
  * and {@link SmitheryModifiers#register()}, and before fluid bootstrap so the auto-generated
  * molten-ender fluid sees the material.
+ *
+ * <p><b>Lang:</b> a real addon ships its material and part display names —
+ * {@code smithery.material.<ns>.<path>} and {@code smithery.part.<ns>.<path>} — in its own
+ * resource pack. Smithery composes the molten fluid/block/bucket and part-combo names from those
+ * atoms (see {@link com.soul.smithery.api.SmitheryAPI#registerMaterial}). The {@code smithery:ender}
+ * and {@code smithery:pearl} atoms this example uses live in Smithery's own lang file.
  */
 public final class EnderExampleContent {
     private EnderExampleContent() {}

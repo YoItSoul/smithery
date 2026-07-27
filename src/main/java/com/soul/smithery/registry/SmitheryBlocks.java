@@ -11,10 +11,14 @@ import com.soul.smithery.block.ForgeFuelPortBlock;
 import com.soul.smithery.block.ForgeItemPortBlock;
 import com.soul.smithery.block.PartPressBlock;
 import com.soul.smithery.block.RedSlimeBlock;
+import com.soul.smithery.item.PartItem;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.FallingBlock;
@@ -218,16 +222,44 @@ public final class SmitheryBlocks {
     public static void registerImpressedSandVariants() {
         if (!IMPRESSED_SAND_ITEMS.isEmpty()) return;
         for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
-            String name = "casting_sand_impressed_" + pt.id().getPath();
+            ResourceLocation partId = pt.id();
+            String name = "casting_sand_impressed_" + partId.getPath();
             RegistryObject<Block> block = BLOCKS.register(name,
                     () -> new Block(BlockBehaviour.Properties.of()
                             .mapColor(MapColor.COLOR_BLACK)
                             .strength(0.5f)
                             .sound(SoundType.SAND)
                             .pushReaction(PushReaction.DESTROY)
-                            .noLootTable()));
-            IMPRESSED_SAND_ITEMS.put(pt.id(), registerBlockItem(name, block));
+                            .noLootTable()) {
+                        // In-world block name composes from the part name — no per-part lang key.
+                        @Override
+                        public MutableComponent getName() {
+                            return impressedSandName(partId);
+                        }
+                    });
+            RegistryObject<BlockItem> item = SmitheryItems.ITEMS.register(name,
+                    () -> new BlockItem(block.get(), new Item.Properties()) {
+                        @Override
+                        public Component getName(ItemStack stack) {
+                            return impressedSandName(partId);
+                        }
+                    });
+            IMPRESSED_SAND_ITEMS.put(partId, item);
         }
+    }
+
+    /**
+     * Composed display name for an impressed casting-sand block: the {@code "Impressed Sand (%s)"}
+     * format string filled with the part type's own translated name. Because the name comes from
+     * the part atom, any part type — including runtime-contributed ones — renders with no per-part
+     * lang entry.
+     *
+     * @param partTypeId id of the impressed part type
+     * @return the composed "Impressed Sand (&lt;part&gt;)" component
+     */
+    public static MutableComponent impressedSandName(ResourceLocation partTypeId) {
+        return Component.translatable("smithery.casting_sand.impressed",
+                Component.translatable(PartItem.partTranslationKey(partTypeId)));
     }
 
     /**
