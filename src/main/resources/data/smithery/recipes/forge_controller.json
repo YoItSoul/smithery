@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "BBB",
+    "BRB",
+    "BCB"
+  ],
+  "key": {
+    "B": {"item": "smithery:furnace_brick"},
+    "R": {"item": "minecraft:redstone"},
+    "C": {"item": "minecraft:copper_block"}
+  },
+  "result": {
+    "item": "smithery:forge_controller"
+  }
+}

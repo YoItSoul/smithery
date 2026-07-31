@@ -14,6 +14,11 @@
       "type": "patchouli:text",
       "text": "The forge heats toward its fuel's target and cools when starved. Every material has a melting point — $(l)iron needs 1,538°C$(), so a fresh lava forge warms up for a moment before iron starts to drip.$(br2)Hotter forges melt *faster*, not just hotter. Blaze fuel pays for itself.",
       "title": "Temperature Matters"
+    },
+    {
+      "type": "patchouli:crafting",
+      "recipe": "smithery:forge_fuel_port",
+      "text": "A $(l)Fuel Port$() is a Drain cased in bricks — a drain pointed inward. See $(l)Draining & Pipes$() for the pipe and drain underneath it.$(br2)Stack ports vertically: every port in a stack shares one tank, so a taller stack is a bigger fuel reserve."
     }
   ]
 }

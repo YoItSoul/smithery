@@ -132,6 +132,15 @@ public final class SmitheryItems {
     /** Smithery boots; FEET-slot armor item. */
     public static final RegistryObject<SmitheryArmorItem> BOOTS = registerArmor("boots", ArmorItem.Type.BOOTS);
 
+    /**
+     * Furnace brick crafting item; the Forge's shell material at single-brick granularity.
+     * Smelting casting sand yields a whole {@link SmitheryBlocks#FURNACE_BRICKS} block, which
+     * breaks down into four of these for the machine recipes that would be wasteful to price
+     * in whole blocks.
+     */
+    public static final RegistryObject<Item> FURNACE_BRICK =
+            ITEMS.register("furnace_brick", () -> new Item(new Item.Properties()));
+
     /** Flame-string crafting item; part-press input that produces flamestring material parts. */
     public static final RegistryObject<Item> FLAMESTRING =
             ITEMS.register("flamestring", () -> new Item(new Item.Properties()));

@@ -14,6 +14,11 @@
       "type": "patchouli:text",
       "text": "A $(l)redstone pulse$() drives the press down and cuts the input into the selected part. Hoppers feed inputs and collect outputs while the press is open — a redstone clock turns it into a part factory.$(br2)Early game this is your only source of handles and binders: wood first, metal later.",
       "title": "Automation"
+    },
+    {
+      "type": "patchouli:crafting",
+      "recipe": "smithery:part_press",
+      "text": "Six iron around a $(l)piston$(). No forge required — the press is meant to be standing before you ever melt anything."
     }
   ]
 }

@@ -137,6 +137,7 @@ public class Smithery {
                     .withTabsBefore(CreativeModeTabs.COMBAT)
                     .icon(() -> SmitheryItems.FLAMESTRING.get().getDefaultInstance())
                     .displayItems((params, output) -> {
+                        output.accept(SmitheryItems.FURNACE_BRICK.get());
                         output.accept(SmitheryItems.FLAMESTRING.get());
                         output.accept(SmitheryItems.RED_SLIME.get());
                         output.accept(SmitheryItems.UNFINISHED_KELP_STRING_1.get());

@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smelting",
+  "category": "blocks",
+  "group": "furnace_bricks",
+  "ingredient": {"item": "smithery:casting_sand"},
+  "result": "smithery:furnace_bricks",
+  "experience": 0.1,
+  "cookingtime": 200
+}

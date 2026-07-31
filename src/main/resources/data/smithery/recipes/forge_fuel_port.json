@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "BBB",
+    "BDB",
+    "BBB"
+  ],
+  "key": {
+    "B": {"item": "smithery:furnace_brick"},
+    "D": {"item": "smithery:forge_drain"}
+  },
+  "result": {
+    "item": "smithery:forge_fuel_port"
+  }
+}

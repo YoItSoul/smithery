@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "BBB",
+    "BPB",
+    "BBB"
+  ],
+  "key": {
+    "B": {"item": "smithery:furnace_brick"},
+    "P": {"item": "smithery:fluid_pipe"}
+  },
+  "result": {
+    "item": "smithery:forge_drain"
+  }
+}

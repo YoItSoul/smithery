@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "BBB",
+    "BGB",
+    "BBB"
+  ],
+  "key": {
+    "B": {"item": "smithery:furnace_brick"},
+    "G": {"item": "minecraft:glass"}
+  },
+  "result": {
+    "item": "smithery:fluid_pipe",
+    "count": 8
+  }
+}

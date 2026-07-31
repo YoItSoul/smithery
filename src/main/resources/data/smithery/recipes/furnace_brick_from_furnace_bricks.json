@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "ingredients": [
+    {"item": "smithery:furnace_bricks"}
+  ],
+  "result": {
+    "item": "smithery:furnace_brick",
+    "count": 4
+  }
+}

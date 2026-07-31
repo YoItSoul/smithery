@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "BBB",
+    "B B",
+    "B B"
+  ],
+  "key": {
+    "B": {"item": "smithery:furnace_brick"}
+  },
+  "result": {
+    "item": "smithery:casting_table"
+  }
+}

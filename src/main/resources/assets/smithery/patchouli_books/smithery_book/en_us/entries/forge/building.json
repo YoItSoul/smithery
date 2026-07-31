@@ -39,6 +39,26 @@
       "type": "patchouli:text",
       "text": "The shell can be almost any shape:$(br2)- Corners are $(l)optional$()$(br)- The top can be $(l)open or closed$() — closed heats 20% faster$(br)- Partial structures still run at reduced effectiveness$(br2)Every interior air block adds one working slot and $(l)1,000 mB$() of molten storage. Right-click the controller to see everything at once.",
       "title": "Scaling Up"
+    },
+    {
+      "type": "patchouli:smelting",
+      "recipe": "smithery:furnace_bricks_from_smelting_casting_sand",
+      "text": "Fire $(l)Casting Sand$() to get the shell. One block per firing, so the same sand supply feeds both your walls and your casting tables — a blast furnace does it in half the time."
+    },
+    {
+      "type": "patchouli:crafting",
+      "recipe": "smithery:furnace_brick_from_furnace_bricks",
+      "text": "Forge parts are priced in loose $(l)Furnace Bricks$(), so break a block into four when you need them. Four press back into a block, at no loss either way."
+    },
+    {
+      "type": "patchouli:crafting",
+      "recipe": "smithery:forge_controller",
+      "text": "The $(l)Controller$() — redstone over a copper base, cased in bricks. One per forge, and the only block with a screen."
+    },
+    {
+      "type": "patchouli:crafting",
+      "recipe": "smithery:forge_item_port",
+      "text": "The $(l)Item Port$() is optional: right-click or hopper items into it and they drop into the nearest free interior slot. Without one, you load the forge by hand from the top."
     }
   ]
 }

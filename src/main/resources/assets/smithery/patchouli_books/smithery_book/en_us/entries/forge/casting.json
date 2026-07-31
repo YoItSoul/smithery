@@ -6,6 +6,11 @@
   "pages": [
     {
       "type": "patchouli:crafting",
+      "recipe": "smithery:casting_table",
+      "text": "The $(l)Casting Table$() — seven bricks in an open frame. Build several; each one casts a single part at a time."
+    },
+    {
+      "type": "patchouli:crafting",
       "recipe": "smithery:casting_sand",
       "text": "$(l)Casting Sand$() — the consumable half of sand casting. Eight sand around a clay ball makes eight."
     },

@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "BBB",
+    "BHB",
+    "BBB"
+  ],
+  "key": {
+    "B": {"item": "smithery:furnace_brick"},
+    "H": {"item": "minecraft:hopper"}
+  },
+  "result": {
+    "item": "smithery:forge_item_port"
+  }
+}
