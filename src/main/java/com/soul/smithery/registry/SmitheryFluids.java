@@ -21,8 +21,9 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fluids.ForgeFlowingFluid;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidType;
+import net.minecraftforge.fluids.ForgeFlowingFluid;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
@@ -216,6 +217,16 @@ public final class SmitheryFluids {
         // rather than a per-fluid lang key — see SmitheryFluids#moltenName.
         @Override
         public Component getDescription() {
+            return moltenName(materialId);
+        }
+
+        // Both description overloads must be overridden: FluidType#getDescription(FluidStack)
+        // builds its own Component from getDescriptionId(stack) instead of delegating to the
+        // no-arg form, and FluidStack#getDisplayName routes through this overload. Leaving it
+        // to super is what surfaces the raw "fluid_type.smithery.molten_<material>" key in
+        // every stack-based consumer.
+        @Override
+        public Component getDescription(FluidStack stack) {
             return moltenName(materialId);
         }
 

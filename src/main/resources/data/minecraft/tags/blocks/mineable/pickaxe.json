@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "smithery:furnace_bricks",
+    "smithery:forge_controller",
+    "smithery:forge_fuel_port",
+    "smithery:forge_drain",
+    "smithery:forge_item_port",
+    "smithery:casting_table",
+    "smithery:fluid_pipe",
+    "smithery:part_press"
+  ]
+}

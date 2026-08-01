@@ -50,11 +50,18 @@ public final class SmitheryBlocks {
     /** Dust-particle color for casting sand and its impressed variants (dark charcoal gray). */
     private static final int CASTING_SAND_DUST_COLOR = 0xFF3A3A3A;
 
+    /**
+     * Mining hardness shared by every forge/furnace block, matched to vanilla stone bricks so
+     * the machinery breaks at a familiar speed. Explosion resistance stays per-block — the
+     * forge ports keep their blast-proof value.
+     */
+    private static final float STONE_BRICK_HARDNESS = 1.5f;
+
     /** Plain structural shell block for the Forge multiblock; the only non-port wall material. */
     public static final RegistryObject<Block> FURNACE_BRICKS =
             BLOCKS.register("furnace_bricks", () -> new Block(BlockBehaviour.Properties.of()
                     .mapColor(MapColor.STONE)
-                    .strength(3.0f, 9.0f)
+                    .strength(STONE_BRICK_HARDNESS, 9.0f)
                     .sound(SoundType.STONE)
                     .requiresCorrectToolForDrops()
                     .pushReaction(PushReaction.BLOCK)));
@@ -64,7 +71,7 @@ public final class SmitheryBlocks {
             BLOCKS.register("forge_controller",
                     () -> new ForgeControllerBlock(BlockBehaviour.Properties.of()
                             .mapColor(MapColor.METAL)
-                            .strength(5.0f, 1200.0f)
+                            .strength(STONE_BRICK_HARDNESS, 1200.0f)
                             .sound(SoundType.METAL)
                             .requiresCorrectToolForDrops()));
 
@@ -73,7 +80,7 @@ public final class SmitheryBlocks {
             BLOCKS.register("forge_fuel_port",
                     () -> new ForgeFuelPortBlock(BlockBehaviour.Properties.of()
                             .mapColor(MapColor.COLOR_ORANGE)
-                            .strength(5.0f, 1200.0f)
+                            .strength(STONE_BRICK_HARDNESS, 1200.0f)
                             .sound(SoundType.COPPER)
                             .requiresCorrectToolForDrops()
                             .noOcclusion()));
@@ -83,7 +90,7 @@ public final class SmitheryBlocks {
             BLOCKS.register("forge_drain",
                     () -> new ForgeDrainBlock(BlockBehaviour.Properties.of()
                             .mapColor(MapColor.GOLD)
-                            .strength(5.0f, 1200.0f)
+                            .strength(STONE_BRICK_HARDNESS, 1200.0f)
                             .sound(SoundType.METAL)
                             .requiresCorrectToolForDrops()));
 
@@ -96,7 +103,7 @@ public final class SmitheryBlocks {
             BLOCKS.register("forge_item_port",
                     () -> new ForgeItemPortBlock(BlockBehaviour.Properties.of()
                             .mapColor(MapColor.METAL)
-                            .strength(5.0f, 1200.0f)
+                            .strength(STONE_BRICK_HARDNESS, 1200.0f)
                             .sound(SoundType.METAL)
                             .requiresCorrectToolForDrops()));
 
@@ -107,8 +114,9 @@ public final class SmitheryBlocks {
             BLOCKS.register("casting_table",
                     () -> new CastingTableBlock(BlockBehaviour.Properties.of()
                             .mapColor(MapColor.WOOD)
-                            .strength(2.0f, 4.0f)
-                            .sound(SoundType.WOOD)));
+                            .strength(STONE_BRICK_HARDNESS, 4.0f)
+                            .sound(SoundType.WOOD)
+                            .requiresCorrectToolForDrops()));
 
     /**
      * Fluid pipe block; carries one fluid at a time with per-face IN/OUT/DISCONNECTED mode
@@ -119,9 +127,10 @@ public final class SmitheryBlocks {
             BLOCKS.register("fluid_pipe",
                     () -> new FluidPipeBlock(BlockBehaviour.Properties.of()
                             .mapColor(MapColor.METAL)
-                            .strength(2.0f, 6.0f)
+                            .strength(STONE_BRICK_HARDNESS, 6.0f)
                             .sound(SoundType.METAL)
-                            .noOcclusion()));
+                            .noOcclusion()
+                            .requiresCorrectToolForDrops()));
 
     /**
      * Part Press block; in-world part cutting machine with a redstone-driven open/closed
@@ -131,7 +140,7 @@ public final class SmitheryBlocks {
             BLOCKS.register("part_press",
                     () -> new PartPressBlock(BlockBehaviour.Properties.of()
                             .mapColor(MapColor.METAL)
-                            .strength(3.0f, 6.0f)
+                            .strength(STONE_BRICK_HARDNESS, 6.0f)
                             .sound(SoundType.METAL)
                             .noOcclusion()
                             .requiresCorrectToolForDrops()));
