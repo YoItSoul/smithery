@@ -33,26 +33,37 @@ import java.util.List;
  */
 public class ForgeControllerMenu extends AbstractContainerMenu {
 
+    /**
+     * Container data is a 16-bit channel: {@code ClientboundContainerSetDataPacket} writes
+     * every value with {@code writeShort}, so anything outside a signed short reaches the
+     * client truncated. Each mB quantity here can exceed that — fluid capacity is 1,000 mB
+     * per interior block and fuel capacity 6,000 mB per port — so those values occupy two
+     * consecutive indices, low half then high half, packed and unpacked by {@link #setWide}
+     * and {@link #getWide}. Narrow fields (flags, indices, counts, tenths of a degree) stay
+     * on a single index.
+     */
+    private static final int WIDE_SLOTS = 2;
+
     /** Container data index: forge temperature in tenths of degrees Celsius. */
     public static final int DATA_TEMP            = 0;
-    /** Container data index: total fuel stored across all ports, in mB. */
-    public static final int DATA_FUEL            = 1;
-    /** Container data index: combined fuel capacity in mB. */
-    public static final int DATA_FUEL_CAP        = 2;
     /** Container data index: 1 if the multiblock validated, 0 otherwise. */
-    public static final int DATA_VALID           = 3;
+    public static final int DATA_VALID           = 1;
     /** Container data index: number of leak (hole) positions on the last validation. */
-    public static final int DATA_HOLES           = 4;
-    /** Container data index: combined fluid capacity in mB. */
-    public static final int DATA_FLUID_CAP       = 5;
-    /** Container data index: total stored fluid across all materials in mB. */
-    public static final int DATA_FLUID_TOTAL     = 6;
+    public static final int DATA_HOLES           = 2;
     /** Container data index of the player-selected output fluid material; -1 if none. */
-    public static final int DATA_OUTPUT_FLUID_IX = 7;
+    public static final int DATA_OUTPUT_FLUID_IX = 3;
     /** Container data index: 1 if the auto-alloy loop is enabled, 0 if paused. */
-    public static final int DATA_ALLOY_ENABLED   = 8;
-    /** Container data index where the per-material fluid amounts begin. */
-    public static final int DATA_FLUID_BASE      = 9;
+    public static final int DATA_ALLOY_ENABLED   = 4;
+    /** Wide container data index: total fuel stored across all ports, in mB. */
+    public static final int DATA_FUEL            = 5;
+    /** Wide container data index: combined fuel capacity in mB. */
+    public static final int DATA_FUEL_CAP        = 7;
+    /** Wide container data index: combined fluid capacity in mB. */
+    public static final int DATA_FLUID_CAP       = 9;
+    /** Wide container data index: total stored fluid across all materials in mB. */
+    public static final int DATA_FLUID_TOTAL     = 11;
+    /** Container data index where the wide per-material fluid amounts begin. */
+    public static final int DATA_FLUID_BASE      = 13;
 
     private static final int OFFSCREEN = -9999;
     private static final int FORGE_SLOT_MAX_STACK = 1;
@@ -109,7 +120,7 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
         this.blockPos       = pos;
         this.materialList   = List.copyOf(SmitheryAPI.MATERIALS.all());
         this.forgeSlotCount = forgeSlotCount;
-        this.dataMeltBase   = DATA_FLUID_BASE + materialList.size();
+        this.dataMeltBase   = DATA_FLUID_BASE + materialList.size() * WIDE_SLOTS;
         this.syncData       = new int[dataMeltBase + forgeSlotCount];
         this.syncData[DATA_OUTPUT_FLUID_IX] = -1;
 
@@ -144,26 +155,45 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     @Override
     public void broadcastChanges() {
         if (blockEntity != null) {
-            syncData[DATA_TEMP]        = (int)(blockEntity.temperatureC() * 10f);
-            syncData[DATA_FUEL]        = blockEntity.totalFuelMb();
-            syncData[DATA_FUEL_CAP]    = blockEntity.totalFuelCapacityMb();
-            syncData[DATA_VALID]       = blockEntity.lastValidation().valid ? 1 : 0;
-            syncData[DATA_HOLES]       = blockEntity.lastValidation().holes();
-            syncData[DATA_FLUID_CAP]   = blockEntity.fluidCapacityMb();
-            syncData[DATA_FLUID_TOTAL] = blockEntity.totalStoredFluidMb();
+            syncData[DATA_TEMP]  = (int)(blockEntity.temperatureC() * 10f);
+            syncData[DATA_VALID] = blockEntity.lastValidation().valid ? 1 : 0;
+            syncData[DATA_HOLES] = blockEntity.lastValidation().holes();
             syncData[DATA_OUTPUT_FLUID_IX] = computeOutputFluidIndex(blockEntity);
             syncData[DATA_ALLOY_ENABLED]   = blockEntity.isAlloyEnabled() ? 1 : 0;
+            setWide(DATA_FUEL,        blockEntity.totalFuelMb());
+            setWide(DATA_FUEL_CAP,    blockEntity.totalFuelCapacityMb());
+            setWide(DATA_FLUID_CAP,   blockEntity.fluidCapacityMb());
+            setWide(DATA_FLUID_TOTAL, blockEntity.totalStoredFluidMb());
             for (int i = 0; i < materialList.size(); i++) {
                 com.soul.smithery.registry.SmitheryFluids.Entry entry =
                         com.soul.smithery.registry.SmitheryFluids.forMaterial(materialList.get(i).id());
-                syncData[DATA_FLUID_BASE + i] = entry == null ? 0
-                        : blockEntity.storedFluidMb(entry.source.get());
+                setWide(DATA_FLUID_BASE + i * WIDE_SLOTS,
+                        entry == null ? 0 : blockEntity.storedFluidMb(entry.source.get()));
             }
             for (int i = 0; i < forgeSlotCount; i++) {
                 syncData[dataMeltBase + i] = blockEntity.meltProgressMb(i);
             }
         }
         super.broadcastChanges();
+    }
+
+    /**
+     * Splits a 32-bit value across the wide index pair starting at {@code index}, low half
+     * first. Both halves are stored masked to 16 bits so they survive the short-sized
+     * container-data wire format unchanged.
+     */
+    private void setWide(int index, int value) {
+        syncData[index]     = value & 0xFFFF;
+        syncData[index + 1] = (value >>> 16) & 0xFFFF;
+    }
+
+    /**
+     * Reassembles the 32-bit value held in the wide index pair starting at {@code index}.
+     * The halves arrive sign-extended from the wire, so both are re-masked before being
+     * recombined.
+     */
+    private int getWide(int index) {
+        return ((syncData[index + 1] & 0xFFFF) << 16) | (syncData[index] & 0xFFFF);
     }
 
     /**
@@ -178,14 +208,14 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
      *
      * @return current total fuel in mB
      */
-    public int getFuelMb()              { return syncData[DATA_FUEL]; }
+    public int getFuelMb()              { return getWide(DATA_FUEL); }
 
     /**
      * Returns the synced combined fuel capacity.
      *
      * @return total fuel capacity in mB
      */
-    public int getFuelCapacityMb()      { return syncData[DATA_FUEL_CAP]; }
+    public int getFuelCapacityMb()      { return getWide(DATA_FUEL_CAP); }
 
     /**
      * Returns whether the multiblock was reported valid on the last validation.
@@ -206,14 +236,14 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
      *
      * @return total fluid capacity in mB
      */
-    public int getFluidCapacityMb()     { return syncData[DATA_FLUID_CAP]; }
+    public int getFluidCapacityMb()     { return getWide(DATA_FLUID_CAP); }
 
     /**
      * Returns the synced total fluid stored across all materials.
      *
      * @return total stored fluid in mB
      */
-    public int getTotalFluidMb()        { return syncData[DATA_FLUID_TOTAL]; }
+    public int getTotalFluidMb()        { return getWide(DATA_FLUID_TOTAL); }
 
     /**
      * Returns the snapshot of materials used to size and index the fluid sync arrays.
@@ -243,8 +273,8 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
      * @return stored mB, or 0 if the index is out of range
      */
     public int getStoredMbForMaterial(int index) {
-        int i = DATA_FLUID_BASE + index;
-        return (i >= 0 && i < syncData.length) ? syncData[i] : 0;
+        int i = DATA_FLUID_BASE + index * WIDE_SLOTS;
+        return (index >= 0 && i + 1 < syncData.length) ? getWide(i) : 0;
     }
 
     /**
