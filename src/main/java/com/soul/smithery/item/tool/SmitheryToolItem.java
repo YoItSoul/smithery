@@ -47,6 +47,8 @@ import net.minecraftforge.common.ToolActions;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -419,15 +421,46 @@ public class SmitheryToolItem extends Item {
         };
     }
 
-    /** Maps the composed harvest level onto the vanilla tier ladder for tier-gating checks. */
+    /** Cache of harvest level -> tier, rebuilt if the registry gains tiers after first use. */
+    private static final Map<Integer, Tier> TIER_BY_LEVEL = new ConcurrentHashMap<>();
+    private static volatile int cachedTierCount = -1;
+
+    /**
+     * Maps the composed harvest level onto the highest registered tier it satisfies.
+     *
+     * <p>This asks {@link TierSortingRegistry} rather than switching over
+     * {@link Tiers}, because the vanilla ladder stops at netherite (level 4) while
+     * tool materials do not. Packs extend the ladder upwards by registering their
+     * own tiers — Souls of Avarice registers eleven, duranite(5) through
+     * infinity(127), to reproduce GreedyCraft's mining tiers — and clamping to 4
+     * used to collapse every material above cobalt onto netherite. The effect was
+     * backwards: blocks gated to those upper tiers became unmineable by the very
+     * tools meant to mine them, and a vanilla netherite pickaxe matched the best
+     * composed tool. Reading the registry keeps this mod ladder-agnostic: with no
+     * extra tiers registered it behaves exactly as the old switch did.</p>
+     *
+     * <p>Ties go to the later tier in sort order — a level-3 tool reports
+     * obsidian rather than diamond when a pack registers obsidian above diamond at
+     * the same level, which is the more permissive and intended reading.</p>
+     */
     private static Tier tierFor(int harvestLevel) {
-        return switch (Mth.clamp(harvestLevel, 0, 4)) {
-            case 0 -> Tiers.WOOD;
-            case 1 -> Tiers.STONE;
-            case 2 -> Tiers.IRON;
-            case 3 -> Tiers.DIAMOND;
-            default -> Tiers.NETHERITE;
-        };
+        List<Tier> sorted = TierSortingRegistry.getSortedTiers();
+        if (sorted.size() != cachedTierCount) {
+            TIER_BY_LEVEL.clear();
+            cachedTierCount = sorted.size();
+        }
+        return TIER_BY_LEVEL.computeIfAbsent(harvestLevel, level -> {
+            Tier best = null;
+            int bestLevel = Integer.MIN_VALUE;
+            for (Tier tier : sorted) {
+                int tierLevel = tier.getLevel();
+                if (tierLevel <= level && tierLevel >= bestLevel) {
+                    best = tier;
+                    bestLevel = tierLevel;
+                }
+            }
+            return best != null ? best : Tiers.WOOD;
+        });
     }
 
     /**

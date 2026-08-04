@@ -28,7 +28,16 @@ public final class ToolStats {
     public final float attackDamage;
     /** Final mining speed including modifier bonuses. */
     public final float miningSpeed;
-    /** Final harvest level, taken as the max across additive slots. */
+    /**
+     * Final harvest level, from the head — the primary additive slot — matching the
+     * attack and mining-speed stats beside it.
+     *
+     * <p>This used to take the max across every additive slot, which for a pickaxe
+     * includes the handle: a wooden pick head on a duranite handle mined at duranite
+     * level. That let a player skip the material ladder entirely by upgrading the
+     * cheapest part of the tool, and it contradicted the class contract above.
+     * Tinkers' Construct, which this ports, has always read mining level off the head.</p>
+     */
     public final int harvestLevel;
     /** Final armor defense points (post slot-multiplier). Zero for non-armor tools. */
     public final float armorDefense;
@@ -231,7 +240,7 @@ public final class ToolStats {
         float damage = baseDamage + passive.bonusAttackDamage;
 
         float speed = primarySlotMaterialStat(tt, materialIds, MaterialStats::miningSpeed) + passive.bonusMiningSpeed;
-        int harvest = maxAdditiveSlotHarvestLevel(tt, materialIds);
+        int harvest = (int) primarySlotMaterialStat(tt, materialIds, MaterialStats::harvestLevel);
 
         ToolStats result = new ToolStats(finalDurability, damage, speed, harvest,
                 finalDefense, finalToughness, all, active, compose, synergies);
@@ -273,18 +282,6 @@ public final class ToolStats {
             return (float) stat.applyAsDouble(m.stats());
         }
         return 0f;
-    }
-
-    private static int maxAdditiveSlotHarvestLevel(ToolType tt, List<ResourceLocation> materialIds) {
-        List<ToolType.Slot> slots = tt.slots();
-        int max = 0;
-        for (int i = 0; i < slots.size(); i++) {
-            if (slots.get(i).role() != DurabilityRole.ADDITIVE) continue;
-            Material m = SmitheryAPI.MATERIALS.get(materialIds.get(i));
-            if (m == null) continue;
-            max = Math.max(max, m.stats().harvestLevel());
-        }
-        return max;
     }
 
     private static ToolStats broken() {

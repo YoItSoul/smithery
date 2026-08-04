@@ -21,6 +21,8 @@
   "smithery.casting_sand.impressed": "Impressed Sand (%s)",
   "smithery.modifier.no_description": "No description",
   "item.smithery.part_combo": "%1$s %2$s",
+  "tooltip.smithery.stage_locked": "Requires: %s",
+  "message.smithery.stage_locked": "You do not know how to use the %s yet.",
   "tooltip.smithery.part.harvest_level": "Harvest Level: %s",
   "tooltip.smithery.part.modifier_slots": "Modifier Slots: %s",
   "tooltip.smithery.part.in_tool": "In %s:",
