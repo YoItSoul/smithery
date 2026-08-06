@@ -149,7 +149,9 @@ public class PartItem extends Item {
                         String.format("%.1f", mat.stats().miningSpeed()))));
             }
 
-            for (ModifierEffect effect : mat.stats().modifiersFor(tt)) {
+            // Head-scoped traits are listed only under the tool types where this part IS the head,
+            // matching what the composed tool will actually grant.
+            for (ModifierEffect effect : mat.stats().modifiersFor(tt, isPrimaryAdditive)) {
                 int effectLevel = effect.paramInt("level", 1);
                 MutableComponent line = Component.empty()
                         .append(Component.translatable(modifierTranslationKey(effect.modifierId()))

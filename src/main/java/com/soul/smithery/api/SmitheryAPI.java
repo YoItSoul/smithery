@@ -156,6 +156,29 @@ public final class SmitheryAPI {
         return true;
     }
 
+    /**
+     * Retune an existing material by deriving its new stats from its current ones.
+     *
+     * <p>The difference from {@link #overrideMaterial} is that nothing is lost by omission: the
+     * builder handed to {@code edit} arrives pre-loaded with the material's stats, traits and
+     * modifier slots, so a caller that only wants different numbers keeps the traits, and one
+     * that only wants to add a trait keeps the numbers. That is what an integration mod usually
+     * means when it "overrides" a built-in material — pack balance layered on the base
+     * definition, not a wholesale replacement that quietly drops whatever the base mod has
+     * added since the copy was made.</p>
+     *
+     * @param id   the material to retune
+     * @param edit receives a builder pre-loaded with the current stats; its result becomes the new stats
+     * @return {@code true} if the material existed and was updated
+     */
+    public static boolean retuneMaterial(ResourceLocation id,
+                                         java.util.function.UnaryOperator<MaterialStats.Builder> edit) {
+        Material m = MATERIALS.get(id);
+        if (m == null) return false;
+        m.overrideStats(edit.apply(m.stats().toBuilder()).build());
+        return true;
+    }
+
     /** Remove a material and unregister its auto-generated content. */
     public static boolean removeMaterial(ResourceLocation id) {
         return MATERIALS.remove(id);

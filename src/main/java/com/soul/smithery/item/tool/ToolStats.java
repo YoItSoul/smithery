@@ -174,7 +174,8 @@ public final class ToolStats {
 
         // Embossed donor traits collect FIRST so the tool's own material grants, synergies,
         // and applied modifiers all win same-id collisions — embossment grafts flavor, it
-        // never overrides something the tool already earns.
+        // never overrides something the tool already earns. The donor occupies no slot, so it
+        // grafts everything the material could give, head-only traits included.
         comp.embossedMaterial().ifPresent(donorId -> {
             Material donor = SmitheryAPI.MATERIALS.get(donorId);
             if (donor != null) {
@@ -184,10 +185,11 @@ public final class ToolStats {
             }
         });
 
+        int headIndex = primaryAdditiveIndex(tt);
         for (int i = 0; i < slots.size(); i++) {
             Material m = SmitheryAPI.MATERIALS.get(materialIds.get(i));
             if (m == null) continue;
-            for (ModifierEffect effect : m.stats().modifiersFor(tt)) {
+            for (ModifierEffect effect : m.stats().modifiersFor(tt, i == headIndex)) {
                 collectInto(effectsMap, effect);
             }
         }
@@ -240,7 +242,8 @@ public final class ToolStats {
         float damage = baseDamage + passive.bonusAttackDamage;
 
         float speed = primarySlotMaterialStat(tt, materialIds, MaterialStats::miningSpeed) + passive.bonusMiningSpeed;
-        int harvest = (int) primarySlotMaterialStat(tt, materialIds, MaterialStats::harvestLevel);
+        int harvest = Math.max((int) primarySlotMaterialStat(tt, materialIds, MaterialStats::harvestLevel),
+                passive.minHarvestLevel);
 
         ToolStats result = new ToolStats(finalDurability, damage, speed, harvest,
                 finalDefense, finalToughness, all, active, compose, synergies);
@@ -270,6 +273,20 @@ public final class ToolStats {
         if (mod.onCompose() != null) {
             compose.add(new ResolvedEffect(mod, effect));
         }
+    }
+
+    /**
+     * Index of the tool's head — its first additive slot, the one attack damage, mining speed and
+     * harvest level are read from. Head-scoped material traits are granted only from this slot.
+     *
+     * @return the slot index, or -1 for a tool type with no additive slot
+     */
+    static int primaryAdditiveIndex(ToolType tt) {
+        List<ToolType.Slot> slots = tt.slots();
+        for (int i = 0; i < slots.size(); i++) {
+            if (slots.get(i).role() == DurabilityRole.ADDITIVE) return i;
+        }
+        return -1;
     }
 
     private static float primarySlotMaterialStat(ToolType tt, List<ResourceLocation> materialIds,

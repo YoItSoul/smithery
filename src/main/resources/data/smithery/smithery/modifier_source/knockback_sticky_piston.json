@@ -1,0 +1,6 @@
+{
+  "_comment": "Tinkers' 1.12 Knockback: pistons, 10 per level. The slime ball this used to take was a Smithery invention and it belongs to Constructs Armory's Sticky (cobweb in 1.12) / Knockback's real ingredient is the piston.",
+  "source_item": "minecraft:sticky_piston",
+  "modifier": "smithery:knockback",
+  "unit_value": 1
+}

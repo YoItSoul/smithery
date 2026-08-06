@@ -5,6 +5,7 @@ import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.modifier.Modifier;
 import com.soul.smithery.api.modifier.ModifierEffect;
 import com.soul.smithery.api.modifier.ModifierSources;
+import com.soul.smithery.content.SmitheryPartTypes;
 import com.soul.smithery.item.tool.SmitheryToolItem;
 import com.soul.smithery.item.tool.ToolComposition;
 import com.soul.smithery.item.tool.ToolCompositions;
@@ -58,7 +59,19 @@ public final class AnvilModifierHandler {
             return;
         }
 
-        ModifierSources.Entry sourceEntry = ModifierSources.resolve(source);
+        // Resolve against what is actually in the left slot: one ingredient may feed a tool
+        // modifier and a different armour one, the way Tinkers' and Constructs Armory shared items.
+        boolean isArmor = tool.getItem() instanceof com.soul.smithery.item.tool.SmitheryArmorItem;
+        // A sharpening/polishing stone is both a repair material and a modifier source. Repair is
+        // the more urgent reading and RepairHandler already claims damaged gear on this same event,
+        // so the modifier meaning applies only to gear at full durability.
+        if (source.getItem() instanceof com.soul.smithery.item.PartItem part
+                && (part.partTypeId().equals(SmitheryPartTypes.SHARPENING_STONE.id())
+                    || part.partTypeId().equals(SmitheryPartTypes.POLISHING_STONE.id()))
+                && tool.getDamageValue() > 0) {
+            return;
+        }
+        ModifierSources.Entry sourceEntry = ModifierSources.resolve(source, isArmor);
         if (sourceEntry == null) return;
 
         ToolComposition comp = SmitheryToolData.getComposition(tool);
@@ -80,7 +93,6 @@ public final class AnvilModifierHandler {
 
         Modifier mod = SmitheryAPI.MODIFIERS.get(modifierId);
         if (mod != null) {
-            boolean isArmor = tool.getItem() instanceof com.soul.smithery.item.tool.SmitheryArmorItem;
             if (mod.appliesTo() == Modifier.AppliesTo.ARMOR && !isArmor) return;
             if (mod.appliesTo() == Modifier.AppliesTo.TOOLS && isArmor) return;
         }

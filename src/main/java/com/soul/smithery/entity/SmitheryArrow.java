@@ -29,6 +29,18 @@ import java.util.List;
  */
 public class SmitheryArrow extends Arrow {
 
+    /** True when this arrow ignores water drag. */
+    public boolean ignoresWaterDrag() { return ignoresWaterDrag; }
+
+    /** Grants or clears water-drag immunity; called by the launching weapon at shoot time. */
+    public void setIgnoresWaterDrag(boolean value) { this.ignoresWaterDrag = value; }
+
+    @Override
+    protected float getWaterInertia() {
+        // 0.99 is what AbstractArrow uses in air; vanilla's water figure is 0.6.
+        return ignoresWaterDrag ? 0.99F : super.getWaterInertia();
+    }
+
     /** NBT key this entity persists its composed pickup stack under. */
     private static final String KEY_PICKUP_ITEM = Smithery.MODID + ":pickup_item";
 
@@ -41,6 +53,20 @@ public class SmitheryArrow extends Arrow {
     public static final String KEY_WEAPON_SCALAR = Smithery.MODID + ":weapon_scalar";
 
     private ItemStack pickupStack = ItemStack.EMPTY;
+
+    /**
+     * Set when the launcher (or the arrow itself) carries a modifier declaring the
+     * {@code ignores_water_drag} parameter — Tinkers' "Fins". Vanilla slows an arrow to 0.6 of its
+     * speed each tick in water against 0.99 in air, which is what makes underwater archery useless;
+     * with this set the arrow keeps the air figure.
+     */
+    private boolean ignoresWaterDrag;
+
+    /** Parameter a modifier sets to grant water-drag immunity to what a weapon fires. */
+    public static final String PARAM_IGNORES_WATER_DRAG = "ignores_water_drag";
+
+    /** NBT key the crossbow stamps on a charged projectile, since it has no shoot-time hook. */
+    public static final String KEY_IGNORES_WATER_DRAG = Smithery.MODID + ":ignores_water_drag";
 
     /**
      * Vanilla-style entity-type constructor used by the entity-type factory and for
@@ -76,6 +102,14 @@ public class SmitheryArrow extends Arrow {
             weaponScalar = tag.getFloat(KEY_WEAPON_SCALAR);
             tag.remove(KEY_WEAPON_SCALAR);
         }
+        if (tag != null && tag.contains(KEY_IGNORES_WATER_DRAG)) {
+            this.ignoresWaterDrag = tag.getBoolean(KEY_IGNORES_WATER_DRAG);
+            tag.remove(KEY_IGNORES_WATER_DRAG);   // so recovered arrows stack with fresh ones
+        }
+        // An arrow whose own parts carry Fins keeps it regardless of what fired it.
+        if (grantsWaterDragImmunity(stack)) {
+            this.ignoresWaterDrag = true;
+        }
         this.pickupStack = stack;
 
         ToolComposition comp = SmitheryToolData.getComposition(stack);
@@ -103,6 +137,9 @@ public class SmitheryArrow extends Arrow {
         if (!pickupStack.isEmpty()) {
             tag.put(KEY_PICKUP_ITEM, pickupStack.save(new CompoundTag()));
         }
+        if (ignoresWaterDrag) {
+            tag.putBoolean(KEY_IGNORES_WATER_DRAG, true);
+        }
     }
 
     @Override
@@ -111,6 +148,24 @@ public class SmitheryArrow extends Arrow {
         if (tag.contains(KEY_PICKUP_ITEM)) {
             this.pickupStack = ItemStack.of(tag.getCompound(KEY_PICKUP_ITEM));
         }
+        this.ignoresWaterDrag = tag.getBoolean(KEY_IGNORES_WATER_DRAG);
+    }
+
+    /**
+     * True when any effect on this composed stack asks for water-drag immunity.
+     *
+     * <p>Reads a parameter rather than a modifier id so the base mod needs no knowledge of which
+     * addon registered the modifier — a pack's own "Fins" grants it by setting
+     * {@code ignores_water_drag} in the effect.</p>
+     */
+    public static boolean grantsWaterDragImmunity(ItemStack weaponOrArrow) {
+        ToolComposition comp = SmitheryToolData.getComposition(weaponOrArrow);
+        if (comp == null || !comp.isValid()) return false;
+        ToolStats stats = ToolStats.compute(comp, SmitheryToolData.getAppliedModifiers(weaponOrArrow));
+        for (ToolStats.ResolvedEffect r : stats.allEffects) {
+            if (r.effect().paramInt(PARAM_IGNORES_WATER_DRAG, 0) > 0) return true;
+        }
+        return false;
     }
 
     @Override

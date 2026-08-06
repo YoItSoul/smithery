@@ -30,8 +30,8 @@
     },
     {
       "type": "patchouli:spotlight",
-      "item": "minecraft:slime_ball",
-      "text": "Hits send targets flying.$(br2)$(l)Apply with:$() Slime Ball at an anvil.",
+      "item": "minecraft:piston",
+      "text": "Hits send targets flying.$(br2)$(l)Apply with:$() Piston or Sticky Piston at an anvil (10 per level).",
       "title": "Knockback"
     },
     {

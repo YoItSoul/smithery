@@ -234,6 +234,8 @@ public class Smithery {
 
     private void commonSetup(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
+            // Needs the part items, so it cannot live with the rest of modifier registration.
+            SmitheryModifiers.registerMaterialKitSources();
             ForgeFuels.register(Fluids.LAVA, new ForgeFuels.Profile(1650f));
             var blazeEntry = SmitheryFluids.forMaterial(SmitheryMaterials.BLAZE);
             if (blazeEntry != null) {

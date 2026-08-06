@@ -332,6 +332,15 @@ public final class Modifier {
         /** Final durability multiplier (1.0 = unchanged). */
         public float durabilityMultiplier = 1f;
         /**
+         * Floor for the tool's harvest level, whatever its head material gives.
+         *
+         * <p>Exists for Tinkers' "Fortify", whose 1.12 description is precise: "mining level
+         * increased to the same level as X". It lifts a tool TO a donor material's tier and does
+         * nothing to a tool already at or above it — not a flat bonus, which on a cheap ingredient
+         * would hand out a free tier and skip the material ladder the pack gates progression on.</p>
+         */
+        public int minHarvestLevel = 0;
+        /**
          * INPUT (read-only for passives): fraction of durability currently missing, 0 (pristine)
          * to ~1 (about to break). Passives that read this must be registered
          * {@link Builder#durabilityScaled()} so stats re-stamp as the tool wears.

@@ -104,6 +104,13 @@ public class SmitheryBowItem extends BowItem {
 
             applySmitheryArrowDamage(arrow, projectile, stack);
 
+            // Fins: the launcher (or the arrow itself) can carry it.
+            if (arrow instanceof com.soul.smithery.entity.SmitheryArrow smitheryArrow
+                    && (com.soul.smithery.entity.SmitheryArrow.grantsWaterDragImmunity(stack)
+                        || com.soul.smithery.entity.SmitheryArrow.grantsWaterDragImmunity(projectile))) {
+                smitheryArrow.setIgnoresWaterDrag(true);
+            }
+
             int powerLevel = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.POWER_ARROWS, stack);
             if (powerLevel > 0) arrow.setBaseDamage(arrow.getBaseDamage() + powerLevel * 0.5 + 0.5);
             int punchLevel = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.PUNCH_ARROWS, stack);

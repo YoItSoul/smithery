@@ -13,7 +13,7 @@
     {
       "type": "patchouli:spotlight",
       "item": "smithery:stone_pick_head",
-      "text": "- $(l)Pickaxe$(): Stonebound$(br)- $(l)Chestplate$(): Stalwart",
+      "text": "- $(l)Tool head$(): Stonebound$(br)- $(l)Chestplate$(): Stalwart",
       "title": "Traits"
     }
   ]

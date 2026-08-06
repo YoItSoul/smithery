@@ -1,5 +1,6 @@
 package com.soul.smithery.api.modifier;
 
+import com.soul.smithery.api.SmitheryAPI;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.resources.ResourceLocation;
@@ -7,7 +8,9 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -45,8 +48,11 @@ public final class ModifierSources {
         public Entry(ModifierEffect effect) { this(effect, 1); }
     }
 
-    private static final Map<Item, Entry> CODE_REGISTRY = new LinkedHashMap<>();
-    private static final Map<Item, Entry> DATA_REGISTRY = new LinkedHashMap<>();
+    // One item can feed several modifiers, disambiguated at resolve time by what it is being
+    // applied to: Tinkers' 1.12 reused ingredients across the tool and armour tables freely, and a
+    // single-entry map forced a fake ingredient onto whichever side lost the coin toss.
+    private static final Map<Item, List<Entry>> CODE_REGISTRY = new LinkedHashMap<>();
+    private static final Map<Item, List<Entry>> DATA_REGISTRY = new LinkedHashMap<>();
 
     /** Registers a built-in (code-side) source mapping. Survives reloads. */
     public static void register(Item sourceItem, ModifierEffect effect) {
@@ -57,7 +63,7 @@ public final class ModifierSources {
     public static void register(Item sourceItem, Entry entry) {
         Objects.requireNonNull(sourceItem, "sourceItem");
         Objects.requireNonNull(entry, "entry");
-        CODE_REGISTRY.put(sourceItem, entry);
+        CODE_REGISTRY.computeIfAbsent(sourceItem, k -> new ArrayList<>()).add(entry);
     }
 
     /** Clears all data-loaded entries. Called at the start of each reload pass. */
@@ -69,7 +75,7 @@ public final class ModifierSources {
     public static void registerDataEntry(Item sourceItem, Entry entry) {
         Objects.requireNonNull(sourceItem, "sourceItem");
         Objects.requireNonNull(entry, "entry");
-        DATA_REGISTRY.put(sourceItem, entry);
+        DATA_REGISTRY.computeIfAbsent(sourceItem, k -> new ArrayList<>()).add(entry);
     }
 
     /**
@@ -77,11 +83,43 @@ public final class ModifierSources {
      * source. Data entries take precedence over code entries.
      */
     public static @Nullable Entry resolve(ItemStack stack) {
+        return resolve(stack, null);
+    }
+
+    /**
+     * Resolves the entry this stack provides for a given target.
+     *
+     * <p>{@code armorTarget} selects between entries that share an item: true picks the modifier
+     * declaring {@link Modifier.AppliesTo#ARMOR}, false the one declaring {@code TOOLS}, and
+     * {@code BOTH} matches either. Pass null when the target is unknown (tooltips, JEI lookups),
+     * which returns the first entry registered for the item.</p>
+     *
+     * <p>Data entries win over code entries, so a pack can repoint a built-in ingredient without
+     * the code default lingering underneath.</p>
+     */
+    public static @Nullable Entry resolve(ItemStack stack, @Nullable Boolean armorTarget) {
         if (stack == null || stack.isEmpty()) return null;
         Item item = stack.getItem();
-        Entry data = DATA_REGISTRY.get(item);
+        Entry data = pick(DATA_REGISTRY.get(item), armorTarget);
         if (data != null) return data;
-        return CODE_REGISTRY.get(item);
+        return pick(CODE_REGISTRY.get(item), armorTarget);
+    }
+
+    /** First entry whose modifier can apply to this target; falls back to the first entry. */
+    private static @Nullable Entry pick(@Nullable List<Entry> entries, @Nullable Boolean armorTarget) {
+        if (entries == null || entries.isEmpty()) return null;
+        if (armorTarget == null || entries.size() == 1) return entries.get(0);
+        for (Entry e : entries) {
+            Modifier mod = SmitheryAPI.MODIFIERS.get(e.effect().modifierId());
+            if (mod == null) continue;
+            Modifier.AppliesTo a = mod.appliesTo();
+            if (a == Modifier.AppliesTo.BOTH
+                    || (armorTarget && a == Modifier.AppliesTo.ARMOR)
+                    || (!armorTarget && a == Modifier.AppliesTo.TOOLS)) {
+                return e;
+            }
+        }
+        return null;
     }
 
     /** True iff this stack maps to a registered modifier source. */
@@ -91,8 +129,17 @@ public final class ModifierSources {
 
     /** All resolved entries (data overrides code), preserving insertion order. Read-only. */
     public static Map<Item, Entry> all() {
-        Map<Item, Entry> merged = new LinkedHashMap<>(CODE_REGISTRY);
-        merged.putAll(DATA_REGISTRY);
+        Map<Item, Entry> merged = new LinkedHashMap<>();
+        CODE_REGISTRY.forEach((item, list) -> { if (!list.isEmpty()) merged.put(item, list.get(0)); });
+        DATA_REGISTRY.forEach((item, list) -> { if (!list.isEmpty()) merged.put(item, list.get(0)); });
+        return Collections.unmodifiableMap(merged);
+    }
+
+    /** Every entry for every source item, including the several an item may feed. Read-only. */
+    public static Map<Item, List<Entry>> allEntries() {
+        Map<Item, List<Entry>> merged = new LinkedHashMap<>();
+        CODE_REGISTRY.forEach((item, list) -> merged.put(item, List.copyOf(list)));
+        DATA_REGISTRY.forEach((item, list) -> merged.put(item, List.copyOf(list)));
         return Collections.unmodifiableMap(merged);
     }
 

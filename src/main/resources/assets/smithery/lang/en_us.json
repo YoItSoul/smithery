@@ -292,11 +292,22 @@
   "jei.smithery.modifier.anvil_level1": "Need %s of these for level 1.",
   "jei.smithery.modifier.grant_header": "Material grant",
   "jei.smithery.modifier.grant_body": "Using %s in a %s auto-applies this modifier at crafting time.",
+  "jei.smithery.modifier.grant_body_any": "Any part of a tool made of %s auto-applies this modifier at crafting time.",
+  "jei.smithery.modifier.grant_body_head": "A tool head made of %s auto-applies this modifier at crafting time.",
   "jei.smithery.modifier.synergy_header": "Synergy grant",
   "jei.smithery.modifier.synergy_body": "%s + %s anywhere in a %s grants this modifier for free.",
   "jei.smithery.modifier.params_header": "Parameters:",
   "smithery.tool.smithery.scythe": "Scythe",
   "smithery.tool.smithery.sceptre": "Sceptre",
   "smithery.part.smithery.arcane_focus": "Arcane Focus",
-  "smithery.part.smithery.pearl": "Pearl"
+  "smithery.part.smithery.pearl": "Pearl",
+  "tooltip.smithery.modifier_source.header": "Anvil Modifier",
+  "tooltip.smithery.modifier_source.applies": "Apply on an anvil: %s (%s)",
+  "tooltip.smithery.modifier_source.units": "Counts as %s toward the next level",
+  "tooltip.smithery.modifier_source.max_level": "Up to level %s",
+  "tooltip.smithery.modifier_source.target.tools": "tools",
+  "tooltip.smithery.modifier_source.target.armor": "armor",
+  "tooltip.smithery.modifier_source.target.both": "tools & armor",
+  "smithery.modifier.smithery.fortify": "Fortified",
+  "smithery.modifier.smithery.fortify.description": "Mining level raised to the sharpening stone's material"
 }

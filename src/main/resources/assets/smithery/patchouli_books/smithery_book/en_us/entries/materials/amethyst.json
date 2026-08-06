@@ -13,7 +13,7 @@
     {
       "type": "patchouli:spotlight",
       "item": "smithery:amethyst_pick_head",
-      "text": "- $(l)Pickaxe$(): Momentum$(br)- $(l)Chestplate$(): Crystalline",
+      "text": "- $(l)Tool head$(): Momentum$(br)- $(l)Chestplate$(): Crystalline",
       "title": "Traits"
     }
   ]

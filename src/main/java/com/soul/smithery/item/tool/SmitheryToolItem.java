@@ -288,10 +288,11 @@ public class SmitheryToolItem extends Item {
                     }
                 }
                 List<ResourceLocation> matIds = comp.slotMaterials();
+                int headIndex = ToolStats.primaryAdditiveIndex(tt);
                 for (int i = 0; i < tt.slots().size() && i < matIds.size(); i++) {
                     Material m = SmitheryAPI.MATERIALS.get(matIds.get(i));
                     if (m == null) continue;
-                    for (ModifierEffect e : m.stats().modifiersFor(tt)) {
+                    for (ModifierEffect e : m.stats().modifiersFor(tt, i == headIndex)) {
                         if (seen.add(e.modifierId())) {
                             int b = e.paramInt("bonus_slots", 0) + e.paramInt("bonus_slots_per_level", 0) * Math.max(1, e.paramInt("level", 1));
                             if (b > 0) bonus += b;

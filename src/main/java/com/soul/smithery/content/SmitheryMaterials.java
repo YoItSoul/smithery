@@ -112,9 +112,9 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFFFF7733)
                 .partColor(0xFFB87333)
                 .binderMultiplier(1.05f), 1)
-                .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.VERDANT,
+                .addUniversalModifier(SmitheryModifiers.VERDANT,
                         Map.of("chance", 0.15f, "duration_ticks", 60))
-                .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.CORROSIVE,
+                .addUniversalModifier(SmitheryModifiers.CORROSIVE,
                         Map.of("chance", 0.25f, "duration_ticks", 100, "amplifier", 1))
                 .addModifier(ModifierEffect.of(SmitheryModifiers.CONDUCTIVE,
                         Map.of("pct", 0.9f)), armorPieces())
@@ -131,12 +131,13 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFFFFE066)
                 .partColor(0xFFFFD700)
                 .binderMultiplier(0.7f), 3)
-                .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.LUCKY_STRIKE,
+                .addUniversalModifier(SmitheryModifiers.LUCKY_STRIKE,
                         Map.of("xp_multiplier", 1.25f))
-                .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.GILDED,
+                .addUniversalModifier(SmitheryModifiers.GILDED,
                         Map.of("xp_multiplier", 1.25f))
-                .addModifier(SmitheryToolTypes.PICKAXE,
-                        ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "golden_touch"))
+                // Fortune reads off the head that breaks the block, so gold has to be the head
+                // to grant it — the scoping TC used for its own head-derived traits.
+                .addHeadModifier(ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "golden_touch"))
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.ALLURING,
                         Map.of("radius", 6.0f))
                 .armor(32f, 7f, 10f, 0.7f, 0f, 5f)
@@ -152,7 +153,9 @@ public final class SmitheryMaterials {
                 .moltenColor(0xFFFFAA55)
                 .partColor(0xFFCFCFCF)
                 .binderMultiplier(0.85f), 2)
-                .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.MAGNETIZED,
+                // TC 1.12 iron: Magnetic from any part, a stronger Magnetic II from the head.
+                // Smithery has one Magnetized, so it takes the from-any-part scope.
+                .addUniversalModifier(SmitheryModifiers.MAGNETIZED,
                         Map.of("radius", 5.0f))
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.MAGNETIZED,
                         Map.of("radius", 4.0f))
@@ -171,7 +174,9 @@ public final class SmitheryMaterials {
                 .binderMultiplier(0.5f), 1)
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.STALWART,
                         Map.of("amount", 0.05f))
-                .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.STONEBOUND,
+                // Stonebound trades the head's own attack damage for its mining speed, so TC 1.12
+                // scoped it to the head (on Ardite); it does nothing from a handle.
+                .addHeadModifier(SmitheryModifiers.STONEBOUND,
                         Map.of("speed_bonus", 4.0f, "damage_penalty", 2.0f))
                 .armor(120f, 5f, 20f, 0.95f, 0f, 8f)
                 .build());
@@ -233,8 +238,8 @@ public final class SmitheryMaterials {
                 .binderMultiplier(1.0f), 2)
                 .addModifier(ModifierEffect.of(SmitheryModifiers.FIREWARD,
                         Map.of("pct", 0.3f)), armorPieces())
-                .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.AUTOSMELT)
-                .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.FIERY,
+                .addUniversalModifier(SmitheryModifiers.AUTOSMELT)
+                .addUniversalModifier(SmitheryModifiers.FIERY,
                         Map.of("level", 1))
                 .armor(550f, 12f, 60f, 1.0f, 1f, 20f)
                 .build());
@@ -251,7 +256,9 @@ public final class SmitheryMaterials {
                 .binderMultiplier(0.9f), 2)
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.CRYSTALLINE,
                         Map.of("pct", 0.02f))
-                .addModifier(SmitheryToolTypes.PICKAXE, SmitheryModifiers.MOMENTUM,
+                // Momentum builds off the head doing the breaking — TC 1.12 scoped it to the head
+                // on Cobalt, and it reads as nothing from a binder.
+                .addHeadModifier(SmitheryModifiers.MOMENTUM,
                         Map.of("max_amplifier", 2))
                 .armor(200f, 8f, 30f, 0.9f, 0f, 12f)
                 .build());
@@ -389,7 +396,9 @@ public final class SmitheryMaterials {
                 .binderMultiplier(0.6f), 1)
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.SPINY,
                         Map.of("chance", 0.25f, "damage", 1.0f))
-                .addModifier(SmitheryToolTypes.SWORD, SmitheryModifiers.JAGGED,
+                // TC 1.12 flint carried Crude from every part, not just the head — a flint hand
+                // guard armed a rapier exactly as a flint blade armed a sword.
+                .addUniversalModifier(SmitheryModifiers.JAGGED,
                         Map.of("pct", 0.5f))
                 .armor(150f, 3f, 15f, 0.85f, 0f, 8f)
                 .build());
@@ -400,7 +409,10 @@ public final class SmitheryMaterials {
                 .miningSpeed(4.24f)
                 .attackDamage(1.8f)
                 .durabilityPerIngot(1000)
-                .meltingTemp(0f)
+                // Above zero so slime gets a molten fluid: SmitheryFluids skips meltingTemp <= 0,
+                // and without a slime fluid there is nothing for a slime-input alloy (knightslime
+                // in the Tinkers ladder) to consume. Low, because slime melts in a campfire.
+                .meltingTemp(100f)
                 .partColor(0xFF7FCD33)
                 .binderMultiplier(0.7f), 3)
                 .addModifier(SmitheryToolTypes.BOOTS, SmitheryModifiers.BOUNCY)

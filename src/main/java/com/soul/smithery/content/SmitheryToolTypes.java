@@ -140,6 +140,7 @@ public final class SmitheryToolTypes {
         BOW = SmitheryAPI.registerToolType(ToolType.builder(id("bow"))
                 .addPart(SmitheryPartTypes.BOW_LIMB, DurabilityRole.ADDITIVE, 2)
                 .addPart(SmitheryPartTypes.BOWSTRING, DurabilityRole.MULTIPLIER)
+                .materialTraits(false)
                 .build());
 
         KAMA = SmitheryAPI.registerToolType(ToolType.builder(id("kama"))
@@ -204,36 +205,42 @@ public final class SmitheryToolTypes {
                 .addPart(SmitheryPartTypes.HANDLE, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.BINDER, DurabilityRole.MULTIPLIER)
                 .addPart(SmitheryPartTypes.BOWSTRING, DurabilityRole.MULTIPLIER)
+                .materialTraits(false)
                 .build());
 
         ARROW = SmitheryAPI.registerToolType(ToolType.builder(id("arrow"))
                 .addPart(SmitheryPartTypes.ARROW_HEAD, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.ARROW_SHAFT, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.FLETCHING, DurabilityRole.MULTIPLIER)
+                .materialTraits(false)
                 .build());
 
         HELMET = SmitheryAPI.registerToolType(ToolType.builder(id("helmet"))
                 .addPart(SmitheryPartTypes.HELMET_CORE, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.ARMOR_PLATES, DurabilityRole.MULTIPLIER)
                 .addPart(SmitheryPartTypes.ARMOR_TRIM, DurabilityRole.ADDITIVE)
+                .materialTraits(false)
                 .build());
 
         CHESTPLATE = SmitheryAPI.registerToolType(ToolType.builder(id("chestplate"))
                 .addPart(SmitheryPartTypes.CHESTPLATE_CORE, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.ARMOR_PLATES, DurabilityRole.MULTIPLIER)
                 .addPart(SmitheryPartTypes.ARMOR_TRIM, DurabilityRole.ADDITIVE)
+                .materialTraits(false)
                 .build());
 
         LEGGINGS = SmitheryAPI.registerToolType(ToolType.builder(id("leggings"))
                 .addPart(SmitheryPartTypes.LEGGINGS_CORE, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.ARMOR_PLATES, DurabilityRole.MULTIPLIER)
                 .addPart(SmitheryPartTypes.ARMOR_TRIM, DurabilityRole.ADDITIVE)
+                .materialTraits(false)
                 .build());
 
         BOOTS = SmitheryAPI.registerToolType(ToolType.builder(id("boots"))
                 .addPart(SmitheryPartTypes.BOOTS_CORE, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.ARMOR_PLATES, DurabilityRole.MULTIPLIER)
                 .addPart(SmitheryPartTypes.ARMOR_TRIM, DurabilityRole.ADDITIVE)
+                .materialTraits(false)
                 .build());
     }
 

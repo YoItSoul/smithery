@@ -59,6 +59,27 @@ public final class SmitheryModifierActions {
      *
      * @param amount per-level mining-speed bonus
      */
+    /**
+     * Passive action raising the tool's harvest level TO {@code level}, never past it.
+     *
+     * <p>Harvest level otherwise comes solely from the head material, so this is the only way a
+     * modifier can let a tool mine a tier it was not built for — Tinkers' "Fortify", which set the
+     * level to a donor material's rather than adding to it.</p>
+     */
+    public record MinHarvestLevel(int level) implements ModifierAction.Passive {
+        /** Codec-driven action type registered under {@code smithery:min_harvest_level}. */
+        public static final ModifierAction.ActionType<MinHarvestLevel> TYPE = ModifierAction.ActionType.of(
+                id("min_harvest_level"),
+                RecordCodecBuilder.mapCodec(i -> i.group(
+                        Codec.INT.optionalFieldOf("level", 1).forGetter(MinHarvestLevel::level)
+                ).apply(i, MinHarvestLevel::new)));
+        @Override public ResourceLocation type() { return TYPE.id(); }
+        @Override public void apply(Modifier.MutablePassiveStats stats, ModifierEffect effect) {
+            stats.minHarvestLevel = Math.max(stats.minHarvestLevel,
+                    effect.paramInt("min_harvest_level", effect.paramInt("level", level)));
+        }
+    }
+
     public record BonusMiningSpeed(float amount) implements ModifierAction.Passive {
         /** Codec-driven action type registered under {@code smithery:bonus_mining_speed}. */
         public static final ModifierAction.ActionType<BonusMiningSpeed> TYPE = ModifierAction.ActionType.of(
@@ -297,6 +318,7 @@ public final class SmitheryModifierActions {
     public static void register() {
         ModifierAction.PASSIVE.register(BonusDamage.TYPE);
         ModifierAction.PASSIVE.register(BonusMiningSpeed.TYPE);
+        ModifierAction.PASSIVE.register(MinHarvestLevel.TYPE);
         ModifierAction.PASSIVE.register(BonusAttackSpeed.TYPE);
         ModifierAction.ON_ATTACK.register(ApplyMobEffect.TYPE);
         ModifierAction.ON_BREAK.register(PullDrops.TYPE);

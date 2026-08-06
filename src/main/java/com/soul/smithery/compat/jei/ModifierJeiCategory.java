@@ -240,11 +240,19 @@ public class ModifierJeiCategory extends SmitheryJeiCategory<JeiModifier> {
     private static void appendGrantTooltip(java.util.List<Component> tooltip, JeiMaterialGrant grant) {
         tooltip.add(Component.translatable("jei." + Smithery.MODID + ".modifier.grant_header")
                 .withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD));
-        tooltip.add(Component.translatable(
-                "jei." + Smithery.MODID + ".modifier.grant_body",
-                materialName(grant.material().id()),
-                toolName(grant.toolType().id())
-        ).withStyle(ChatFormatting.GRAY));
+        if (grant.toolType() == null) {
+            tooltip.add(Component.translatable(
+                    "jei." + Smithery.MODID + (grant.headOnly() ? ".modifier.grant_body_head"
+                                                                : ".modifier.grant_body_any"),
+                    materialName(grant.material().id())
+            ).withStyle(ChatFormatting.GRAY));
+        } else {
+            tooltip.add(Component.translatable(
+                    "jei." + Smithery.MODID + ".modifier.grant_body",
+                    materialName(grant.material().id()),
+                    toolName(grant.toolType().id())
+            ).withStyle(ChatFormatting.GRAY));
+        }
         appendParams(tooltip, grant.effect());
     }
 

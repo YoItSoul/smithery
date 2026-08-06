@@ -13,7 +13,7 @@
     {
       "type": "patchouli:spotlight",
       "item": "smithery:blaze_pick_head",
-      "text": "- $(l)Sword$(): Fiery$(br)- $(l)Pickaxe$(): Autosmelt$(br)- $(l)Helmet$(): Fireward$(br)- $(l)Chestplate$(): Fireward$(br)- $(l)Leggings$(): Fireward$(br)- $(l)Boots$(): Fireward",
+      "text": "- $(l)Any part$(): Fiery, Autosmelt$(br)- $(l)Helmet$(): Fireward$(br)- $(l)Chestplate$(): Fireward$(br)- $(l)Leggings$(): Fireward$(br)- $(l)Boots$(): Fireward",
       "title": "Traits"
     }
   ]

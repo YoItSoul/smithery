@@ -104,6 +104,9 @@ public class SmitheryCrossbowItem extends CrossbowItem {
             CompoundTag itemTag = projectiles.getCompound(i);
             CompoundTag stackTag = itemTag.getCompound("tag");
             stackTag.putFloat(SmitheryArrow.KEY_WEAPON_SCALAR, scalar);
+            if (SmitheryArrow.grantsWaterDragImmunity(crossbow)) {
+                stackTag.putBoolean(SmitheryArrow.KEY_IGNORES_WATER_DRAG, true);
+            }
             itemTag.put("tag", stackTag);
         }
     }

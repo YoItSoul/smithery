@@ -49,6 +49,11 @@ public final class SmitheryMeltingRecipes {
         recipe("minecraft:copper_block",          "smithery:copper", BLOCK_MB);
         recipe("minecraft:raw_copper_block",      "smithery:copper", BLOCK_MB);
 
+        // Slime is measured in balls, not ingots: Tinkers' 1.12 portions were 125 mB per ball
+        // and 9 balls to the block.
+        recipe("minecraft:slime_ball",             "smithery:slime", 125);
+        recipe("minecraft:slime_block",            "smithery:slime", 1125);
+
         recipe("minecraft:cobblestone",            "smithery:stone", INGOT_MB);
         recipe("minecraft:stone",                  "smithery:stone", INGOT_MB);
         recipe("minecraft:cobbled_deepslate",      "smithery:stone", INGOT_MB);

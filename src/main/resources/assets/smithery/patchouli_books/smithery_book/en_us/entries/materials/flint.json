@@ -13,7 +13,7 @@
     {
       "type": "patchouli:spotlight",
       "item": "smithery:flint_pick_head",
-      "text": "- $(l)Sword$(): Jagged$(br)- $(l)Chestplate$(): Spiny",
+      "text": "- $(l)Any part$(): Jagged$(br)- $(l)Chestplate$(): Spiny",
       "title": "Traits"
     }
   ]

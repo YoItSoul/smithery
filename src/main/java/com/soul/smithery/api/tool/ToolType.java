@@ -17,15 +17,27 @@ import java.util.Objects;
 public final class ToolType {
     private final ResourceLocation id;
     private final List<Slot> slots;
+    private final boolean usesMaterialTraits;
 
     private ToolType(Builder b) {
         this.id = Objects.requireNonNull(b.id);
         this.slots = Collections.unmodifiableList(new ArrayList<>(b.slots));
+        this.usesMaterialTraits = b.usesMaterialTraits;
         if (slots.isEmpty()) throw new IllegalArgumentException("ToolType " + id + " must have at least one slot");
     }
 
     /** ResourceLocation for this tool type. */
     public ResourceLocation id() { return id; }
+
+    /**
+     * Whether a material's universal and head traits carry into this tool type.
+     *
+     * <p>True for the melee and mining tools, which is what those traits are written for. Armor
+     * pieces and projectile weapons opt out: Constructs Armory gave armor its own trait list
+     * rather than inheriting the tool one, and a trait like Autosmelt has nothing to say on a
+     * helmet or an arrow. Opted-out types still receive traits declared against them by id.</p>
+     */
+    public boolean usesMaterialTraits() { return usesMaterialTraits; }
 
     /** Unmodifiable list of part slots in declaration order. */
     public List<Slot> slots() { return slots; }
@@ -59,8 +71,16 @@ public final class ToolType {
     public static final class Builder {
         private final ResourceLocation id;
         private final List<Slot> slots = new ArrayList<>();
+        private boolean usesMaterialTraits = true;
 
         private Builder(ResourceLocation id) { this.id = id; }
+
+        /** Opts this tool type out of universal and head material traits — see
+         *  {@link ToolType#usesMaterialTraits()}. */
+        public Builder materialTraits(boolean uses) {
+            this.usesMaterialTraits = uses;
+            return this;
+        }
 
         /** Appends a single part slot with the given role. */
         public Builder addPart(PartType partType, DurabilityRole role) {

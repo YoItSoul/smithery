@@ -133,6 +133,9 @@ public final class SmitheryModifiers {
      * by JSON modifiers can resolve, and after tool/material registration so any material
      * grants referencing these modifier ids can find them.
      */
+    /** ResourceLocation of FORTIFY — Tinkers' mining-level upgrade. */
+    public static ResourceLocation FORTIFY;
+
     public static void register() {
         // smithery:sharp is JSON-defined (data/smithery/smithery/modifier/sharp.json) as a
         // multi-level upgrade modifier fed by nether quartz, mirroring the haste/lapis_blessing
@@ -505,6 +508,7 @@ public final class SmitheryModifiers {
         STICKY = id("sticky");
         SmitheryAPI.registerModifier(Modifier.builder(STICKY)
                 .category(Modifier.ModifierCategory.ACTIVE)
+                .appliesTo(Modifier.AppliesTo.ARMOR)
                 .onDamaged((effect, ctx) -> {
                     if (!(ctx.source().getEntity() instanceof LivingEntity attacker)) return;
                     if (attacker == ctx.wearer()) return;
@@ -587,6 +591,21 @@ public final class SmitheryModifiers {
                 })
                 .build());
 
+        FORTIFY = id("fortify");
+        // Tinkers' 1.12 "Fortified": mining level increased to the same level as <material>. One
+        // ModFortify existed per material and the material's sharpening kit is what carried the
+        // target tier — so the level is not fixed here, it comes from the stone in
+        // registerMaterialKitSources() below.
+        SmitheryAPI.registerModifier(Modifier.builder(FORTIFY)
+                .category(Modifier.ModifierCategory.PASSIVE)
+                .appliesTo(Modifier.AppliesTo.TOOLS)
+                .maxLevel(1)
+                .build());
+
+        // Emerald is Smithery's own default for Silky. Tinkers 1.12 used a Silky Jewel, so a pack
+        // porting 1.12 declares its own emerald source and this code default steps aside.
+        ModifierSources.register(Items.EMERALD, ModifierEffect.of(
+                ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "silky"), Map.of("level", 1)));
         ModifierSources.register(Items.NETHER_STAR,
                 ModifierEffect.of(NETHER_SHARPENED, Map.of("damage", 6.0f)));
         ModifierSources.register(Items.PHANTOM_MEMBRANE,
@@ -686,4 +705,33 @@ public final class SmitheryModifiers {
     }
 
     private SmitheryModifiers() {}
+
+    /**
+     * Registers every material's sharpening stone as a Fortify source, carrying that material's
+     * harvest level.
+     *
+     * <p>This is the 1.12 recipe as closely as the 1.20 anvil allows. There, Fortify was a
+     * per-material modifier applied with that material's sharpening kit (plus flint, which here is
+     * already the cast template the stone is made from); the kit is what said which tier you were
+     * lifting to. So each stone registers its own effect and a bedrock stone lifts a tool further
+     * than an iron one — no flat bonus, and no way to skip the material ladder with a cheap item.</p>
+     *
+     * <p>Must run after item registration, hence common setup rather than {@link #register()}.
+     * A damaged tool is repaired by the same stone instead — see {@code RepairHandler}, which the
+     * anvil handler defers to.</p>
+     */
+    public static void registerMaterialKitSources() {
+        int registered = 0;
+        for (com.soul.smithery.api.material.Material material : SmitheryAPI.MATERIALS.all()) {
+            var stone = com.soul.smithery.registry.SmitheryItems.findPart(
+                    material.id(), SmitheryPartTypes.SHARPENING_STONE.id());
+            if (stone == null) continue;
+            int level = material.stats().harvestLevel();
+            if (level <= 0) continue;   // nothing to lift a tool to
+            ModifierSources.register(stone, ModifierEffect.of(FORTIFY,
+                    Map.of("min_harvest_level", level)));
+            registered++;
+        }
+        Smithery.LOGGER.info("Registered {} sharpening stones as Fortify sources", registered);
+    }
 }

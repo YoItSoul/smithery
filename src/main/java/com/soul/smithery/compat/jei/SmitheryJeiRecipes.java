@@ -115,11 +115,15 @@ public final class SmitheryJeiRecipes {
      * automatically attaches this modifier when the tool is composed.
      *
      * @param material   the granting material
-     * @param toolType   the tool type the grant fires on
+     * @param toolType   the tool type the grant fires on, or null when the material grants it on
+     *                   every tool type (a universal or head-scoped trait)
+     * @param headOnly   true when the grant needs the material in the tool's head slot; only
+     *                   meaningful with a null {@code toolType}
      * @param effect     the resolved effect (carries the per-grant parameter overrides)
      * @param displayItem representative item shown in the JEI slot (tool-type-appropriate part)
      */
-    public record JeiMaterialGrant(Material material, ToolType toolType, ModifierEffect effect, ItemStack displayItem) {}
+    public record JeiMaterialGrant(Material material, ToolType toolType, boolean headOnly,
+                                   ModifierEffect effect, ItemStack displayItem) {}
 
     /**
      * One synergy → tool-type entry. Both {@code materialA} and {@code materialB} present anywhere
@@ -386,11 +390,24 @@ public final class SmitheryJeiRecipes {
             for (Material material : SmitheryAPI.MATERIALS.all()) {
                 if (isHiddenFromJei(material.id())) continue;
                 if (material.stats().castOnly()) continue;
+                // Universal and head traits apply on every tool type, so they get one entry each
+                // rather than one per tool type — a material trait would otherwise fill the page
+                // with two dozen identical slots.
+                for (ModifierEffect effect : material.stats().universalModifiers()) {
+                    if (!modId.equals(effect.modifierId())) continue;
+                    materialGrants.add(new JeiMaterialGrant(material, null, false, effect,
+                            representativeMaterialItem(material.id())));
+                }
+                for (ModifierEffect effect : material.stats().headModifiers()) {
+                    if (!modId.equals(effect.modifierId())) continue;
+                    materialGrants.add(new JeiMaterialGrant(material, null, true, effect,
+                            representativeMaterialItem(material.id())));
+                }
                 for (ToolType toolType : SmitheryAPI.TOOL_TYPES.all()) {
-                    for (ModifierEffect effect : material.stats().modifiersFor(toolType)) {
+                    for (ModifierEffect effect : material.stats().toolTypeModifiers(toolType)) {
                         if (!modId.equals(effect.modifierId())) continue;
                         ItemStack display = representativeGrantItem(material, toolType);
-                        materialGrants.add(new JeiMaterialGrant(material, toolType, effect, display));
+                        materialGrants.add(new JeiMaterialGrant(material, toolType, false, effect, display));
                     }
                 }
             }

@@ -15,8 +15,13 @@ import java.util.Objects;
  * Immutable per-material stat block held by a {@link Material}.
  *
  * <p>Holds harvest level, mining speed, attack damage, durability per ingot, melt point, colors,
- * binder behavior, fluid base, per-{@link PartType} modifier slot counts, and per-{@link ToolType}
+ * binder behavior, fluid base, per-{@link PartType} modifier slot counts, and the material's
  * craft-time modifier effects. Constructed through {@link Builder}.
+ *
+ * <p>Effects carry one of three scopes, mirroring Tinkers' Construct 1.12: universal traits,
+ * granted from any part of any tool; head traits, granted only from the tool's head; and effects
+ * keyed to a single {@link ToolType}, which is Smithery's own extension and exists for
+ * armor-piece-specific traits.
  */
 public final class MaterialStats {
 
@@ -49,6 +54,8 @@ public final class MaterialStats {
     private final FluidBase fluidBase;
     private final Map<ResourceLocation, Integer> modifierSlots;
     private final Map<ResourceLocation, List<ModifierEffect>> modifiers;
+    private final List<ModifierEffect> universalModifiers;
+    private final List<ModifierEffect> headModifiers;
     private final ArmorStats armorStats;
 
     private MaterialStats(Builder b) {
@@ -73,6 +80,8 @@ public final class MaterialStats {
         this.fluidBase = b.fluidBase;
         this.modifierSlots = Collections.unmodifiableMap(new HashMap<>(b.modifierSlots));
         this.modifiers = Collections.unmodifiableMap(new HashMap<>(b.modifiers));
+        this.universalModifiers = List.copyOf(b.universalModifiers);
+        this.headModifiers = List.copyOf(b.headModifiers);
         this.armorStats = b.armorStats;
     }
 
@@ -173,10 +182,59 @@ public final class MaterialStats {
         return modifierSlots.getOrDefault(partType.id(), 0);
     }
 
-    /** Craft-time modifier effects this material grants when used in the given tool type. */
+    /**
+     * Every craft-time modifier effect this material can grant on the given tool type, from any
+     * slot — the union of its universal traits, its head-only traits and its tool-type-specific
+     * traits.
+     *
+     * <p>This is the "what could this material give me" view, for tooltips, JEI and embossment.
+     * Stat computation walks slots and wants {@link #modifiersFor(ToolType, boolean)} instead, so
+     * a head-only trait is not granted by a material sitting in the handle.</p>
+     */
     public List<ModifierEffect> modifiersFor(ToolType toolType) {
+        return modifiersFor(toolType, true);
+    }
+
+    /**
+     * Craft-time modifier effects this material grants from one slot of the given tool type.
+     *
+     * <p>Trait scope follows Tinkers' Construct 1.12, which this ports: a material's traits are
+     * a property of the <em>material</em>, not of the tool it ends up in, so they apply to every
+     * tool type. TC scoped them by part instead — {@code addTrait(trait)} applied from any part,
+     * {@code addTrait(trait, "head")} only from the head — and {@code headSlot} is that
+     * distinction. Tool-type-keyed effects (see {@link Builder#addModifier(ToolType,
+     * ModifierEffect)}) are Smithery's own extension, used for armor-piece-specific traits, and
+     * apply from any slot of that type.</p>
+     *
+     * @param headSlot true when the material occupies the tool's head — its first additive slot
+     */
+    public List<ModifierEffect> modifiersFor(ToolType toolType, boolean headSlot) {
+        List<ModifierEffect> keyed = modifiers.getOrDefault(toolType.id(), List.of());
+        if (!toolType.usesMaterialTraits()) return keyed;
+        List<ModifierEffect> head = headSlot ? headModifiers : List.<ModifierEffect>of();
+        if (universalModifiers.isEmpty() && head.isEmpty()) return keyed;
+        if (keyed.isEmpty() && head.isEmpty()) return universalModifiers;
+        List<ModifierEffect> merged =
+                new java.util.ArrayList<>(universalModifiers.size() + head.size() + keyed.size());
+        merged.addAll(universalModifiers);
+        merged.addAll(head);
+        merged.addAll(keyed);
+        return merged;
+    }
+
+    /**
+     * Effects keyed to this tool type alone, excluding universal and head traits — the view a
+     * display needs when it lists universal traits separately instead of once per tool type.
+     */
+    public List<ModifierEffect> toolTypeModifiers(ToolType toolType) {
         return modifiers.getOrDefault(toolType.id(), List.of());
     }
+
+    /** Traits this material grants from any part of any tool — TC's {@code addTrait(trait)}. */
+    public List<ModifierEffect> universalModifiers() { return universalModifiers; }
+
+    /** Traits this material grants only as a tool's head — TC's {@code addTrait(trait, "head")}. */
+    public List<ModifierEffect> headModifiers() { return headModifiers; }
 
     /** Returns the armor-stat block for this material, or {@code null} if armor isn't supported. */
     public ArmorStats armorStats() { return armorStats; }
@@ -186,6 +244,40 @@ public final class MaterialStats {
 
     /** Begins building a new {@link MaterialStats}. */
     public static Builder builder() { return new Builder(); }
+
+    /**
+     * A builder pre-loaded with this stat block, for deriving a variant of an existing material.
+     *
+     * <p>Exists so an integration mod can retune one of Smithery's own materials — a pack whose
+     * progression puts bedrock far beyond vanilla tiers, say — without restating the fields it
+     * does not care about, and without silently dropping the traits the base material already
+     * carries. See {@code SmitheryAPI.retuneMaterial}.</p>
+     */
+    public Builder toBuilder() {
+        Builder b = new Builder();
+        b.harvestLevel = harvestLevel;
+        b.miningSpeed = miningSpeed;
+        b.attackDamage = attackDamage;
+        b.durabilityPerIngot = durabilityPerIngot;
+        b.meltingTemp = meltingTemp;
+        b.moltenColor = moltenColor;
+        b.partColor = partColor;
+        b.colorCycle = colorCycle.clone();
+        b.colorCyclePeriodTicks = colorCyclePeriodTicks;
+        b.foil = foil;
+        b.emissive = emissive;
+        b.binderMultiplier = binderMultiplier;
+        b.castOnly = castOnly;
+        b.fluidBase = fluidBase;
+        b.armorStats = armorStats;
+        b.modifierSlots.putAll(modifierSlots);
+        for (Map.Entry<ResourceLocation, List<ModifierEffect>> e : modifiers.entrySet()) {
+            b.modifiers.put(e.getKey(), new java.util.ArrayList<>(e.getValue()));
+        }
+        b.universalModifiers.addAll(universalModifiers);
+        b.headModifiers.addAll(headModifiers);
+        return b;
+    }
 
     private static int darken(int argb) {
         int a = (argb >>> 24) & 0xFF;
@@ -226,6 +318,8 @@ public final class MaterialStats {
         private FluidBase fluidBase = FluidBase.MOLTEN;
         private final Map<ResourceLocation, Integer> modifierSlots = new HashMap<>();
         private final Map<ResourceLocation, List<ModifierEffect>> modifiers = new HashMap<>();
+        private final List<ModifierEffect> universalModifiers = new java.util.ArrayList<>();
+        private final List<ModifierEffect> headModifiers = new java.util.ArrayList<>();
         private ArmorStats armorStats = null;
 
         /** Sets the vanilla-style harvest level. */
@@ -312,6 +406,49 @@ public final class MaterialStats {
         public Builder addModifier(ModifierEffect effect, ToolType... toolTypes) {
             for (ToolType tt : toolTypes) addModifier(tt, effect);
             return this;
+        }
+
+        /**
+         * Grants this effect from any part of any tool — the port of Tinkers' Construct 1.12
+         * {@code Material.addTrait(trait)}, which is how most TC materials carried their traits.
+         *
+         * <p>Prefer this over enumerating tool types for a material trait: a flint guard gives
+         * its trait on a rapier exactly as a flint blade does on a sword, which is the behavior
+         * every 1.12 pack was built around.</p>
+         */
+        public Builder addUniversalModifier(ModifierEffect effect) {
+            this.universalModifiers.add(effect);
+            return this;
+        }
+
+        /** Convenience overload wrapping a bare modifier id. */
+        public Builder addUniversalModifier(ResourceLocation modifierId) {
+            return addUniversalModifier(ModifierEffect.of(modifierId));
+        }
+
+        /** Convenience overload wrapping a modifier id and parameter map. */
+        public Builder addUniversalModifier(ResourceLocation modifierId, Map<String, Object> params) {
+            return addUniversalModifier(ModifierEffect.of(modifierId, params));
+        }
+
+        /**
+         * Grants this effect only when the material is the tool's head — its first additive slot —
+         * on any tool type. Ports TC 1.12's {@code Material.addTrait(trait, "head")}, which it used
+         * for traits that read off the head's own stats (Stonebound, Momentum).
+         */
+        public Builder addHeadModifier(ModifierEffect effect) {
+            this.headModifiers.add(effect);
+            return this;
+        }
+
+        /** Convenience overload wrapping a bare modifier id. */
+        public Builder addHeadModifier(ResourceLocation modifierId) {
+            return addHeadModifier(ModifierEffect.of(modifierId));
+        }
+
+        /** Convenience overload wrapping a modifier id and parameter map. */
+        public Builder addHeadModifier(ResourceLocation modifierId, Map<String, Object> params) {
+            return addHeadModifier(ModifierEffect.of(modifierId, params));
         }
 
         /**
