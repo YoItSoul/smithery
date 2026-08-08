@@ -99,6 +99,9 @@ public class SmitheryArrowItem extends ArrowItem {
         tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
                 "tooltip." + Smithery.MODID + ".tool.attack_damage",
                 String.format("%.1f", stats.attackDamage))));
+        tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.accuracy",
+                String.format("%.2f", stats.accuracy))));
 
         tooltip.accept(SmitheryTooltips.sectionHeader(
                 Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")));

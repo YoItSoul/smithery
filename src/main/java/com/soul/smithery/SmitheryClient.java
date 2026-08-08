@@ -15,6 +15,9 @@ import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.entity.ThrownItemRenderer;
 import net.minecraft.client.renderer.entity.TippableArrowRenderer;
 import net.minecraft.client.renderer.item.ItemProperties;
+import com.soul.smithery.item.tool.SmitheryBowItem;
+import com.soul.smithery.item.tool.SmitheryCrossbowItem;
+import com.soul.smithery.item.tool.ToolStats;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
@@ -40,18 +43,45 @@ public final class SmitheryClient {
         event.enqueueWork(() -> {
             MenuScreens.register(SmitheryMenus.FORGE_CONTROLLER.get(), ForgeControllerScreen::new);
 
-            // Vanilla-style pull predicates drive the generated bow model's overrides.
+            // Vanilla-style pull predicates drive the generated bow model's overrides. The
+            // denominator is the composed draw time, not vanilla's flat 20 ticks, so the arm
+            // finishes drawing exactly when the shot reaches full power.
             ItemProperties.register(SmitheryItems.BOW.get(),
                     ResourceLocation.parse("pull"),
                     (stack, level, entity, seed) -> {
                         if (entity == null || entity.getUseItem() != stack) return 0.0f;
-                        return (stack.getUseDuration() - entity.getUseItemRemainingTicks()) / 20.0f;
+                        ToolStats stats = SmitheryBowItem.statsOf(stack);
+                        float drawSpeed = stats != null ? stats.drawSpeed : 1.0f;
+                        int elapsed = stack.getUseDuration() - entity.getUseItemRemainingTicks();
+                        return Math.min(1.0f,
+                                drawSpeed * elapsed / (float) SmitheryBowItem.BASE_DRAW_TIME);
                     });
             ItemProperties.register(SmitheryItems.BOW.get(),
                     ResourceLocation.parse("pulling"),
                     (stack, level, entity, seed) ->
                             entity != null && entity.isUsingItem() && entity.getUseItem() == stack
                                     ? 1.0f : 0.0f);
+
+            // The crossbow needs the same three predicates vanilla registers for its own, or the
+            // generated model never shows its pulling or charged states.
+            ItemProperties.register(SmitheryItems.CROSSBOW.get(),
+                    ResourceLocation.parse("pull"),
+                    (stack, level, entity, seed) -> {
+                        if (entity == null || entity.getUseItem() != stack) return 0.0f;
+                        if (SmitheryCrossbowItem.isCharged(stack)) return 0.0f;
+                        int elapsed = stack.getUseDuration() - entity.getUseItemRemainingTicks();
+                        return Math.min(1.0f,
+                                elapsed / (float) SmitheryCrossbowItem.chargeDurationFor(stack));
+                    });
+            ItemProperties.register(SmitheryItems.CROSSBOW.get(),
+                    ResourceLocation.parse("pulling"),
+                    (stack, level, entity, seed) ->
+                            entity != null && entity.isUsingItem() && entity.getUseItem() == stack
+                                    && !SmitheryCrossbowItem.isCharged(stack) ? 1.0f : 0.0f);
+            ItemProperties.register(SmitheryItems.CROSSBOW.get(),
+                    ResourceLocation.parse("charged"),
+                    (stack, level, entity, seed) ->
+                            SmitheryCrossbowItem.isCharged(stack) ? 1.0f : 0.0f);
         });
         Smithery.LOGGER.info("Smithery client setup complete.");
     }

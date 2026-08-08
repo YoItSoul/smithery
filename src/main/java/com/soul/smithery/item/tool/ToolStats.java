@@ -9,6 +9,7 @@ import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.api.synergy.SynergyDefinition;
 import com.soul.smithery.api.tool.DurabilityRole;
 import com.soul.smithery.api.tool.ToolType;
+import com.soul.smithery.content.SmitheryPartTypes;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
@@ -53,6 +54,32 @@ public final class ToolStats {
     public final List<SynergyDefinition> activeSynergies;
     /** True when any effect's modifier is durability-scaled — stats change as the tool wears. */
     public boolean hasDurabilityScaled;
+
+    /**
+     * Ranged stats, meaningful only on tool types with the matching parts. Ported from Tinkers'
+     * Construct 1.12, where a composed bow averaged its limbs' {@code BowMaterialStats}: draw rate
+     * (higher draws faster), a velocity scalar, and flat damage added to the shot. Non-bows keep
+     * the neutral defaults.
+     */
+    public float drawSpeed = 1f;
+    /** Velocity scalar from the bow limbs; 1.0 is the tool type's base projectile speed. */
+    public float range = 1f;
+    /** Flat damage the limbs add to what the bow fires. */
+    public float bonusDamage = 0f;
+    /** Fletching accuracy, 1.0 neutral: above tightens the shot, below widens it. */
+    public float accuracy = 1f;
+    /** Arrows produced per assembly craft, from the shaft's modifier and bonus ammo. */
+    public int ammoCount = 1;
+    /**
+     * Flat attack damage contributed by modifiers alone, excluding the head material's own.
+     *
+     * <p>Already folded into {@link #attackDamage} for melee. Ranged weapons need it separately:
+     * a bow's shot damage comes from the ammo, so adding the whole {@code attackDamage} would
+     * double-count the limb's melee stat, but a damage modifier on the bow still has to reach the
+     * arrow — 1.12 passed launcher attribute modifiers through
+     * {@code BowCore.modifyProjectileAttributes}.</p>
+     */
+    public float passiveBonusDamage = 0f;
 
     private ToolStats(int maxDurability, float attackDamage, float miningSpeed, int harvestLevel,
                       float armorDefense, float armorToughness,
@@ -144,6 +171,9 @@ public final class ToolStats {
         float armorPlatesMod = 1f;
         float armorCoreDefenseRaw = 0f;
         float armorPlatesToughRaw = 0f;
+        float limbDraw = 0f, limbRange = 0f, limbDamage = 0f;
+        float fletchAccuracy = 0f, shaftModifier = 0f;
+        int limbCount = 0, fletchCount = 0, shaftCount = 0, shaftBonusAmmo = 0;
         for (int i = 0; i < slots.size(); i++) {
             ToolType.Slot s = slots.get(i);
             Material m = SmitheryAPI.MATERIALS.get(materialIds.get(i));
@@ -165,8 +195,33 @@ public final class ToolStats {
                 }
             } else if (s.role() == DurabilityRole.ADDITIVE) {
                 additive += ms.durabilityPerIngot() * s.partType().durabilityScalar();
+            } else if (isPart(s, SmitheryPartTypes.BOWSTRING)) {
+                // TC 1.12's bowstring contributes its own durability scalar, not a binder value.
+                multiplier *= ms.rangedStats().bowstring();
+            } else if (isPart(s, SmitheryPartTypes.FLETCHING)) {
+                multiplier *= ms.rangedStats().fletchingModifier();
             } else {
                 multiplier *= ms.binderMultiplier();
+            }
+
+            MaterialStats.RangedStats rs = ms.rangedStats();
+            // Only limbs that actually carry bow stats are averaged. TC 1.12 wouldn't let a
+            // statless material be a limb at all; here it abstains instead, so a bow built from
+            // one keeps the neutral defaults rather than inheriting a zero draw speed.
+            if (isPart(s, SmitheryPartTypes.BOW_LIMB)) {
+                if (ms.supportsBow()) {
+                    limbDraw += rs.drawSpeed();
+                    limbRange += rs.range();
+                    limbDamage += rs.bonusDamage();
+                    limbCount++;
+                }
+            } else if (isPart(s, SmitheryPartTypes.FLETCHING)) {
+                fletchAccuracy += rs.accuracy();
+                fletchCount++;
+            } else if (isPart(s, SmitheryPartTypes.ARROW_SHAFT)) {
+                shaftModifier += rs.shaftModifier();
+                shaftBonusAmmo += rs.bonusAmmo();
+                shaftCount++;
             }
         }
 
@@ -189,7 +244,8 @@ public final class ToolStats {
         for (int i = 0; i < slots.size(); i++) {
             Material m = SmitheryAPI.MATERIALS.get(materialIds.get(i));
             if (m == null) continue;
-            for (ModifierEffect effect : m.stats().modifiersFor(tt, i == headIndex)) {
+            for (ModifierEffect effect
+                    : m.stats().modifiersFor(tt, slots.get(i).partType(), i == headIndex)) {
                 collectInto(effectsMap, effect);
             }
         }
@@ -248,8 +304,38 @@ public final class ToolStats {
         ToolStats result = new ToolStats(finalDurability, damage, speed, harvest,
                 finalDefense, finalToughness, all, active, compose, synergies);
         result.hasDurabilityScaled = anyDurabilityScaled;
+        result.passiveBonusDamage = passive.bonusAttackDamage;
+
+        // Limb stats average across the limbs and floor at 0.001 — ProjectileLauncherNBT.limb().
+        if (limbCount > 0) {
+            result.drawSpeed = Math.max(0.001f, limbDraw / limbCount);
+            result.range = Math.max(0.001f, limbRange / limbCount);
+            result.bonusDamage = Math.max(0.001f, limbDamage / limbCount);
+        }
+        if (fletchCount > 0) {
+            result.accuracy = Math.max(0.001f, fletchAccuracy / fletchCount);
+        }
+        if (shaftCount > 0) {
+            result.ammoCount = Math.max(1, Math.min(MAX_AMMO_PER_CRAFT,
+                    Math.round(BASE_AMMO_PER_CRAFT * (shaftModifier / shaftCount)) + shaftBonusAmmo));
+        }
         return result;
     }
+
+    /** True when this slot is filled by the given part type. */
+    private static boolean isPart(ToolType.Slot slot, PartType pt) {
+        return pt != null && slot.partType().id().equals(pt.id());
+    }
+
+    /**
+     * Arrows a shaft of modifier 1.0 yields per craft, and the ceiling any shaft can reach.
+     *
+     * <p>TC 1.12 stored ammo as the arrow's durability and divided by {@code durabilityPerAmmo};
+     * Smithery's arrows are damageable items instead, so the shaft's modifier and bonus ammo scale
+     * the craft's output count, which is what those stats meant to a player either way.</p>
+     */
+    private static final int BASE_AMMO_PER_CRAFT = 4;
+    private static final int MAX_AMMO_PER_CRAFT = 64;
 
     private static void collectInto(java.util.LinkedHashMap<ResourceLocation, ResolvedEffect> map,
                                      ModifierEffect effect) {

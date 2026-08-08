@@ -122,6 +122,15 @@ public class SmitheryArrow extends Arrow {
     }
 
     /**
+     * The composed stack this arrow was fired from, uncopied — the ammo whose materials govern
+     * the hit. Empty when a vanilla arrow ended up in a smithery bow.
+     *
+     * <p>Read-only by contract: callers resolve modifiers off it, they don't mutate it. Use
+     * {@link #getPickupItem()} for anything that hands the stack to the world.</p>
+     */
+    public ItemStack composedStack() { return pickupStack; }
+
+    /**
      * {@inheritDoc}
      *
      * <p>Recovered smithery arrows return the composed stack, not a vanilla arrow.

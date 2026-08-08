@@ -107,7 +107,14 @@ public final class ToolAssemblyRecipe implements CraftingRecipe {
         if (resultItem == null || resultItem == Items.AIR) return ItemStack.EMPTY;
 
         ToolComposition comp = new ToolComposition(toolTypeId, materials);
-        return ToolCompositions.apply(new ItemStack(resultItem), comp);
+        ItemStack result = ToolCompositions.apply(new ItemStack(resultItem), comp);
+
+        // Ammo yield: TC 1.12 sized an arrow craft by the shaft's modifier and bonus ammo, so a
+        // reed shaft hands back a few arrows where a good one hands back a quiver's worth.
+        if (resultItem instanceof SmitheryArrowItem) {
+            result.setCount(Math.max(1, ToolStats.compute(comp).ammoCount));
+        }
+        return result;
     }
 
     /**

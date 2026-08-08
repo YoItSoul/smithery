@@ -19,6 +19,8 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -81,6 +83,22 @@ public class PartItem extends Item {
         );
     }
 
+    /** How many tool types a scope qualifier names before collapsing the rest into "+N more". */
+    private static final int TOOL_LIST_CAP = 4;
+
+    /** One modifier this part grants, and the tool types it grants it in. */
+    private record TraitEntry(ModifierEffect sample, List<ToolType> tools) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Everything here is stated once, per part, rather than once per tool type the part fits.
+     * A handle is used by nineteen tool types and contributes the same durability to every one of
+     * them, so the old shape drew nineteen near-identical blocks and ran off the top of the screen.
+     * The stats below are all functions of (material, part type) alone, so they get a single line
+     * each; only the traits can genuinely vary per tool type, and those are grouped by modifier
+     * with a scope qualifier attached only where the modifier isn't granted everywhere.</p>
+     */
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> lines, TooltipFlag flag) {
         Consumer<Component> tooltip = lines::add;
@@ -92,11 +110,62 @@ public class PartItem extends Item {
         }
 
         SmitheryTooltips.Tier tier = SmitheryTooltips.currentTier();
+        List<ToolType> usedIn = SmitheryAPI.toolTypesUsingPart(pt);
 
+        // Roles and head-ness, gathered in one pass so the summary can be stated flatly.
+        boolean addsDurability = false;
+        boolean scalesDurability = false;
+        boolean everHead = false;
+        boolean gatesHarvest = false;
+        List<ToolType> slotted = new ArrayList<>();
+        List<Boolean> headHere = new ArrayList<>();
+        for (ToolType tt : usedIn) {
+            ToolType.Slot ourSlot = null;
+            ToolType.Slot firstAdditive = null;
+            for (ToolType.Slot s : tt.slots()) {
+                if (firstAdditive == null && s.role() == DurabilityRole.ADDITIVE) firstAdditive = s;
+                if (ourSlot == null && s.partType().equals(pt)) ourSlot = s;
+            }
+            if (ourSlot == null) continue;
+            boolean isPrimaryAdditive = firstAdditive != null && firstAdditive.partType().equals(pt);
+            slotted.add(tt);
+            headHere.add(isPrimaryAdditive);
+
+            if (ourSlot.role() == DurabilityRole.ADDITIVE) addsDurability = true;
+            else scalesDurability = true;
+            if (isPrimaryAdditive) {
+                everHead = true;
+                if (SmitheryToolItem.harvestLevelApplies(tt)) gatesHarvest = true;
+            }
+        }
+
+        // --- summary: one line per stat, all of them (material x part type) functions --------
         tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".section.part_summary")
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
-        tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
-                "tooltip." + Smithery.MODID + ".part.harvest_level", mat.stats().harvestLevel())));
+
+        // Only a head sets the tool's harvest level, and only where that level can gate a drop.
+        if (gatesHarvest) {
+            tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
+                    "tooltip." + Smithery.MODID + ".part.harvest_level", mat.stats().harvestLevel())));
+        }
+        if (everHead) {
+            tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
+                    "tooltip." + Smithery.MODID + ".part.attack_damage",
+                    String.format("%.1f", mat.stats().attackDamage()))));
+            tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
+                    "tooltip." + Smithery.MODID + ".part.mining_speed",
+                    String.format("%.1f", mat.stats().miningSpeed()))));
+        }
+        if (addsDurability) {
+            int contribution = Math.round(mat.stats().durabilityPerIngot() * pt.durabilityScalar());
+            tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
+                    "tooltip." + Smithery.MODID + ".part.durability_add", contribution)));
+        }
+        if (scalesDurability) {
+            tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
+                    "tooltip." + Smithery.MODID + ".part.durability_mul",
+                    String.format("%.2f", mat.stats().binderMultiplier()))));
+        }
         int slots = mat.stats().modifierSlotsFor(pt);
         if (slots > 0) {
             tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
@@ -109,49 +178,24 @@ public class PartItem extends Item {
             return;
         }
 
-        // DETAIL and FULL: per-tool-type contributions ----------------------
-        boolean anyContributionDrawn = false;
-        for (ToolType tt : SmitheryAPI.toolTypesUsingPart(pt)) {
-            ToolType.Slot ourSlot = null;
-            ToolType.Slot firstAdditive = null;
-            for (ToolType.Slot s : tt.slots()) {
-                if (firstAdditive == null && s.role() == DurabilityRole.ADDITIVE) firstAdditive = s;
-                if (ourSlot == null && s.partType().equals(pt)) ourSlot = s;
+        // --- traits: grouped by modifier, not repeated per tool type ------------------------
+        // Head-scoped traits only exist where this part IS the head, part-scoped ones everywhere
+        // it fits, so the tool list each entry accumulates is exactly its real scope.
+        LinkedHashMap<String, TraitEntry> traits = new LinkedHashMap<>();
+        for (int i = 0; i < slotted.size(); i++) {
+            ToolType tt = slotted.get(i);
+            for (ModifierEffect effect : mat.stats().modifiersFor(tt, pt, headHere.get(i))) {
+                String key = effect.modifierId() + "#" + effect.paramInt("level", 1);
+                traits.computeIfAbsent(key, k -> new TraitEntry(effect, new ArrayList<>()))
+                      .tools().add(tt);
             }
-            if (ourSlot == null) continue;
-            boolean isPrimaryAdditive = firstAdditive != null && firstAdditive.partType().equals(pt);
+        }
 
-            if (!anyContributionDrawn) {
-                tooltip.accept(SmitheryTooltips.sectionHeader(
-                        Component.translatable("tooltip." + Smithery.MODID + ".section.contributions")));
-                anyContributionDrawn = true;
-            }
-
-            tooltip.accept(SmitheryTooltips.bullet(Component.translatable(
-                    "tooltip." + Smithery.MODID + ".part.in_tool",
-                    Component.translatable(toolTypeTranslationKey(tt.id())))));
-
-            if (ourSlot.role() == DurabilityRole.ADDITIVE) {
-                int contribution = Math.round(mat.stats().durabilityPerIngot() * pt.durabilityScalar());
-                tooltip.accept(SmitheryTooltips.subLine(Component.translatable(
-                        "tooltip." + Smithery.MODID + ".part.durability_add", contribution)));
-            } else {
-                tooltip.accept(SmitheryTooltips.subLine(Component.translatable(
-                        "tooltip." + Smithery.MODID + ".part.durability_mul",
-                        String.format("%.2f", mat.stats().binderMultiplier()))));
-            }
-            if (isPrimaryAdditive) {
-                tooltip.accept(SmitheryTooltips.subLine(Component.translatable(
-                        "tooltip." + Smithery.MODID + ".part.attack_damage",
-                        String.format("%.1f", mat.stats().attackDamage()))));
-                tooltip.accept(SmitheryTooltips.subLine(Component.translatable(
-                        "tooltip." + Smithery.MODID + ".part.mining_speed",
-                        String.format("%.1f", mat.stats().miningSpeed()))));
-            }
-
-            // Head-scoped traits are listed only under the tool types where this part IS the head,
-            // matching what the composed tool will actually grant.
-            for (ModifierEffect effect : mat.stats().modifiersFor(tt, isPrimaryAdditive)) {
+        if (!traits.isEmpty()) {
+            tooltip.accept(SmitheryTooltips.sectionHeader(
+                    Component.translatable("tooltip." + Smithery.MODID + ".section.part_traits")));
+            for (TraitEntry entry : traits.values()) {
+                ModifierEffect effect = entry.sample();
                 int effectLevel = effect.paramInt("level", 1);
                 MutableComponent line = Component.empty()
                         .append(Component.translatable(modifierTranslationKey(effect.modifierId()))
@@ -160,7 +204,15 @@ public class PartItem extends Item {
                     line.append(Component.literal(" " + SmitheryToolItem.toRoman(effectLevel))
                             .withStyle(ChatFormatting.AQUA));
                 }
-                tooltip.accept(SmitheryTooltips.subLine(line));
+                tooltip.accept(SmitheryTooltips.bullet(line));
+
+                // A trait granted in every tool this part fits needs no qualifier — saying so
+                // would just restate the "Used in" line below on every single entry.
+                if (entry.tools().size() < slotted.size()) {
+                    tooltip.accept(SmitheryTooltips.subLine(Component.translatable(
+                            "tooltip." + Smithery.MODID + ".part.applies_to",
+                            joinToolNames(entry.tools()))));
+                }
 
                 tooltip.accept(SmitheryTooltips.subLine(
                         SmitheryTooltips.description(modifierDescription(effect.modifierId()))));
@@ -176,8 +228,33 @@ public class PartItem extends Item {
             }
         }
 
+        if (!slotted.isEmpty()) {
+            tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
+                    "tooltip." + Smithery.MODID + ".part.used_in_list", joinToolNames(slotted))));
+        }
+
         SmitheryTooltips.appendKeyHint(tooltip, tier);
         super.appendHoverText(stack, level, lines, flag);
+    }
+
+    /**
+     * Comma-joins tool-type display names, collapsing anything past {@link #TOOL_LIST_CAP} into a
+     * "+N more" tail. Tooltips don't wrap, so an uncapped list of nineteen names would run off the
+     * side of the screen — the same overflow this rewrite exists to remove.
+     */
+    private static Component joinToolNames(List<ToolType> tools) {
+        MutableComponent out = Component.empty();
+        int shown = Math.min(tools.size(), TOOL_LIST_CAP);
+        for (int i = 0; i < shown; i++) {
+            if (i > 0) out.append(Component.literal(", "));
+            out.append(Component.translatable(toolTypeTranslationKey(tools.get(i).id())));
+        }
+        int remaining = tools.size() - shown;
+        if (remaining > 0) {
+            out.append(Component.literal(", "))
+               .append(Component.translatable("tooltip." + Smithery.MODID + ".part.and_more", remaining));
+        }
+        return out;
     }
 
     /** Format an effect-parameter value for FULL-tier display: floats to 2 decimals, others as-is. */

@@ -140,7 +140,6 @@ public final class SmitheryToolTypes {
         BOW = SmitheryAPI.registerToolType(ToolType.builder(id("bow"))
                 .addPart(SmitheryPartTypes.BOW_LIMB, DurabilityRole.ADDITIVE, 2)
                 .addPart(SmitheryPartTypes.BOWSTRING, DurabilityRole.MULTIPLIER)
-                .materialTraits(false)
                 .build());
 
         KAMA = SmitheryAPI.registerToolType(ToolType.builder(id("kama"))
@@ -205,14 +204,12 @@ public final class SmitheryToolTypes {
                 .addPart(SmitheryPartTypes.HANDLE, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.BINDER, DurabilityRole.MULTIPLIER)
                 .addPart(SmitheryPartTypes.BOWSTRING, DurabilityRole.MULTIPLIER)
-                .materialTraits(false)
                 .build());
 
         ARROW = SmitheryAPI.registerToolType(ToolType.builder(id("arrow"))
                 .addPart(SmitheryPartTypes.ARROW_HEAD, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.ARROW_SHAFT, DurabilityRole.ADDITIVE)
                 .addPart(SmitheryPartTypes.FLETCHING, DurabilityRole.MULTIPLIER)
-                .materialTraits(false)
                 .build());
 
         HELMET = SmitheryAPI.registerToolType(ToolType.builder(id("helmet"))

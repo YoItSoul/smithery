@@ -116,14 +116,16 @@ public final class SmitheryJeiRecipes {
      *
      * @param material   the granting material
      * @param toolType   the tool type the grant fires on, or null when the material grants it on
-     *                   every tool type (a universal or head-scoped trait)
+     *                   every tool type (a universal, head- or part-scoped trait)
      * @param headOnly   true when the grant needs the material in the tool's head slot; only
      *                   meaningful with a null {@code toolType}
+     * @param partType   the part the material must occupy for the grant to fire, or null when any
+     *                   part will do; only meaningful with a null {@code toolType}
      * @param effect     the resolved effect (carries the per-grant parameter overrides)
      * @param displayItem representative item shown in the JEI slot (tool-type-appropriate part)
      */
     public record JeiMaterialGrant(Material material, ToolType toolType, boolean headOnly,
-                                   ModifierEffect effect, ItemStack displayItem) {}
+                                   PartType partType, ModifierEffect effect, ItemStack displayItem) {}
 
     /**
      * One synergy → tool-type entry. Both {@code materialA} and {@code materialB} present anywhere
@@ -395,19 +397,30 @@ public final class SmitheryJeiRecipes {
                 // with two dozen identical slots.
                 for (ModifierEffect effect : material.stats().universalModifiers()) {
                     if (!modId.equals(effect.modifierId())) continue;
-                    materialGrants.add(new JeiMaterialGrant(material, null, false, effect,
+                    materialGrants.add(new JeiMaterialGrant(material, null, false, null, effect,
                             representativeMaterialItem(material.id())));
                 }
                 for (ModifierEffect effect : material.stats().headModifiers()) {
                     if (!modId.equals(effect.modifierId())) continue;
-                    materialGrants.add(new JeiMaterialGrant(material, null, true, effect,
+                    materialGrants.add(new JeiMaterialGrant(material, null, true, null, effect,
                             representativeMaterialItem(material.id())));
+                }
+                // Part-scoped traits get one entry per part that grants them, shown against that
+                // part's own item so the page reads "this material, as a bow limb".
+                for (PartType partType : SmitheryAPI.PART_TYPES.all()) {
+                    for (ModifierEffect effect : material.stats().partModifiers(partType)) {
+                        if (!modId.equals(effect.modifierId())) continue;
+                        var part = SmitheryItems.findPart(material.id(), partType.id());
+                        materialGrants.add(new JeiMaterialGrant(material, null, false, partType, effect,
+                                part != null ? new ItemStack(part)
+                                             : representativeMaterialItem(material.id())));
+                    }
                 }
                 for (ToolType toolType : SmitheryAPI.TOOL_TYPES.all()) {
                     for (ModifierEffect effect : material.stats().toolTypeModifiers(toolType)) {
                         if (!modId.equals(effect.modifierId())) continue;
                         ItemStack display = representativeGrantItem(material, toolType);
-                        materialGrants.add(new JeiMaterialGrant(material, toolType, false, effect, display));
+                        materialGrants.add(new JeiMaterialGrant(material, toolType, false, null, effect, display));
                     }
                 }
             }

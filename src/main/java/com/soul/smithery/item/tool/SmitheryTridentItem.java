@@ -11,6 +11,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TridentItem;
 
@@ -55,6 +56,20 @@ public class SmitheryTridentItem extends TridentItem {
         if (slot != EquipmentSlot.MAINHAND) return super.getAttributeModifiers(slot, stack);
         Multimap<Attribute, AttributeModifier> composed = SmitheryToolItem.composedMeleeAttributes(stack);
         return composed != null ? composed : super.getAttributeModifiers(slot, stack);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Vanilla's trident doesn't extend {@link SmitheryToolItem}, so the modifier router — which
+     * gates on that class — never saw a trident stab. Dispatching here puts material traits back
+     * on the melee swing.</p>
+     */
+    @Override
+    public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+        boolean result = super.hurtEnemy(stack, target, attacker);
+        SmitheryToolItem.dispatchOnAttack(stack, target, attacker);
+        return result;
     }
 
     @Override

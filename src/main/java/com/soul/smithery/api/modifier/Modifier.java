@@ -127,6 +127,12 @@ public final class Modifier {
     public OnJump onJump() { return onJump; }
 
     /** Optional per-tick callback while the armor is worn by a player. */
+    /**
+     * Per-tick hook for gear that is worn <em>or held</em>. The armor router walks the worn
+     * slots; the tool router walks both hands for non-armor composed gear, which is what
+     * makes 1.12's held-tool auras (Dark Traveler, Divine Shield, Starfishy) work. Check
+     * {@link ArmorTickContext#slot()} when a modifier needs to tell the two apart.
+     */
     public OnArmorTick onArmorTick() { return onArmorTick; }
 
     /** Optional equip/unequip callback. */

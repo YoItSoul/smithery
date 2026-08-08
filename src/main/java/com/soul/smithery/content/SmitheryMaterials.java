@@ -100,6 +100,8 @@ public final class SmitheryMaterials {
                 .addModifier(ModifierEffect.of(SmitheryModifiers.ECOLOGICAL,
                         Map.of("interval_ticks", 2400)), armorPieces())
                 .armor(35f, 1f, 5f, 0.85f, 0f, 3f)
+                .bow(1.0f, 1.0f, 0.0f)
+                .arrowShaft(1.0f, 0)
                 .build());
 
         COPPER = id("copper");
@@ -141,6 +143,7 @@ public final class SmitheryMaterials {
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.ALLURING,
                         Map.of("radius", 6.0f))
                 .armor(32f, 7f, 10f, 0.7f, 0f, 5f)
+                .bow(0.6061f, 1.3f, 6.2f)
                 .build());
 
         IRON = id("iron");
@@ -160,6 +163,8 @@ public final class SmitheryMaterials {
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.MAGNETIZED,
                         Map.of("radius", 4.0f))
                 .armor(204f, 15f, 50f, 1.0f, 0f, 15f)
+                .bow(0.5f, 1.5f, 7.0f)
+                .arrowShaft(0.9f, 3)
                 .build());
 
         STONE = id("stone");
@@ -242,6 +247,7 @@ public final class SmitheryMaterials {
                 .addUniversalModifier(SmitheryModifiers.FIERY,
                         Map.of("level", 1))
                 .armor(550f, 12f, 60f, 1.0f, 1f, 20f)
+                .arrowShaft(0.8f, 3)
                 .build());
 
         AMETHYST = id("amethyst");
@@ -261,6 +267,7 @@ public final class SmitheryMaterials {
                 .addHeadModifier(SmitheryModifiers.MOMENTUM,
                         Map.of("max_amplifier", 2))
                 .armor(200f, 8f, 30f, 0.9f, 0f, 12f)
+                .bow(0.65f, 1.7f, 6.5f)
                 .build());
 
         DIAMOND = id("diamond");
@@ -274,6 +281,7 @@ public final class SmitheryMaterials {
                 .partColor(0xFF4FE2E0)
                 .binderMultiplier(1.0f), 3)
                 .armor(500f, 20f, 80f, 1.1f, 2f, 30f)
+                .bow(0.6061f, 1.2f, 7.0f)
                 .build());
 
         EMERALD = id("emerald");
@@ -315,6 +323,7 @@ public final class SmitheryMaterials {
                 .addModifier(ModifierEffect.of(SmitheryModifiers.STALWART,
                         Map.of("amount", 0.1f)), armorPieces())
                 .armor(820f, 20f, 100f, 1.2f, 3f, 40f)
+                .bow(0.2f, 1.4f, 24.0f)
                 .build());
 
         BEDROCK = id("bedrock");
@@ -332,6 +341,7 @@ public final class SmitheryMaterials {
                 .addModifier(SmitheryToolTypes.CHESTPLATE, SmitheryModifiers.IMMOVABLE,
                         Map.of("pct", 0.1f))
                 .armor(1500f, 25f, 200f, 1.5f, 5f, 80f)
+                .bow(0.0625f, 8.0f, 150.0f)
                 .build());
 
         SLIMEKNIGHTIUM = id("slimeknightium");
@@ -417,6 +427,7 @@ public final class SmitheryMaterials {
                 .binderMultiplier(0.7f), 3)
                 .addModifier(SmitheryToolTypes.BOOTS, SmitheryModifiers.BOUNCY)
                 .armor(1000f, 5f, 30f, 0.9f, 0f, 30f)
+                .bowstring(1.2f)
                 .build());
 
         RESIN = id("resin");
@@ -455,7 +466,7 @@ public final class SmitheryMaterials {
                 .durabilityPerIngot(50)
                 .meltingTemp(0f)
                 .partColor(0xFFE8E0C8)
-                .binderMultiplier(0.9f), 1).build());
+                .binderMultiplier(0.9f), 1).bowstring(1.0f).build());
 
         FLAMESTRING = id("flamestring");
         SmitheryAPI.registerMaterial(FLAMESTRING, binderSlots(MaterialStats.builder()
@@ -465,7 +476,7 @@ public final class SmitheryMaterials {
                 .durabilityPerIngot(120)
                 .meltingTemp(0f)
                 .partColor(0xFFFF6622)
-                .binderMultiplier(1.0f), 2).build());
+                .binderMultiplier(1.0f), 2).bowstring(1.0f).build());
 
         RED_SLIME = id("red_slime");
         SmitheryAPI.registerMaterial(RED_SLIME, binderSlots(MaterialStats.builder()
@@ -479,6 +490,7 @@ public final class SmitheryMaterials {
                 .binderMultiplier(1.3f), 3)
                 .addModifier(SmitheryToolTypes.BOOTS, SmitheryModifiers.BOUNCY)
                 .armor(780f, 4f, 25f, 0.9f, 0f, 25f)
+                .bowstring(1.2f)
                 .build());
 
         KELP_STRING = id("kelp_string");
@@ -489,7 +501,7 @@ public final class SmitheryMaterials {
                 .durabilityPerIngot(160)
                 .meltingTemp(0f)
                 .partColor(0xFF3F8E45)
-                .binderMultiplier(1.1f), 2).build());
+                .binderMultiplier(1.1f), 2).bowstring(1.0f).build());
 
         ResourceLocation bowstringId = SmitheryPartTypes.BOWSTRING.id();
         com.soul.smithery.api.part.PartEligibility.allow(bowstringId, STRING);

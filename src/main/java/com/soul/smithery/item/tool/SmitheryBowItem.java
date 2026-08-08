@@ -53,6 +53,18 @@ public class SmitheryBowItem extends BowItem {
         this.toolTypeId = toolTypeId;
     }
 
+    /**
+     * Ticks a drawSpeed-1.0 bow needs for a full draw — Tinkers' Construct 1.12
+     * {@code ShortBow.getDrawTime()}. A composed bow draws in {@code BASE_DRAW_TIME / drawSpeed}.
+     */
+    public static final int BASE_DRAW_TIME = 12;
+    /** Velocity a range-1.0 bow fires at, matching TC's {@code baseProjectileSpeed} and vanilla's 3.0. */
+    public static final float BASE_PROJECTILE_SPEED = 3.0f;
+    /** Spread of an accuracy-1.0 shot — TC {@code ShortBow.baseInaccuracy()}. */
+    public static final float BASE_INACCURACY = 1.0f;
+    /** TC {@code ShortBow.projectileDamageModifier()}: bows deal 80% of the raw part damage. */
+    public static final float PROJECTILE_DAMAGE_MODIFIER = 0.8f;
+
     /** Returns the bound ToolType id (e.g. {@code smithery:bow}). */
     public ResourceLocation toolTypeId() { return toolTypeId; }
     /** Resolves the live {@link ToolType} for this bow item, or null if unregistered. */
@@ -91,7 +103,15 @@ public class SmitheryBowItem extends BowItem {
             projectile = new ItemStack(Items.ARROW);
         }
 
-        float power = getPowerForTime(charge);
+        // TC 1.12 draw curve: progress = min(1, drawSpeed * heldTicks / baseDrawTime), and the
+        // shot's velocity is the vanilla power curve sampled at that progress, scaled by the
+        // limbs' range (BowCore.shootProjectile). A fast bow reaches full draw sooner; a
+        // long-ranged one leaves the string faster.
+        ToolStats bowStats = statsOf(stack);
+        float drawSpeed = bowStats != null ? bowStats.drawSpeed : 1.0f;
+        float range = bowStats != null ? bowStats.range : 1.0f;
+        float progress = Math.min(1.0f, drawSpeed * charge / (float) BASE_DRAW_TIME);
+        float power = getPowerForTime((int) (progress * 20.0f)) * progress;
         if (power < 0.1f) return;
 
         boolean creativeArrow = infinite && projectile.is(Items.ARROW);
@@ -99,8 +119,10 @@ public class SmitheryBowItem extends BowItem {
             ArrowItem arrowItem = (ArrowItem) (projectile.getItem() instanceof ArrowItem a ? a : Items.ARROW);
             AbstractArrow arrow = arrowItem.createArrow(level, projectile, player);
             arrow = customArrow(arrow);
-            arrow.shootFromRotation(player, player.getXRot(), player.getYRot(), 0.0f, power * 3.0f, 1.0f);
-            if (power == 1.0f) arrow.setCritArrow(true);
+            float velocity = power * BASE_PROJECTILE_SPEED * range;
+            arrow.shootFromRotation(player, player.getXRot(), player.getYRot(), 0.0f,
+                    velocity, inaccuracyFor(projectile, velocity));
+            if (progress >= 1.0f) arrow.setCritArrow(true);
 
             applySmitheryArrowDamage(arrow, projectile, stack);
 
@@ -145,19 +167,38 @@ public class SmitheryBowItem extends BowItem {
         if (arrowComp == null || !arrowComp.isValid()) return;
         ToolStats arrowStats = ToolStats.compute(arrowComp);
 
-        float bowScalar = bowDamageScalar(weapon);
+        // TC 1.12: the arrow's own damage, scaled by the launcher's damage modifier, plus the
+        // limbs' flat bonusDamage (BowCore.modifyProjectileAttributes).
+        // Modifier-granted damage on the launcher counts too: 1.12 pushed the bow's attribute
+        // modifiers onto the projectile, so a damage modifier applied at the anvil reached the
+        // shot. Only the modifier share is added — the limb's melee attack stat is not the bow's.
+        ToolStats weaponStats = statsOf(weapon);
+        float bonus = weaponStats != null
+                ? weaponStats.bonusDamage + weaponStats.passiveBonusDamage : 0f;
 
-        double finalDamage = arrowStats.attackDamage * bowScalar;
+        double finalDamage = arrowStats.attackDamage * PROJECTILE_DAMAGE_MODIFIER + bonus;
         if (finalDamage > 0.0) {
             arrow.setBaseDamage(finalDamage);
         }
     }
 
-    private static float bowDamageScalar(ItemStack weapon) {
-        ToolComposition bowComp = SmitheryToolData.getComposition(weapon);
-        if (bowComp == null || !bowComp.isValid()) return 1.0f;
-        ToolStats bowStats = ToolStats.compute(bowComp);
-        return Math.max(0.5f, bowStats.attackDamage / 2.0f);
+    /** Composed stats for a stack, or null when it carries no valid composition. */
+    public static ToolStats statsOf(ItemStack stack) {
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
+        if (comp == null || !comp.isValid()) return null;
+        return ToolStats.compute(comp);
+    }
+
+    /**
+     * Spread for a shot, from the ammo's fletching. TC 1.12's {@code Arrow.getProjectile}:
+     * {@code inaccuracy - (1 - 1/accuracy) * velocity / 2}, so accuracy 1.0 is neutral, sharper
+     * fletching tightens the group and worse fletching widens it with speed.
+     */
+    static float inaccuracyFor(ItemStack projectile, float velocity) {
+        ToolStats arrowStats = statsOf(projectile);
+        float accuracy = arrowStats != null ? arrowStats.accuracy : 1.0f;
+        if (accuracy <= 0f) return BASE_INACCURACY;
+        return Math.max(0f, BASE_INACCURACY - (1.0f - 1.0f / accuracy) * velocity / 2.0f);
     }
 
     @Override
@@ -206,8 +247,14 @@ public class SmitheryBowItem extends BowItem {
         tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
                 "tooltip." + Smithery.MODID + ".tool.durability", stats.maxDurability)));
         tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
-                "tooltip." + Smithery.MODID + ".tool.attack_damage",
-                String.format("×%.2f", Math.max(0.5f, stats.attackDamage / 2.0f)))));
+                "tooltip." + Smithery.MODID + ".tool.draw_speed",
+                String.format("%.2f", stats.drawSpeed))));
+        tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.range",
+                String.format("×%.2f", stats.range))));
+        tooltip.accept(SmitheryTooltips.statLine(Component.translatable(
+                "tooltip." + Smithery.MODID + ".tool.bonus_damage",
+                String.format("%.1f", stats.bonusDamage))));
 
         tooltip.accept(SmitheryTooltips.sectionHeader(
                 Component.translatable("tooltip." + Smithery.MODID + ".tool.parts")));

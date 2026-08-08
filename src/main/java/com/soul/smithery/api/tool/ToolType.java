@@ -32,10 +32,11 @@ public final class ToolType {
     /**
      * Whether a material's universal and head traits carry into this tool type.
      *
-     * <p>True for the melee and mining tools, which is what those traits are written for. Armor
-     * pieces and projectile weapons opt out: Constructs Armory gave armor its own trait list
-     * rather than inheriting the tool one, and a trait like Autosmelt has nothing to say on a
-     * helmet or an arrow. Opted-out types still receive traits declared against them by id.</p>
+     * <p>True for every tool type Tinkers' Construct 1.12 built out of parts, which includes
+     * bows, crossbows and arrows — their limbs, shafts and fletching carried the material's
+     * traits exactly as a sword blade did. Armor pieces are the one opt-out: Constructs Armory
+     * gave armor its own trait list rather than inheriting the tool one, so armor traits are
+     * declared against the piece by id. Opted-out types still receive those keyed traits.</p>
      */
     public boolean usesMaterialTraits() { return usesMaterialTraits; }
 

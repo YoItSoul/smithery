@@ -292,7 +292,8 @@ public class SmitheryToolItem extends Item {
                 for (int i = 0; i < tt.slots().size() && i < matIds.size(); i++) {
                     Material m = SmitheryAPI.MATERIALS.get(matIds.get(i));
                     if (m == null) continue;
-                    for (ModifierEffect e : m.stats().modifiersFor(tt, i == headIndex)) {
+                    for (ModifierEffect e
+                            : m.stats().modifiersFor(tt, tt.slots().get(i).partType(), i == headIndex)) {
                         if (seen.add(e.modifierId())) {
                             int b = e.paramInt("bonus_slots", 0) + e.paramInt("bonus_slots_per_level", 0) * Math.max(1, e.paramInt("level", 1));
                             if (b > 0) bonus += b;
@@ -412,6 +413,22 @@ public class SmitheryToolItem extends Item {
             case "mining_hammer" -> List.of(new MiningRule(BlockTags.MINEABLE_WITH_PICKAXE, 0.6f));
             default              -> List.of();
         };
+    }
+
+    /**
+     * True when a tool family's harvest level can actually gate a block drop.
+     *
+     * <p>Two ways it can't. The sword family ignores tiers outright. And spears, tridents and
+     * shurikens have no mining rules at all — {@link #miningRulesFor} returns an empty list, so
+     * {@link #isCorrectToolForDrops} falls through to {@code super} and never reaches the tier
+     * check. In both cases the head material's harvest level is inert, which is what
+     * {@link com.soul.smithery.item.PartItem} uses this for: a part shouldn't advertise a stat
+     * that can never change an outcome.</p>
+     */
+    public static boolean harvestLevelApplies(ToolType type) {
+        if (type == null) return false;
+        String path = type.id().getPath();
+        return usesHarvestTier(path) && !miningRulesFor(path).isEmpty();
     }
 
     /** True when this tool family respects harvest tiers (sword-family blocks always drop). */
@@ -561,6 +578,9 @@ public class SmitheryToolItem extends Item {
         float damage = (float) player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
         if (target != null) {
             target.hurt(level.damageSources().indirectMagic(player, player), damage);
+            // The bolt isn't a melee swing, so hurtEnemy never runs for it; onDealDamage already
+            // routes off the held sceptre, and this puts the onAttack hooks on the bolt too.
+            dispatchOnAttack(stack, target, player);
         }
         if (level instanceof net.minecraft.server.level.ServerLevel sl) {
             net.minecraft.world.phys.Vec3 end = from.add(dir.scale(best));
@@ -837,17 +857,37 @@ public class SmitheryToolItem extends Item {
     @Override
     public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         stack.hurtAndBreak(1, attacker, e -> e.broadcastBreakEvent(EquipmentSlot.MAINHAND));
-        ToolComposition comp = compositionOf(stack);
-        if (comp == null) return true;
-        ToolStats stats = ToolStats.compute(comp);
-        if (stats.activeEffects.isEmpty()) return true;
+        dispatchOnAttack(stack, target, attacker);
+        return true;
+    }
+
+    /**
+     * Runs every {@code onAttack} hook on a composed stack against one victim.
+     *
+     * <p>Shared with the gear that can't extend this class — {@link SmitheryTridentItem} extends
+     * vanilla's trident, and the thrown shuriken and arrow dispatch from their entities — so a
+     * trait fires the same way whatever landed the hit. Silently does nothing for a stack with no
+     * valid composition.</p>
+     *
+     * @param stack    the composed weapon or projectile that landed the hit
+     * @param target   the entity hit
+     * @param attacker the entity credited with the attack
+     */
+    public static void dispatchOnAttack(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+        ToolComposition comp = SmitheryToolData.getComposition(stack);
+        if (comp == null || !comp.isValid()) return;
+        ToolStats stats = ToolStats.compute(comp, SmitheryToolData.getAppliedModifiers(stack));
+        if (stats.activeEffects.isEmpty()) return;
         Modifier.AttackContext ctx = new Modifier.AttackContext(stack, attacker, target, 0f);
         for (ToolStats.ResolvedEffect r : stats.activeEffects) {
-            if (r.modifier().onAttack() != null) {
+            if (r.modifier().onAttack() == null) continue;
+            try {
                 r.modifier().onAttack().onAttack(r.effect(), ctx);
+            } catch (Throwable t) {
+                Smithery.LOGGER.error("Modifier {} onAttack failed: {}",
+                        r.effect().modifierId(), t.toString());
             }
         }
-        return true;
     }
 
     @Override

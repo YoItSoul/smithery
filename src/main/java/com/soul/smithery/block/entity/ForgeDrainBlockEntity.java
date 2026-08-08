@@ -36,8 +36,10 @@ import java.util.Set;
  * the drain BFSes its connected pipe network, then advances a wavefront each tick that
  * refreshes pipe flow markers and pushes fluid into reached sinks. The job runs until every
  * reachable sink stops accepting fluid (e.g. the cast is full) or the forge runs dry —
- * a single button press always delivers exactly what the receivers need. Also exposes a
- * passthrough fluid handler for buckets and external mods.
+ * a single button press always delivers exactly what the receivers need. A signal that stays
+ * high (a lever) re-arms the pump every {@link #RETRY_INTERVAL_TICKS} once a job ends, so it
+ * keeps pouring as the forge melts more or as casts are emptied. Also exposes a passthrough
+ * fluid handler for buckets and external mods.
  */
 public class ForgeDrainBlockEntity extends BlockEntity {
 
@@ -45,11 +47,15 @@ public class ForgeDrainBlockEntity extends BlockEntity {
     public static final int PUMP_RATE_MB     = 5;
     /** Safety cap on BFS to avoid runaway scans in pathological setups. */
     public static final int MAX_NETWORK_SIZE = 256;
+    /** Ticks a held signal waits before re-arming a finished job; bounds the idle BFS rate. */
+    public static final int RETRY_INTERVAL_TICKS = 10;
 
     private @Nullable BlockPos controllerPos;
 
     private boolean lastSignal;
     private long pumpStartTick = -1L;
+    /** Game time before which a held signal won't re-arm; set whenever a job ends. */
+    private long retryTick;
     private @Nullable Map<BlockPos, Integer> pipeDistances;
     private @Nullable Map<BlockPos, BlockPos> pipeParents;
     private @Nullable List<SinkRef> sinks;
@@ -86,14 +92,21 @@ public class ForgeDrainBlockEntity extends BlockEntity {
      * once, then the wavefront advances one hop per tick, refreshing pipe flow markers and
      * inserting {@link #PUMP_RATE_MB} into each accepting sink. The job persists after the
      * signal drops and ends only when every reached sink refuses fluid or the forge has
-     * nothing left to pour; the next job needs a fresh rising edge.
+     * nothing left to pour.
+     *
+     * <p>What happens next depends on the signal: a pulse (button) delivers that one job, while
+     * a signal still held high (lever) re-arms after {@link #RETRY_INTERVAL_TICKS}. That retry is
+     * what makes a lever mean "keep pumping" — a job that ended only because the forge was still
+     * melting, or because a full cast was later emptied, resumes on its own instead of waiting
+     * for someone to toggle the lever.</p>
      */
     public void serverTick(ServerLevel level, BlockPos pos, BlockState state) {
         boolean signal = level.hasNeighborSignal(pos);
         boolean risingEdge = signal && !lastSignal;
         lastSignal = signal;
 
-        if (pumpStartTick < 0L && !risingEdge) return;
+        boolean rearm = signal && level.getGameTime() >= retryTick;
+        if (pumpStartTick < 0L && !risingEdge && !rearm) return;
 
         ForgeControllerBlockEntity controller = controller();
         if (controller == null) { endPourJob(level); return; }
@@ -174,9 +187,12 @@ public class ForgeDrainBlockEntity extends BlockEntity {
 
     /**
      * Ends the active pour job: snaps off any still-glowing pipe markers and drops the
-     * cached network so the next rising edge starts fresh.
+     * cached network so the next job starts fresh. Also stamps the retry cooldown, which is
+     * what keeps a held signal from re-BFSing the network every tick while it waits for the
+     * forge to melt more or for a cast to be emptied.
      */
     private void endPourJob(ServerLevel level) {
+        retryTick = level.getGameTime() + RETRY_INTERVAL_TICKS;
         if (pumpStartTick < 0L) return;
         if (pipeDistances != null) {
             for (BlockPos pipePos : pipeDistances.keySet()) {

@@ -2,6 +2,7 @@ package com.soul.smithery.entity;
 
 import com.soul.smithery.item.tool.SmitheryToolData;
 import com.soul.smithery.item.tool.ToolComposition;
+import com.soul.smithery.item.tool.SmitheryToolItem;
 import com.soul.smithery.item.tool.ToolStats;
 import com.soul.smithery.registry.SmitheryEntityTypes;
 import com.soul.smithery.registry.SmitheryItems;
@@ -46,6 +47,13 @@ public class SmitheryShuriken extends ThrowableItemProjectile {
             damage = Math.max(1.0f, ToolStats.compute(comp).attackDamage);
         }
         result.getEntity().hurt(damageSources().thrown(this, getOwner()), damage);
+
+        // A thrown shuriken carries its own composition, so its traits fire on impact the same as
+        // a melee hit — without this the blade's materials went quiet the moment it left the hand.
+        if (result.getEntity() instanceof LivingEntity victim) {
+            LivingEntity attacker = getOwner() instanceof LivingEntity owner ? owner : victim;
+            SmitheryToolItem.dispatchOnAttack(getItem(), victim, attacker);
+        }
         discard();
     }
 

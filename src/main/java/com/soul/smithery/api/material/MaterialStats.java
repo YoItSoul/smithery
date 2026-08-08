@@ -54,9 +54,11 @@ public final class MaterialStats {
     private final FluidBase fluidBase;
     private final Map<ResourceLocation, Integer> modifierSlots;
     private final Map<ResourceLocation, List<ModifierEffect>> modifiers;
+    private final Map<ResourceLocation, List<ModifierEffect>> partModifiers;
     private final List<ModifierEffect> universalModifiers;
     private final List<ModifierEffect> headModifiers;
     private final ArmorStats armorStats;
+    private final RangedStats rangedStats;
 
     private MaterialStats(Builder b) {
         this.harvestLevel = b.harvestLevel;
@@ -80,9 +82,11 @@ public final class MaterialStats {
         this.fluidBase = b.fluidBase;
         this.modifierSlots = Collections.unmodifiableMap(new HashMap<>(b.modifierSlots));
         this.modifiers = Collections.unmodifiableMap(new HashMap<>(b.modifiers));
+        this.partModifiers = Collections.unmodifiableMap(new HashMap<>(b.partModifiers));
         this.universalModifiers = List.copyOf(b.universalModifiers);
         this.headModifiers = List.copyOf(b.headModifiers);
         this.armorStats = b.armorStats;
+        this.rangedStats = b.rangedStats;
     }
 
     /**
@@ -109,6 +113,43 @@ public final class MaterialStats {
             float platesToughness,
             float trimDurability
     ) {}
+
+    /**
+     * Ranged-specific stat block, optional per material. Ports Tinkers' Construct 1.12's four
+     * ranged stat types, which the melee stats above have no room for.
+     *
+     * <p>{@code drawSpeed}/{@code range}/{@code bonusDamage} are TC's {@code BowMaterialStats} and
+     * are read from bow limbs; a composed bow averages them across its limbs. {@code bowstring} is
+     * {@code BowStringMaterialStats.modifier}, a durability scalar. {@code shaftModifier} and
+     * {@code bonusAmmo} are {@code ArrowShaftMaterialStats} and decide how many arrows a craft
+     * yields, and {@code accuracy}/{@code fletchingModifier} are {@code FletchingMaterialStats}.
+     *
+     * <p>A material that isn't usable as a limb leaves {@code drawSpeed} at 0, which reads as
+     * "no bow stats" — {@link #supportsBow()}.
+     *
+     * @param drawSpeed         ticks-per-tick draw rate; 1.0 draws in the tool type's base time
+     * @param range             velocity scalar applied to the fired projectile
+     * @param bonusDamage       flat damage added to what the bow fires
+     * @param bowstring         durability scalar contributed by this material as a bowstring
+     * @param shaftModifier     ammo-count scalar contributed by this material as an arrow shaft
+     * @param bonusAmmo         flat extra arrows contributed by this material as an arrow shaft
+     * @param accuracy          0..1 accuracy contributed by this material as fletching (1 = perfect)
+     * @param fletchingModifier ammo-count scalar contributed by this material as fletching
+     */
+    public record RangedStats(
+            float drawSpeed,
+            float range,
+            float bonusDamage,
+            float bowstring,
+            float shaftModifier,
+            int bonusAmmo,
+            float accuracy,
+            float fletchingModifier
+    ) {
+        /** Neutral block: no bow stats, and multipliers that leave a composition unchanged. */
+        public static final RangedStats NONE =
+                new RangedStats(0f, 0f, 0f, 1f, 1f, 0, 1f, 1f);
+    }
 
     /** Vanilla-style harvest level: 0=hand, 1=stone, 2=iron, 3=diamond, 4=netherite. */
     public int harvestLevel() { return harvestLevel; }
@@ -184,47 +225,62 @@ public final class MaterialStats {
 
     /**
      * Every craft-time modifier effect this material can grant on the given tool type, from any
-     * slot — the union of its universal traits, its head-only traits and its tool-type-specific
-     * traits.
+     * slot — the union of its universal traits, its head traits, the part traits for every part
+     * this tool type uses, and its tool-type-specific traits.
      *
      * <p>This is the "what could this material give me" view, for tooltips, JEI and embossment.
-     * Stat computation walks slots and wants {@link #modifiersFor(ToolType, boolean)} instead, so
-     * a head-only trait is not granted by a material sitting in the handle.</p>
+     * Stat computation walks slots and wants {@link #modifiersFor(ToolType, PartType, boolean)}
+     * instead, so a bow-limb trait is not granted by a material sitting in the bowstring.</p>
      */
     public List<ModifierEffect> modifiersFor(ToolType toolType) {
-        return modifiersFor(toolType, true);
+        List<ModifierEffect> out = new java.util.ArrayList<>(modifiersFor(toolType, null, true));
+        if (toolType.usesMaterialTraits()) {
+            for (ToolType.Slot slot : toolType.slots()) {
+                for (ModifierEffect e : partModifiers.getOrDefault(slot.partType().id(), List.of())) {
+                    if (!out.contains(e)) out.add(e);
+                }
+            }
+        }
+        return out;
     }
 
     /**
      * Craft-time modifier effects this material grants from one slot of the given tool type.
      *
-     * <p>Trait scope follows Tinkers' Construct 1.12, which this ports: a material's traits are
-     * a property of the <em>material</em>, not of the tool it ends up in, so they apply to every
-     * tool type. TC scoped them by part instead — {@code addTrait(trait)} applied from any part,
-     * {@code addTrait(trait, "head")} only from the head — and {@code headSlot} is that
-     * distinction. Tool-type-keyed effects (see {@link Builder#addModifier(ToolType,
+     * <p>Trait scope follows Tinkers' Construct 1.12, which this ports. There a trait was
+     * registered against a material stat type — {@code addTrait(trait)} applied from any part,
+     * {@code addTrait(trait, "head")} only from a head part, {@code addTrait(trait, "bow")} only
+     * from a bow limb, and so on — so a material could carry one trait as a blade and a different
+     * one as a bowstring. {@code partType} is that stat type, and {@code headSlot} preserves the
+     * narrower "this is the tool's head" distinction for traits that read the head's own stats
+     * (Stonebound, Momentum). Tool-type-keyed effects (see {@link Builder#addModifier(ToolType,
      * ModifierEffect)}) are Smithery's own extension, used for armor-piece-specific traits, and
      * apply from any slot of that type.</p>
      *
+     * @param partType the part this material occupies, or null to skip part-scoped traits
      * @param headSlot true when the material occupies the tool's head — its first additive slot
      */
-    public List<ModifierEffect> modifiersFor(ToolType toolType, boolean headSlot) {
+    public List<ModifierEffect> modifiersFor(ToolType toolType, PartType partType, boolean headSlot) {
         List<ModifierEffect> keyed = modifiers.getOrDefault(toolType.id(), List.of());
         if (!toolType.usesMaterialTraits()) return keyed;
         List<ModifierEffect> head = headSlot ? headModifiers : List.<ModifierEffect>of();
-        if (universalModifiers.isEmpty() && head.isEmpty()) return keyed;
-        if (keyed.isEmpty() && head.isEmpty()) return universalModifiers;
-        List<ModifierEffect> merged =
-                new java.util.ArrayList<>(universalModifiers.size() + head.size() + keyed.size());
+        List<ModifierEffect> part = partType == null
+                ? List.<ModifierEffect>of()
+                : partModifiers.getOrDefault(partType.id(), List.of());
+        if (universalModifiers.isEmpty() && head.isEmpty() && part.isEmpty()) return keyed;
+        if (keyed.isEmpty() && head.isEmpty() && part.isEmpty()) return universalModifiers;
+        List<ModifierEffect> merged = new java.util.ArrayList<>(
+                universalModifiers.size() + head.size() + part.size() + keyed.size());
         merged.addAll(universalModifiers);
         merged.addAll(head);
+        merged.addAll(part);
         merged.addAll(keyed);
         return merged;
     }
 
     /**
-     * Effects keyed to this tool type alone, excluding universal and head traits — the view a
-     * display needs when it lists universal traits separately instead of once per tool type.
+     * Effects keyed to this tool type alone, excluding universal, head and part traits — the view
+     * a display needs when it lists universal traits separately instead of once per tool type.
      */
     public List<ModifierEffect> toolTypeModifiers(ToolType toolType) {
         return modifiers.getOrDefault(toolType.id(), List.of());
@@ -236,11 +292,25 @@ public final class MaterialStats {
     /** Traits this material grants only as a tool's head — TC's {@code addTrait(trait, "head")}. */
     public List<ModifierEffect> headModifiers() { return headModifiers; }
 
+    /**
+     * Traits this material grants only when used as the given part — TC's
+     * {@code addTrait(trait, "bow")}, {@code addTrait(trait, "fletching")} and friends.
+     */
+    public List<ModifierEffect> partModifiers(PartType partType) {
+        return partModifiers.getOrDefault(partType.id(), List.of());
+    }
+
     /** Returns the armor-stat block for this material, or {@code null} if armor isn't supported. */
     public ArmorStats armorStats() { return armorStats; }
 
     /** True iff this material has an attached {@link ArmorStats} block. */
     public boolean supportsArmor() { return armorStats != null; }
+
+    /** Ranged stat block; never null — materials without one get {@link RangedStats#NONE}. */
+    public RangedStats rangedStats() { return rangedStats; }
+
+    /** True iff this material carries bow-limb stats (TC 1.12's BowMaterialStats). */
+    public boolean supportsBow() { return rangedStats.drawSpeed() > 0f; }
 
     /** Begins building a new {@link MaterialStats}. */
     public static Builder builder() { return new Builder(); }
@@ -270,9 +340,13 @@ public final class MaterialStats {
         b.castOnly = castOnly;
         b.fluidBase = fluidBase;
         b.armorStats = armorStats;
+        b.rangedStats = rangedStats;
         b.modifierSlots.putAll(modifierSlots);
         for (Map.Entry<ResourceLocation, List<ModifierEffect>> e : modifiers.entrySet()) {
             b.modifiers.put(e.getKey(), new java.util.ArrayList<>(e.getValue()));
+        }
+        for (Map.Entry<ResourceLocation, List<ModifierEffect>> e : partModifiers.entrySet()) {
+            b.partModifiers.put(e.getKey(), new java.util.ArrayList<>(e.getValue()));
         }
         b.universalModifiers.addAll(universalModifiers);
         b.headModifiers.addAll(headModifiers);
@@ -318,9 +392,11 @@ public final class MaterialStats {
         private FluidBase fluidBase = FluidBase.MOLTEN;
         private final Map<ResourceLocation, Integer> modifierSlots = new HashMap<>();
         private final Map<ResourceLocation, List<ModifierEffect>> modifiers = new HashMap<>();
+        private final Map<ResourceLocation, List<ModifierEffect>> partModifiers = new HashMap<>();
         private final List<ModifierEffect> universalModifiers = new java.util.ArrayList<>();
         private final List<ModifierEffect> headModifiers = new java.util.ArrayList<>();
         private ArmorStats armorStats = null;
+        private RangedStats rangedStats = RangedStats.NONE;
 
         /** Sets the vanilla-style harvest level. */
         public Builder harvestLevel(int v) { this.harvestLevel = v; return this; }
@@ -452,6 +528,43 @@ public final class MaterialStats {
         }
 
         /**
+         * Grants this effect only when the material occupies the given part, on any tool type that
+         * uses that part. Ports TC 1.12's part-scoped {@code Material.addTrait(trait, statsId)} —
+         * {@code "bow"}, {@code "bowstring"}, {@code "shaft"}, {@code "fletching"},
+         * {@code "handle"}, {@code "extra"} and friends.
+         *
+         * <p>Use this when a material's trait genuinely differs by part: a wood that is Ecological
+         * as a bow limb but carries nothing as fletching. When the same trait is registered against
+         * every stat type the material has, {@link #addUniversalModifier(ModifierEffect)} says so
+         * more cheaply and survives new part types being added later.</p>
+         */
+        public Builder addPartModifier(PartType partType, ModifierEffect effect) {
+            this.partModifiers.computeIfAbsent(partType.id(), k -> new java.util.ArrayList<>()).add(effect);
+            return this;
+        }
+
+        /** Convenience overload wrapping a bare modifier id. */
+        public Builder addPartModifier(PartType partType, ResourceLocation modifierId) {
+            return addPartModifier(partType, ModifierEffect.of(modifierId));
+        }
+
+        /** Convenience overload wrapping a modifier id and parameter map. */
+        public Builder addPartModifier(PartType partType, ResourceLocation modifierId,
+                                       Map<String, Object> params) {
+            return addPartModifier(partType, ModifierEffect.of(modifierId, params));
+        }
+
+        /**
+         * Attaches the same effect to several parts at once — the common shape when one 1.12 stat
+         * type maps to a family of 1.20 parts (TC's single {@code "head"} stat covers blade, pick
+         * head, axe head and the rest).
+         */
+        public Builder addPartModifier(ModifierEffect effect, PartType... partTypes) {
+            for (PartType pt : partTypes) addPartModifier(pt, effect);
+            return this;
+        }
+
+        /**
          * Attaches an {@link ArmorStats} block, making this material eligible for armor parts.
          *
          * @param coreDurability   core slot's contributed durability
@@ -466,6 +579,47 @@ public final class MaterialStats {
                              float platesToughness, float trimDurability) {
             this.armorStats = new ArmorStats(coreDurability, coreDefense, platesDurability,
                     platesModifier, platesToughness, trimDurability);
+            return this;
+        }
+
+        /**
+         * Declares this material usable as a bow limb, with TC 1.12's {@code BowMaterialStats}.
+         *
+         * @param drawSpeed   draw rate; a composed bow draws in {@code baseDrawTime / drawSpeed} ticks
+         * @param range       velocity scalar on what the bow fires
+         * @param bonusDamage flat damage the limb adds to the shot
+         */
+        public Builder bow(float drawSpeed, float range, float bonusDamage) {
+            this.rangedStats = new RangedStats(drawSpeed, range, bonusDamage,
+                    rangedStats.bowstring(), rangedStats.shaftModifier(), rangedStats.bonusAmmo(),
+                    rangedStats.accuracy(), rangedStats.fletchingModifier());
+            return this;
+        }
+
+        /** Durability scalar this material contributes as a bowstring — TC's BowStringMaterialStats. */
+        public Builder bowstring(float modifier) {
+            this.rangedStats = new RangedStats(rangedStats.drawSpeed(), rangedStats.range(),
+                    rangedStats.bonusDamage(), modifier, rangedStats.shaftModifier(),
+                    rangedStats.bonusAmmo(), rangedStats.accuracy(), rangedStats.fletchingModifier());
+            return this;
+        }
+
+        /**
+         * Ammo yield this material contributes as an arrow shaft — TC's ArrowShaftMaterialStats,
+         * where an arrow's "durability" is the number of arrows the craft produces.
+         */
+        public Builder arrowShaft(float modifier, int bonusAmmo) {
+            this.rangedStats = new RangedStats(rangedStats.drawSpeed(), rangedStats.range(),
+                    rangedStats.bonusDamage(), rangedStats.bowstring(), modifier, bonusAmmo,
+                    rangedStats.accuracy(), rangedStats.fletchingModifier());
+            return this;
+        }
+
+        /** Accuracy and ammo scalar this material contributes as fletching — TC's FletchingMaterialStats. */
+        public Builder fletching(float accuracy, float modifier) {
+            this.rangedStats = new RangedStats(rangedStats.drawSpeed(), rangedStats.range(),
+                    rangedStats.bonusDamage(), rangedStats.bowstring(), rangedStats.shaftModifier(),
+                    rangedStats.bonusAmmo(), accuracy, modifier);
             return this;
         }
 
