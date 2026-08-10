@@ -67,6 +67,8 @@
   "tooltip.smithery.source.parts_header": "Can be made into parts:",
   "tooltip.smithery.source.melt": "Can be melted into: %s",
   "tooltip.smithery.source.alloys_header": "Used in alloys:",
+  "tooltip.smithery.fuel.header": "Forge Fuel",
+  "tooltip.smithery.fuel.temperature": "Heats the forge to: %s°C",
   "smithery.material.smithery.copper": "Copper",
   "smithery.material.smithery.wood": "Wood",
   "smithery.material.smithery.gold": "Gold",
