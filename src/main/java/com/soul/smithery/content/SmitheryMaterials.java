@@ -13,9 +13,10 @@ import java.util.Map;
 /**
  * Built-in material registrations exposed as static identifier handles.
  *
- * <p>Materials fall into four families: starters (wood/copper/gold/iron), meltable specialty
+ * <p>Materials fall into five families: starters (wood/copper/gold/iron), meltable specialty
  * (stone/lapis/redstone/prismarine/blaze/amethyst/diamond/emerald/netherite/bedrock), non-meltable
- * specialty (flint/slime/resin/coral), and bowstring-class strings. A material's binder
+ * specialty (flint/slime/resin/coral), cast-only fluids that never become parts
+ * (sand/clay/furnace_brick/ancient_debris/blood), and bowstring-class strings. A material's binder
  * contribution drives modifier slot count and the multiplicative durability term; non-binder
  * roles grant no slots.
  *
@@ -33,6 +34,12 @@ public final class SmitheryMaterials {
     public static ResourceLocation IRON;
     /** ResourceLocation of the built-in stone material. */
     public static ResourceLocation STONE;
+    /** ResourceLocation of the cast-only sand material; casts to glass and feeds the brick alloy. */
+    public static ResourceLocation SAND;
+    /** ResourceLocation of the cast-only clay material; casts to clay blocks and feeds the brick alloy. */
+    public static ResourceLocation CLAY;
+    /** ResourceLocation of the cast-only furnace-brick material alloyed from sand and clay. */
+    public static ResourceLocation FURNACE_BRICK;
     /** ResourceLocation of the built-in lapis material. */
     public static ResourceLocation LAPIS;
     /** ResourceLocation of the built-in redstone material. */
@@ -184,6 +191,40 @@ public final class SmitheryMaterials {
                 .addHeadModifier(SmitheryModifiers.STONEBOUND,
                         Map.of("speed_bonus", 4.0f, "damage_penalty", 2.0f))
                 .armor(120f, 5f, 20f, 0.95f, 0f, 8f)
+                .build());
+
+        // Sand, clay and the brick they alloy into are fluids, not tool stock: cast-only, so no
+        // part items are generated for them and nothing tries to build a sand sword.
+        SAND = id("sand");
+        SmitheryAPI.registerMaterial(SAND, MaterialStats.builder()
+                .harvestLevel(0).miningSpeed(0f).attackDamage(0f).durabilityPerIngot(0)
+                .meltingTemp(1200f)
+                .moltenColor(0xFFFFD98A)
+                .partColor(0xFFDCD2A0)
+                .binderMultiplier(1.0f)
+                .castOnly(true)
+                .build());
+
+        CLAY = id("clay");
+        SmitheryAPI.registerMaterial(CLAY, MaterialStats.builder()
+                .harvestLevel(0).miningSpeed(0f).attackDamage(0f).durabilityPerIngot(0)
+                .meltingTemp(1000f)
+                .moltenColor(0xFFC08050)
+                .partColor(0xFFA0A6B4)
+                .binderMultiplier(1.0f)
+                .castOnly(true)
+                .build());
+
+        // Melts hotter than either ingredient — a fired brick is refractory, so the forge that made
+        // it cannot casually un-make it.
+        FURNACE_BRICK = id("furnace_brick");
+        SmitheryAPI.registerMaterial(FURNACE_BRICK, MaterialStats.builder()
+                .harvestLevel(0).miningSpeed(0f).attackDamage(0f).durabilityPerIngot(0)
+                .meltingTemp(1400f)
+                .moltenColor(0xFF9A5A3A)
+                .partColor(0xFF454545)
+                .binderMultiplier(1.0f)
+                .castOnly(true)
                 .build());
 
         LAPIS = id("lapis");

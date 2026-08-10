@@ -19,6 +19,12 @@ public final class SmitheryMeltingRecipes {
     private static final int INGOT_MB  = 144;
     private static final int RAW_MB    = 288;
     private static final int BLOCK_MB  = 1296;
+    /**
+     * Blocks vanilla crafts from four shards rather than nine — amethyst and prismarine. Priced at
+     * four nuggets so melting a block and casting it back in a basin is a closed loop; anything
+     * cheaper than what the block melts for would be a duplication cycle.
+     */
+    private static final int SHARD_BLOCK_MB = 4 * NUGGET_MB;
 
     /**
      * Registers every built-in melting recipe. Must run before
@@ -59,6 +65,21 @@ public final class SmitheryMeltingRecipes {
         recipe("minecraft:cobbled_deepslate",      "smithery:stone", INGOT_MB);
         recipe("minecraft:deepslate",              "smithery:stone", INGOT_MB);
 
+        // Sand and clay are priced one item to the ingot, like stone, and their blocks at the four
+        // items vanilla crafts them from. Glass is one smelted sand, so it melts back for one.
+        recipe("minecraft:sand",                   "smithery:sand", INGOT_MB);
+        recipe("minecraft:red_sand",               "smithery:sand", INGOT_MB);
+        recipe("minecraft:glass",                  "smithery:sand", INGOT_MB);
+        recipe("minecraft:sandstone",              "smithery:sand", 4 * INGOT_MB);
+        recipe("minecraft:red_sandstone",          "smithery:sand", 4 * INGOT_MB);
+
+        recipe("minecraft:clay_ball",              "smithery:clay", INGOT_MB);
+        recipe("minecraft:clay",                   "smithery:clay", 4 * INGOT_MB);
+
+        // Furnace bricks round-trip at the same four-to-one the crafting table uses.
+        recipe("smithery:furnace_brick",           "smithery:furnace_brick", INGOT_MB);
+        recipe("smithery:furnace_bricks",          "smithery:furnace_brick", 4 * INGOT_MB);
+
         recipe("minecraft:lapis_lazuli",           "smithery:lapis",    NUGGET_MB);
         recipe("minecraft:lapis_block",            "smithery:lapis",    INGOT_MB);
         recipe("minecraft:lapis_ore",              "smithery:lapis",    RAW_MB);
@@ -71,15 +92,17 @@ public final class SmitheryMeltingRecipes {
 
         recipe("minecraft:prismarine_shard",       "smithery:prismarine", NUGGET_MB);
         recipe("minecraft:prismarine_crystals",    "smithery:prismarine", NUGGET_MB);
-        recipe("minecraft:prismarine",             "smithery:prismarine", INGOT_MB);
-        recipe("minecraft:dark_prismarine",        "smithery:prismarine", INGOT_MB);
+        recipe("minecraft:prismarine",             "smithery:prismarine", SHARD_BLOCK_MB);
+        // Dark prismarine is eight shards and a dye; the dye contributes nothing molten.
+        recipe("minecraft:dark_prismarine",        "smithery:prismarine", 2 * SHARD_BLOCK_MB);
 
         recipe("minecraft:blaze_powder",           "smithery:blaze",    NUGGET_MB);
         recipe("minecraft:blaze_rod",              "smithery:blaze",    INGOT_MB);
 
         recipe("minecraft:amethyst_shard",         "smithery:amethyst", NUGGET_MB);
-        recipe("minecraft:amethyst_block",         "smithery:amethyst", INGOT_MB);
-        recipe("minecraft:amethyst_cluster",       "smithery:amethyst", INGOT_MB);
+        recipe("minecraft:amethyst_block",         "smithery:amethyst", SHARD_BLOCK_MB);
+        // A cluster drops four shards when broken, so it is worth exactly a block.
+        recipe("minecraft:amethyst_cluster",       "smithery:amethyst", SHARD_BLOCK_MB);
 
         recipe("minecraft:diamond",                "smithery:diamond",  INGOT_MB);
         recipe("minecraft:diamond_block",          "smithery:diamond",  BLOCK_MB);

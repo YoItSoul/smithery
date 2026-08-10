@@ -1,0 +1,24 @@
+{
+  "name": "Basin Casting",
+  "icon": "smithery:casting_basin",
+  "category": "smithery:forge",
+  "sortnum": 6,
+  "pages": [
+    {
+      "type": "patchouli:crafting",
+      "recipe": "smithery:casting_basin",
+      "text": "The $(l)Casting Basin$() — five bricks in an open trough. Where a Casting Table casts one part, a basin casts a whole block."
+    },
+    {
+      "type": "patchouli:spotlight",
+      "item": "smithery:casting_basin",
+      "text": "No sand, no template. A basin has one shape, so the first metal you pour decides what it is casting — nine ingots' worth for the metals, and nothing else fits.$(br2)Pour from above, the same as a table.",
+      "title": "One Shape Only"
+    },
+    {
+      "type": "patchouli:text",
+      "text": "Because a basin holds nine times an ingot, it takes nine times as long to cool. Right-click when it has set to take the block, or let a hopper pull it out.$(br2)Break a basin holding a finished block and the block drops with it — break one still cooling and the metal is lost.",
+      "title": "Pour, Cool, Collect"
+    }
+  ]
+}

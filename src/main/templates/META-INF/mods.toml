@@ -97,6 +97,14 @@ Example mod description.
     ordering="AFTER"
     side="BOTH"
 
+# Jade in-world tooltips for the casting table and basin; entirely optional.
+[[dependencies.${mod_id}]]
+    modId="jade"
+    mandatory=false
+    versionRange="[11.0,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Better Combat picks up data/smithery/weapon_attributes/ for animated combos; optional.
 [[dependencies.${mod_id}]]
     modId="bettercombat"

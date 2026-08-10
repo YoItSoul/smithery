@@ -60,8 +60,7 @@ public class CastingTableRenderer implements BlockEntityRenderer<CastingTableBlo
             poseStack.popPose();
         }
 
-        if (castState == State.FILLING || castState == State.COOLING
-                || castState == State.COVERED || castState == State.READY) {
+        if (castState == State.FILLING || castState == State.COOLING || castState == State.READY) {
             renderPart(be, poseStack, bufferSource);
         }
     }

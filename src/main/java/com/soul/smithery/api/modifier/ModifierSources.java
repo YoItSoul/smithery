@@ -127,6 +127,26 @@ public final class ModifierSources {
         return resolve(stack) != null;
     }
 
+    /**
+     * The data layer alone, in load order. Used to ship pack-loaded sources to clients, which run
+     * their own copy of this registry and would otherwise only ever see the code layer.
+     */
+    public static Map<Item, List<Entry>> dataEntries() {
+        Map<Item, List<Entry>> copy = new LinkedHashMap<>();
+        DATA_REGISTRY.forEach((item, list) -> copy.put(item, List.copyOf(list)));
+        return Collections.unmodifiableMap(copy);
+    }
+
+    /**
+     * Replaces the data layer wholesale with entries received from the server. Distinct from
+     * {@link #registerDataEntry} so the client applies one atomic snapshot rather than clearing and
+     * refilling in steps.
+     */
+    public static void replaceDataEntries(Map<Item, List<Entry>> entries) {
+        DATA_REGISTRY.clear();
+        entries.forEach((item, list) -> DATA_REGISTRY.put(item, new ArrayList<>(list)));
+    }
+
     /** All resolved entries (data overrides code), preserving insertion order. Read-only. */
     public static Map<Item, Entry> all() {
         Map<Item, Entry> merged = new LinkedHashMap<>();

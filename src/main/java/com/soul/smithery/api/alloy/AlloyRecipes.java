@@ -43,6 +43,24 @@ public final class AlloyRecipes {
     }
 
     /**
+     * The data layer alone, in load order. Used to ship pack-loaded alloys to clients, which run
+     * their own copy of this registry and would otherwise only ever see the code layer.
+     */
+    public static Map<ResourceLocation, AlloyRecipe> dataEntries() {
+        return Collections.unmodifiableMap(DATA_REGISTRY);
+    }
+
+    /**
+     * Replaces the data layer wholesale with entries received from the server. Distinct from
+     * {@link #registerDataEntry} so the client applies one atomic snapshot rather than clearing and
+     * refilling in steps.
+     */
+    public static void replaceDataEntries(Map<ResourceLocation, AlloyRecipe> entries) {
+        DATA_REGISTRY.clear();
+        DATA_REGISTRY.putAll(entries);
+    }
+
+    /**
      * All registered alloys sorted by descending input count (more-specific first).
      *
      * <p>Data entries override code entries on id collision. Tie-breaker within equal input counts

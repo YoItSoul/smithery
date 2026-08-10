@@ -11,7 +11,7 @@ public enum FluidPipeFaceVisual implements StringRepresentable {
     /** No geometry on this face; only the centre cube is drawn. */
     NONE("none"),
     /** Arm extending to the block edge without a cap, used for pipe-to-pipe runs and
-     *  the down face above a casting table. */
+     *  the down face above a casting table or basin. */
     ARM_OPEN("arm_open"),
     /** Arm plus a wider toother flange, used when connecting to a foreign fluid container. */
     ARM_TOOTHER("arm_toother");

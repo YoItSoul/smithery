@@ -1,6 +1,7 @@
 package com.soul.smithery.registry;
 
 import com.soul.smithery.Smithery;
+import com.soul.smithery.block.entity.CastingBasinBlockEntity;
 import com.soul.smithery.block.entity.CastingTableBlockEntity;
 import com.soul.smithery.block.entity.FluidPipeBlockEntity;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
@@ -55,6 +56,11 @@ public final class SmitheryBlockEntities {
     public static final RegistryObject<BlockEntityType<CastingTableBlockEntity>>
             CASTING_TABLE = BLOCK_ENTITIES.register("casting_table",
                     () -> BlockEntityType.Builder.of(CastingTableBlockEntity::new, SmitheryBlocks.CASTING_TABLE.get()).build(null));
+
+    /** Block entity type for the Casting Basin; drives the block-cast state machine. */
+    public static final RegistryObject<BlockEntityType<CastingBasinBlockEntity>>
+            CASTING_BASIN = BLOCK_ENTITIES.register("casting_basin",
+                    () -> BlockEntityType.Builder.of(CastingBasinBlockEntity::new, SmitheryBlocks.CASTING_BASIN.get()).build(null));
 
     /** Block entity type for the Part Press; cuts non-meltable inputs into parts. */
     public static final RegistryObject<BlockEntityType<PartPressBlockEntity>>

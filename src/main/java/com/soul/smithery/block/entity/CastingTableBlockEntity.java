@@ -54,8 +54,6 @@ public class CastingTableBlockEntity extends BlockEntity {
         FILLING,
         /** Fully filled and currently cooling down. */
         COOLING,
-        /** Sand re-coats the cooled part; brush to expose. */
-        COVERED,
         /** Finished part ready to be picked up. */
         READY;
 
@@ -276,14 +274,16 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     /**
-     * Applies one brush stroke; only effective in SAND, IMPRESSED, or COVERED states.
-     * Reaching {@link #MAX_BRUSH} clears the sand layer: SAND/IMPRESSED -> EMPTY (impression
-     * lost), COVERED -> READY (cooled part exposed). Returns true when the brush actually
-     * advanced something; false for inert states so the caller can pass through to vanilla.
+     * Applies one brush stroke, sweeping an unused sand layer back off the table; only effective in
+     * SAND or IMPRESSED. Reaching {@link #MAX_BRUSH} takes the table to EMPTY, losing the
+     * impression with it. Returns true when the brush actually advanced something; false for inert
+     * states so the caller can pass through to vanilla.
+     *
+     * <p>A finished cast is not brushed out — it is taken straight off the table once cool.
      */
     public boolean tryBrush() {
         boolean accepts = switch (state) {
-            case SAND, IMPRESSED, COVERED -> true;
+            case SAND, IMPRESSED -> true;
             default -> false;
         };
         if (!accepts) return false;
@@ -291,18 +291,12 @@ public class CastingTableBlockEntity extends BlockEntity {
         brushProgress++;
         if (brushProgress >= MAX_BRUSH) {
             brushProgress = 0;
-            switch (state) {
-                case SAND, IMPRESSED -> {
-                    state = State.EMPTY;
-                    impressedPartTypeId = null;
-                    requiredMb = 0;
-                    pouredFluid = Fluids.EMPTY;
-                    filledMb = 0;
-                    coolingTicksRemaining = 0;
-                }
-                case COVERED -> state = State.READY;
-                default -> {}
-            }
+            state = State.EMPTY;
+            impressedPartTypeId = null;
+            requiredMb = 0;
+            pouredFluid = Fluids.EMPTY;
+            filledMb = 0;
+            coolingTicksRemaining = 0;
         }
         markDirtyAndSync();
         return true;

@@ -126,7 +126,11 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         if (stack.is(Items.SLIME_BALL))     return SmitheryMaterials.SLIME;
         if (isCoralBlockItem(stack))        return SmitheryMaterials.CORAL;
         if (stack.is(SmitheryItems.RED_SLIME.get())) return SmitheryMaterials.RED_SLIME;
-        return null;
+        // Addon-registered inputs, checked last so the built-ins above always win. Without this a
+        // craftable-but-not-castable material has no route into a part at all.
+        net.minecraft.resources.ResourceLocation itemId =
+                net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem());
+        return itemId == null ? null : com.soul.smithery.api.SmitheryAPI.PRESS_INPUTS.get(itemId);
     }
 
     private static boolean isCoralBlockItem(ItemStack stack) {

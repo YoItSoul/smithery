@@ -51,6 +51,12 @@ public final class SmitheryPayloads {
                 .decoder(ForgeSelectOutputFluidPayload::decode)
                 .consumerMainThread(SmitheryPayloads::onSelectOutputFluidServer)
                 .add();
+
+        CHANNEL.messageBuilder(SmitheryDataSyncPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(SmitheryDataSyncPayload::encode)
+                .decoder(SmitheryDataSyncPayload::decode)
+                .consumerMainThread(SmitheryPayloads::onDataSyncClient)
+                .add();
     }
 
     /** Sends a message to one player's client. */
@@ -68,6 +74,14 @@ public final class SmitheryPayloads {
         // on a dedicated server.
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                 () -> () -> ClientPayloadHandler.handleLeakDebug(payload));
+        ctx.get().setPacketHandled(true);
+    }
+
+    private static void onDataSyncClient(SmitheryDataSyncPayload payload, Supplier<NetworkEvent.Context> ctx) {
+        // Indirect through a client-only handler class so client classes never load on a
+        // dedicated server.
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                () -> () -> ClientPayloadHandler.handleDataSync(payload));
         ctx.get().setPacketHandled(true);
     }
 

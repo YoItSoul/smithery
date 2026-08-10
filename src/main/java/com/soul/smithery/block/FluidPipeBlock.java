@@ -134,7 +134,10 @@ public class FluidPipeBlock extends Block implements EntityBlock {
         if (neighborState.getBlock() instanceof FluidPipeBlock) {
             return FluidPipeFaceVisual.ARM_OPEN;
         }
-        if (neighborState.is(SmitheryBlocks.CASTING_TABLE.get())) {
+        // Both casting vessels are poured into from above through an open spout, not coupled to
+        // like a sealed tank, so they get the bare arm rather than the toother flange.
+        if (neighborState.is(SmitheryBlocks.CASTING_TABLE.get())
+                || neighborState.is(SmitheryBlocks.CASTING_BASIN.get())) {
             return dir == Direction.DOWN ? FluidPipeFaceVisual.ARM_OPEN : FluidPipeFaceVisual.NONE;
         }
         if (neighborState.is(SmitheryBlocks.FORGE_DRAIN.get())) {

@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,39 @@ public final class PartEligibility {
     }
 
     /** Registers a per-material restriction loaded from a data pack. */
+    /**
+     * The data layer's part-type allow-lists alone, for shipping to clients — they run their own
+     * copy of this registry and would otherwise only ever see the code layer.
+     */
+    public static Map<ResourceLocation, Set<ResourceLocation>> dataAllowByPartType() {
+        return copyOf(DATA_ALLOW);
+    }
+
+    /** The data layer's material-side restrictions alone. See {@link #dataAllowByPartType()}. */
+    public static Map<ResourceLocation, Set<ResourceLocation>> dataAllowByMaterial() {
+        return copyOf(DATA_MATERIAL_ALLOW);
+    }
+
+    /**
+     * Replaces both data layers wholesale with entries received from the server. Distinct from the
+     * {@code registerData*} methods so the client applies one atomic snapshot rather than clearing
+     * and refilling in steps.
+     */
+    public static void replaceDataEntries(Map<ResourceLocation, Set<ResourceLocation>> byPartType,
+                                          Map<ResourceLocation, Set<ResourceLocation>> byMaterial) {
+        DATA_ALLOW.clear();
+        byPartType.forEach((k, v) -> DATA_ALLOW.put(k, new LinkedHashSet<>(v)));
+        DATA_MATERIAL_ALLOW.clear();
+        byMaterial.forEach((k, v) -> DATA_MATERIAL_ALLOW.put(k, new LinkedHashSet<>(v)));
+    }
+
+    private static Map<ResourceLocation, Set<ResourceLocation>> copyOf(
+            Map<ResourceLocation, Set<ResourceLocation>> source) {
+        Map<ResourceLocation, Set<ResourceLocation>> copy = new LinkedHashMap<>();
+        source.forEach((k, v) -> copy.put(k, Set.copyOf(v)));
+        return Collections.unmodifiableMap(copy);
+    }
+
     public static void registerDataMaterialRestriction(ResourceLocation materialId, Set<ResourceLocation> partTypeIds) {
         Objects.requireNonNull(materialId, "materialId");
         Objects.requireNonNull(partTypeIds, "partTypeIds");

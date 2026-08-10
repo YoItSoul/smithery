@@ -43,6 +43,13 @@ repositories {
             includeGroup "vazkii.patchouli"
         }
     }
+    // Jade (in-world tooltip HUD). Published to Modrinth rather than a dedicated maven.
+    maven {
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
     // Draconic Evolution, BrandonsCore, and CodeChickenLib. covers1624's maven
     // is the official host for all three.
     maven {
@@ -161,6 +168,12 @@ dependencies {
     compileOnly fg.deobf("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}")
     compileOnly fg.deobf("mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}")
     localRuntime fg.deobf("mezz.jei:jei-${minecraft_version}-forge:${jei_version}")
+
+    // Jade — in-world tooltip integration (compat/jade). Ships as one jar with no API split, so
+    // it is compileOnly plus localRuntime for dev testing; the plugin class only ever loads when
+    // Jade's own annotation scan finds it, keeping the dependency optional at runtime.
+    compileOnly fg.deobf("maven.modrinth:jade:${jade_version}")
+    localRuntime fg.deobf("maven.modrinth:jade:${jade_version}")
 
     // Draconic Evolution module-system integration (compat/draconic) — optional at runtime,
     // gated behind ModList.isLoaded("draconicevolution") in DraconicCompat.

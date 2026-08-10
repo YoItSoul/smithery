@@ -1,6 +1,7 @@
 package com.soul.smithery.registry;
 
 import com.soul.smithery.api.SmitheryAPI;
+import com.soul.smithery.api.cast.CastBlocks;
 import com.soul.smithery.api.material.Material;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
@@ -115,8 +116,23 @@ public final class SmitheryMaterialForms {
         // The point of a storage form is that it round-trips: what the forge poured out can be
         // poured back in. Registered here rather than in a datapack so it cannot drift from the
         // items that were actually minted.
-        SmitheryAPI.registerMeltingRecipe(ingot.getId().toString(), materialId.toString(), INGOT_MB);
-        SmitheryAPI.registerMeltingRecipe(blockItem.getId().toString(), materialId.toString(), BLOCK_MB);
+        // A material with no melting temperature never gets a fluid, so melting its ingot would
+        // lead nowhere. Those are the part-builder materials of the Tinkers world: route their
+        // ingot through the press instead, which is the craftable rather than castable path.
+        Material mat = SmitheryAPI.MATERIALS.get(materialId);
+        boolean meltable = mat != null && mat.stats().meltingTemp() > 0.0F;
+        if (meltable) {
+            SmitheryAPI.registerMeltingRecipe(ingot.getId().toString(), materialId.toString(), INGOT_MB);
+            SmitheryAPI.registerMeltingRecipe(blockItem.getId().toString(), materialId.toString(), BLOCK_MB);
+            // The other half of the round trip: a Casting Basin pours the fluid back into the block
+            // at the same portion the forge melts it for. A generated form is the fallback for a
+            // material with nowhere else to live, so it never displaces a hand-registered cast.
+            if (CastBlocks.resolve(materialId) == null) {
+                CastBlocks.register(materialId, BLOCK_MB, blockItem::get);
+            }
+        } else {
+            SmitheryAPI.registerPressInput(ingot.getId(), materialId);
+        }
         return forms;
     }
 

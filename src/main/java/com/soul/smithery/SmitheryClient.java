@@ -1,5 +1,6 @@
 package com.soul.smithery;
 
+import com.soul.smithery.client.CastingBasinRenderer;
 import com.soul.smithery.client.CastingTableRenderer;
 import com.soul.smithery.client.FluidPipeRenderer;
 import com.soul.smithery.client.ForgeControllerRenderer;
@@ -90,6 +91,7 @@ public final class SmitheryClient {
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FORGE_CONTROLLER.get(), ForgeControllerRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.CASTING_TABLE.get(), CastingTableRenderer::new);
+        event.registerBlockEntityRenderer(SmitheryBlockEntities.CASTING_BASIN.get(), CastingBasinRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FLUID_PIPE.get(), FluidPipeRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.PART_PRESS.get(), PartPressRenderer::new);
         event.registerBlockEntityRenderer(SmitheryBlockEntities.FORGE_FUEL_PORT.get(), ForgeFuelPortRenderer::new);

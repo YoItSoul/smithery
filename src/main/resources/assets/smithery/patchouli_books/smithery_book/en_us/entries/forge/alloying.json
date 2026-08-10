@@ -11,6 +11,11 @@
     },
     {
       "type": "patchouli:text",
+      "text": "Not every alloy is a metal. Molten $(l)sand$() and $(l)clay$() combine at 1,200°C into molten $(l)furnace brick$() — eight sand to one clay ball, the same mix that makes Casting Sand by hand.$(br2)Cast it on an ingot impression for single bricks, or in a $(l)Casting Basin$() for the four-brick block.",
+      "title": "Bricks From Fluid"
+    },
+    {
+      "type": "patchouli:text",
       "text": "Alloy recipes are data-driven — modpacks add their own. Check $(l)JEI$() for the full list, and watch item tooltips: anything meltable shows what it melts into and which alloys want it.",
       "title": "Finding Recipes"
     }

@@ -89,6 +89,42 @@ public final class SmitheryStages {
         MODIFIER_STAGES.put(modifier, stage);
     }
 
+    /**
+     * Read-only snapshot of every gate, for shipping to clients. Stage gates are entirely
+     * data-driven, so this is the whole registry rather than a layer of it.
+     *
+     * @return the material-by-id, material-by-path, tool-type and modifier gate maps
+     */
+    public static Snapshot snapshot() {
+        return new Snapshot(
+                Map.copyOf(MATERIAL_STAGES),
+                Map.copyOf(MATERIAL_STAGES_BY_PATH),
+                Map.copyOf(TOOL_TYPE_STAGES),
+                Map.copyOf(MODIFIER_STAGES));
+    }
+
+    /** Replaces every gate with a snapshot received from the server. */
+    public static void replaceData(Snapshot snapshot) {
+        clearData();
+        MATERIAL_STAGES.putAll(snapshot.materials());
+        MATERIAL_STAGES_BY_PATH.putAll(snapshot.materialPaths());
+        TOOL_TYPE_STAGES.putAll(snapshot.toolTypes());
+        MODIFIER_STAGES.putAll(snapshot.modifiers());
+    }
+
+    /**
+     * The four gate maps in one value.
+     *
+     * @param materials     stage required per material id
+     * @param materialPaths stage required per material path, whatever the namespace
+     * @param toolTypes     stage required per tool type id
+     * @param modifiers     stage required per modifier id
+     */
+    public record Snapshot(Map<ResourceLocation, String> materials,
+                           Map<String, String> materialPaths,
+                           Map<ResourceLocation, String> toolTypes,
+                           Map<ResourceLocation, String> modifiers) {}
+
     public static int gateCount() {
         return MATERIAL_STAGES.size() + MATERIAL_STAGES_BY_PATH.size() + TOOL_TYPE_STAGES.size() + MODIFIER_STAGES.size();
     }

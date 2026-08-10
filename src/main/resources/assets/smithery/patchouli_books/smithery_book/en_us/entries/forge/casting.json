@@ -22,8 +22,8 @@
     },
     {
       "type": "patchouli:text",
-      "text": "Pour molten metal onto the impressed sand — bucket or pipe, from above. It fills, then cools from glowing to solid.$(br2)Sweep the sand away with a $(l)brush$() and take your part, or let a hopper collect it underneath.",
-      "title": "Pour, Cool, Brush"
+      "text": "Pour molten metal onto the impressed sand — bucket or pipe, from above. It fills, then cools from glowing to solid.$(br2)Right-click to take the part once it has set, or let a hopper collect it underneath. The impression survives, ready for the next pour.$(br2)A $(l)brush$() sweeps unused sand back off the table if you want the shape gone.",
+      "title": "Pour, Cool, Collect"
     }
   ]
 }

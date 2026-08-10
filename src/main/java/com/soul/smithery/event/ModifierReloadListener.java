@@ -17,10 +17,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.event.AddReloadListenerEvent;
 
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Server-side reload listener that loads modifier definitions from
@@ -195,9 +195,33 @@ public final class ModifierReloadListener extends SimpleJsonResourceReloadListen
         }
     }
 
-    private static final Set<ResourceLocation> DATA_LOADED_IDS = new HashSet<>();
+    /**
+     * The parsed source of every data-defined modifier currently in {@link SmitheryAPI#MODIFIERS},
+     * kept rather than discarded after building so the definitions can be shipped to clients — a
+     * {@link Modifier} itself holds Java callbacks and cannot cross the wire, but the JSON it was
+     * built from can, and rebuilds identically on the other side.
+     */
+    private static final Map<ResourceLocation, ModifierJson> DATA_DEFINITIONS = new LinkedHashMap<>();
 
     private static final Gson GSON = new Gson();
+
+    /** Read-only view of the data-defined modifier sources, for the login-time sync. */
+    public static Map<ResourceLocation, ModifierJson> dataDefinitions() {
+        return Collections.unmodifiableMap(DATA_DEFINITIONS);
+    }
+
+    /**
+     * Replaces the data-defined modifiers with definitions received from the server: retires the
+     * previous set from the registry and re-registers the new one.
+     */
+    public static void replaceDataDefinitions(Map<ResourceLocation, ModifierJson> definitions) {
+        for (ResourceLocation id : DATA_DEFINITIONS.keySet()) SmitheryAPI.MODIFIERS.remove(id);
+        DATA_DEFINITIONS.clear();
+        definitions.forEach((id, json) -> {
+            SmitheryAPI.registerModifier(json.toModifier(id));
+            DATA_DEFINITIONS.put(id, json);
+        });
+    }
 
     private ModifierReloadListener() {
         super(GSON, "smithery/modifier");
@@ -206,8 +230,8 @@ public final class ModifierReloadListener extends SimpleJsonResourceReloadListen
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> files,
                          ResourceManager manager, ProfilerFiller profiler) {
-        for (ResourceLocation id : DATA_LOADED_IDS) SmitheryAPI.MODIFIERS.remove(id);
-        DATA_LOADED_IDS.clear();
+        for (ResourceLocation id : DATA_DEFINITIONS.keySet()) SmitheryAPI.MODIFIERS.remove(id);
+        DATA_DEFINITIONS.clear();
 
         int registered = 0;
         for (Map.Entry<ResourceLocation, JsonElement> e : files.entrySet()) {
@@ -220,7 +244,7 @@ public final class ModifierReloadListener extends SimpleJsonResourceReloadListen
             if (parsed == null) continue;
             Modifier mod = parsed.toModifier(id);
             SmitheryAPI.registerModifier(mod);
-            DATA_LOADED_IDS.add(id);
+            DATA_DEFINITIONS.put(id, parsed);
             registered++;
         }
         Smithery.LOGGER.info("Loaded {} modifiers from data packs", registered);

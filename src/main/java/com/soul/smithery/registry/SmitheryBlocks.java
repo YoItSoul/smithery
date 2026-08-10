@@ -3,6 +3,7 @@ package com.soul.smithery.registry;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.part.PartType;
+import com.soul.smithery.block.CastingBasinBlock;
 import com.soul.smithery.block.CastingTableBlock;
 import com.soul.smithery.block.FluidPipeBlock;
 import com.soul.smithery.block.ForgeControllerBlock;
@@ -40,7 +41,8 @@ import java.util.Map;
  *
  * <p>The structural shell of the Forge multiblock uses vanilla deepslate variants; only the
  * "active" forge parts (controller, fuel port, drain, item port) live here alongside the
- * Casting Table, Casting Sand, Fluid Pipe, Part Press and the Red Slime block easter egg.
+ * Casting Table, Casting Basin, Casting Sand, Fluid Pipe, Part Press and the Red Slime block
+ * easter egg.
  */
 public final class SmitheryBlocks {
     /** Deferred register for every Smithery-namespaced block. */
@@ -119,6 +121,18 @@ public final class SmitheryBlocks {
                             .requiresCorrectToolForDrops()));
 
     /**
+     * Casting Basin block; block-scale casting vessel whose state machine lives on its block entity.
+     */
+    public static final RegistryObject<CastingBasinBlock> CASTING_BASIN =
+            BLOCKS.register("casting_basin",
+                    () -> new CastingBasinBlock(BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.STONE)
+                            .strength(STONE_BRICK_HARDNESS, 4.0f)
+                            .sound(SoundType.STONE)
+                            .noOcclusion()
+                            .requiresCorrectToolForDrops()));
+
+    /**
      * Fluid pipe block; carries one fluid at a time with per-face IN/OUT/DISCONNECTED mode
      * encoded into six face-visual EnumProperties so a multipart blockstate can render each
      * face independently.
@@ -185,6 +199,9 @@ public final class SmitheryBlocks {
     /** BlockItem for {@link #CASTING_TABLE}. */
     public static final RegistryObject<BlockItem> CASTING_TABLE_ITEM =
             registerBlockItem("casting_table", CASTING_TABLE);
+    /** BlockItem for {@link #CASTING_BASIN}. */
+    public static final RegistryObject<BlockItem> CASTING_BASIN_ITEM =
+            registerBlockItem("casting_basin", CASTING_BASIN);
     /** BlockItem for {@link #CASTING_SAND}. */
     public static final RegistryObject<BlockItem> CASTING_SAND_ITEM =
             registerBlockItem("casting_sand", CASTING_SAND);

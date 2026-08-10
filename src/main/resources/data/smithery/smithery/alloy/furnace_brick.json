@@ -1,0 +1,9 @@
+{
+  "_comment": "Furnace brick from sand and clay, priced off the crafting-table route so neither path wins. In a crafting table 8 sand + 1 clay ball make 8 casting sand, and each smelts into a furnace bricks block (4 bricks) - 9 items in, 32 bricks out. Sand and clay balls are 144 mB each, so this fires at 144 sand to 18 clay, exactly 8:1, and yields 576 mB - one block's worth of bricks. Eight fires consume a whole clay ball and produce the same 32 bricks. Kept small per fire so a starter forge can hold a batch. Requires 1200C, sand's melting temperature, since nothing alloys until the sand itself is molten.",
+  "inputs": [
+    { "material": "smithery:sand", "mb": 144 },
+    { "material": "smithery:clay", "mb": 18 }
+  ],
+  "result": { "material": "smithery:furnace_brick", "mb": 576 },
+  "min_temperature_c": 1200
+}

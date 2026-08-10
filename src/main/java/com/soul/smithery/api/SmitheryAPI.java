@@ -69,6 +69,16 @@ public final class SmitheryAPI {
     public static final Map<ResourceLocation, MeltingRecipe> MELTING_RECIPES = new HashMap<>();
 
     /**
+     * Item id -> material id for the part press: the non-meltable route into a part.
+     *
+     * <p>Tinkers had two ways to make a part — melt the material and cast it, or build it by hand
+     * at the part builder from the raw item. The forge and casting table cover the first; this
+     * covers the second. Without an entry here a craftable-but-not-castable material (cloth,
+     * leaves, vines, aerclouds) has no route into a part at all.</p>
+     */
+    public static final Map<ResourceLocation, ResourceLocation> PRESS_INPUTS = new HashMap<>();
+
+    /**
      * Registers a {@link PartType}.
      *
      * <p><b>Provide the part's display name</b> as a lang entry keyed
@@ -113,6 +123,21 @@ public final class SmitheryAPI {
     }
 
     /** Convenience overload that constructs a {@link MeltingRecipe} from string ids and mB. */
+    /**
+     * Registers an item as press input for a material, so the part press can cut parts from it.
+     *
+     * @param inputItemId the item a player puts in the press
+     * @param materialId  the material the resulting part is made of
+     */
+    public static void registerPressInput(ResourceLocation inputItemId, ResourceLocation materialId) {
+        PRESS_INPUTS.put(inputItemId, materialId);
+    }
+
+    /** String-id convenience form of {@link #registerPressInput(ResourceLocation, ResourceLocation)}. */
+    public static void registerPressInput(String inputItem, String material) {
+        registerPressInput(ResourceLocation.parse(inputItem), ResourceLocation.parse(material));
+    }
+
     public static MeltingRecipe registerMeltingRecipe(String inputItem, String material, int mb) {
         return registerMeltingRecipe(new MeltingRecipe(
                 ResourceLocation.parse(inputItem), ResourceLocation.parse(material), mb));

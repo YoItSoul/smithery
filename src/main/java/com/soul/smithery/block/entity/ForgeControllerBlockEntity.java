@@ -336,6 +336,14 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             ResourceLocation outputFluidId = materialToFluidId(recipe.result().material());
             if (outputFluidId == null) continue;
 
+            // An alloy may produce more than it consumes — the furnace-brick recipe does. Firing one
+            // that does not fit would push storage past the forge's capacity, so wait for room
+            // instead. Volume-losing and volume-neutral recipes always pass.
+            int consumedMb = 0;
+            for (int i = 0; i < n; i++) consumedMb += recipe.inputs().get(i).mb();
+            int netGainMb = recipe.result().mb() - consumedMb;
+            if (netGainMb > remainingFluidCapacityMb()) continue;
+
             for (int i = 0; i < n; i++) {
                 com.soul.smithery.api.alloy.AlloyRecipe.Input in = recipe.inputs().get(i);
                 ResourceLocation fluidId = inputFluidIds[i];

@@ -2,6 +2,7 @@ package com.soul.smithery.compat.jei;
 
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
+import com.soul.smithery.api.cast.CastBlocks;
 import com.soul.smithery.api.cast.CastResults;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.melting.MeltingRecipe;
@@ -60,6 +61,15 @@ public final class SmitheryJeiRecipes {
      * @param output produced item
      */
     public record JeiCasting(Material material, PartType partType, ItemStack castBlock, int castMb, ItemStack output) {}
+
+    /**
+     * One entry per material the Casting Basin can pour into a block.
+     *
+     * @param material molten input material
+     * @param castMb mB consumed per cast
+     * @param output produced block item
+     */
+    public record JeiBasinCasting(Material material, int castMb, ItemStack output) {}
 
     /**
      * One entry per (raw input item, non-synthetic part type) pair the part press accepts.
@@ -264,6 +274,28 @@ public final class SmitheryJeiRecipes {
         if (material.stats().castOnly()) return ItemStack.EMPTY;
         var part = SmitheryItems.findPart(material.id(), partType.id());
         return part != null ? new ItemStack(part) : ItemStack.EMPTY;
+    }
+
+    /**
+     * Builds the snapshot list of basin-casting recipes — one row per material that has a
+     * registered {@link CastBlocks} entry and a molten fluid to pour.
+     *
+     * @return list of basin-casting category rows
+     */
+    public static List<JeiBasinCasting> buildBasinCastingRecipes() {
+        List<JeiBasinCasting> out = new ArrayList<>();
+        for (var e : CastBlocks.all().entrySet()) {
+            ResourceLocation materialId = e.getKey();
+            if (isHiddenFromJei(materialId)) continue;
+            Material material = SmitheryAPI.MATERIALS.get(materialId);
+            if (material == null) continue;
+            // No fluid means nothing could ever be poured, however the cast is registered.
+            if (SmitheryFluids.forMaterial(materialId) == null) continue;
+            Item result = e.getValue().result().get();
+            if (result == null || result == Items.AIR) continue;
+            out.add(new JeiBasinCasting(material, e.getValue().mb(), new ItemStack(result)));
+        }
+        return out;
     }
 
     /**

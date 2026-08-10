@@ -6,6 +6,7 @@ import com.soul.smithery.api.forge.ForgeFuels;
 import com.soul.smithery.api.forge.ForgeMobDrops;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.tool.ToolType;
+import com.soul.smithery.content.SmitheryBlockCasts;
 import com.soul.smithery.content.SmitheryMaterials;
 import com.soul.smithery.content.SmitheryMeltingRecipes;
 import com.soul.smithery.content.SmitheryModifierActions;
@@ -100,6 +101,7 @@ public class Smithery {
                         output.accept(SmitheryBlocks.FORGE_DRAIN_ITEM.get());
                         output.accept(SmitheryBlocks.FORGE_ITEM_PORT_ITEM.get());
                         output.accept(SmitheryBlocks.CASTING_TABLE_ITEM.get());
+                        output.accept(SmitheryBlocks.CASTING_BASIN_ITEM.get());
                         output.accept(SmitheryBlocks.CASTING_SAND_ITEM.get());
                         output.accept(SmitheryBlocks.FLUID_PIPE_ITEM.get());
                         output.accept(SmitheryBlocks.PART_PRESS_ITEM.get());
@@ -209,6 +211,7 @@ public class Smithery {
         SmitheryMaterials.register();
         SmitherySynergies.register();
         SmitheryMeltingRecipes.register();
+        SmitheryBlockCasts.register();
         EnderExampleContent.register();
         SmitheryBlocks.registerImpressedSandVariants();
         SmitheryFluids.bootstrap();

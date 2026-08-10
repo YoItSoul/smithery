@@ -17,6 +17,10 @@ public final class SmitheryJeiTypes {
     public static final RecipeType<SmitheryJeiRecipes.JeiCasting> CASTING =
             RecipeType.create(Smithery.MODID, "casting", SmitheryJeiRecipes.JeiCasting.class);
 
+    /** Recipe type for the basin-casting category. */
+    public static final RecipeType<SmitheryJeiRecipes.JeiBasinCasting> BASIN_CASTING =
+            RecipeType.create(Smithery.MODID, "basin_casting", SmitheryJeiRecipes.JeiBasinCasting.class);
+
     /** Recipe type for the part-press category. */
     public static final RecipeType<SmitheryJeiRecipes.JeiPartPress> PART_PRESS =
             RecipeType.create(Smithery.MODID, "part_press", SmitheryJeiRecipes.JeiPartPress.class);

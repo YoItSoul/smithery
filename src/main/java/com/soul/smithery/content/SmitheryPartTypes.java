@@ -5,6 +5,7 @@ import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.cast.CastResults;
 import com.soul.smithery.api.cast.CastTemplates;
 import com.soul.smithery.api.part.PartType;
+import com.soul.smithery.registry.SmitheryItems;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Items;
 
@@ -289,6 +290,12 @@ public final class SmitheryPartTypes {
         CastResults.register(copper, INGOT.id(),  () -> Items.COPPER_INGOT);
         CastResults.register(iron,   NUGGET.id(), () -> Items.IRON_NUGGET);
         CastResults.register(gold,   NUGGET.id(), () -> Items.GOLD_NUGGET);
+
+        // Molten furnace brick poured into an ingot impression gives back the brick item, so the
+        // forge can produce its own building material one brick at a time. The basin casts the
+        // four-brick block instead; see SmitheryBlockCasts.
+        CastResults.register(id("furnace_brick"), INGOT.id(),
+                () -> SmitheryItems.FURNACE_BRICK.get());
 
         CastTemplates.register(Items.IRON_INGOT,   INGOT.id());
         CastTemplates.register(Items.GOLD_INGOT,   INGOT.id());
