@@ -21,6 +21,7 @@ import com.soul.smithery.network.SmitheryPayloads;
 import com.soul.smithery.registry.SmitheryBlockEntities;
 import com.soul.smithery.registry.SmitheryBlocks;
 import com.soul.smithery.registry.SmitheryEntityTypes;
+import com.soul.smithery.registry.SmitheryMaterialForms;
 import com.soul.smithery.registry.SmitheryFluids;
 import com.soul.smithery.registry.SmitheryItems;
 import com.soul.smithery.registry.SmitheryMenus;
@@ -213,6 +214,9 @@ public class Smithery {
         SmitheryFluids.bootstrap();
 
         SmitheryItems.registerBuiltInParts();
+        // Storage forms for smithery: materials that asked for them. Addons make the same call with
+        // their own registers, after their materials are in the API and before attaching to the bus.
+        SmitheryMaterialForms.registerDeclaredForms(MODID, SmitheryItems.ITEMS, SmitheryBlocks.BLOCKS);
 
         SmitheryMeltingRecipes.registerPartRemeltRecipes();
 

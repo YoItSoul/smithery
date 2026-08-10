@@ -99,6 +99,11 @@ public class SmitheryGeneratedPack implements PackResources {
     /** Data-side path of the dynamic lava fluid tag covering every molten smithery fluid. */
     private static final String LAVA_TAG_PATH = "tags/fluids/lava.json";
 
+    private static final String RECIPES_PREFIX     = "recipes/";
+    private static final String BLOCK_LOOT_PREFIX  = "loot_tables/blocks/";
+    private static final String FROM_INGOTS_SUFFIX = "_block_from_ingots";
+    private static final String FROM_BLOCK_SUFFIX  = "_ingot_from_block";
+
     /**
      * Builds the {@code minecraft:lava} fluid-tag JSON listing every molten-base smithery
      * fluid (source + flowing). Tagging them as lava is what gives molten metal lava's
@@ -128,7 +133,7 @@ public class SmitheryGeneratedPack implements PackResources {
             if ("minecraft".equals(location.getNamespace()) && LAVA_TAG_PATH.equals(location.getPath())) {
                 return SmitheryGeneratedPack::lavaTagJson;
             }
-            return null;
+            return resolveFormData(location.getNamespace(), location.getPath());
         }
         if (type != PackType.CLIENT_RESOURCES) return null;
         String path = location.getPath();
@@ -207,14 +212,15 @@ public class SmitheryGeneratedPack implements PackResources {
     @Override
     public void listResources(PackType type, String namespace, String directory, ResourceOutput output) {
         if (type == PackType.SERVER_DATA) {
+            String dataPrefix = directory.isEmpty() ? ""
+                    : directory.endsWith("/") ? directory : directory + "/";
             if ("minecraft".equals(namespace)) {
-                String dataPrefix = directory.isEmpty() ? ""
-                        : directory.endsWith("/") ? directory : directory + "/";
                 if (LAVA_TAG_PATH.startsWith(dataPrefix)) {
                     output.accept(ResourceLocation.fromNamespaceAndPath("minecraft", LAVA_TAG_PATH),
                             SmitheryGeneratedPack::lavaTagJson);
                 }
             }
+            listFormData(namespace, dataPrefix, output);
             return;
         }
         if (type != PackType.CLIENT_RESOURCES) return;
@@ -415,6 +421,27 @@ public class SmitheryGeneratedPack implements PackResources {
     public void close() {  }
 
     private @Nullable IoSupplier<InputStream> resolveModelJson(String namespace, String itemName) {
+        // Generated storage forms live in the owning mod's namespace, not smithery:, so they are
+        // answered before the namespace guard below. Both share one greyscale template and are
+        // tinted per material by SmitheryMaterialFormColors.
+        SmitheryMaterialForms.Kind formKind = SmitheryMaterialForms.kindOf(namespace, itemName);
+        if (formKind == SmitheryMaterialForms.Kind.INGOT) {
+            return jsonStream(("""
+                    {
+                      "parent": "item/generated",
+                      "textures": {
+                        "layer0": "%s:item/material_ingot"
+                      }
+                    }
+                    """).formatted(Smithery.MODID));
+        }
+        if (formKind == SmitheryMaterialForms.Kind.BLOCK) {
+            return jsonStream(("""
+                    {
+                      "parent": "%s:block/%s"
+                    }
+                    """).formatted(namespace, itemName));
+        }
         if (Smithery.MODID.equals(namespace)) {
             for (ToolType tt : SmitheryAPI.TOOL_TYPES.all()) {
                 if (tt.id().getPath().equals(itemName)) {
@@ -486,6 +513,15 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     private @Nullable IoSupplier<InputStream> resolveBlockstateJson(String namespace, String blockName) {
+        if (SmitheryMaterialForms.kindOf(namespace, blockName) == SmitheryMaterialForms.Kind.BLOCK) {
+            return jsonStream(("""
+                    {
+                      "variants": {
+                        "": { "model": "%s:block/%s" }
+                      }
+                    }
+                    """).formatted(namespace, blockName));
+        }
         if (!Smithery.MODID.equals(namespace)) return null;
         if (blockName.startsWith(MOLTEN_PREFIX)) {
             String matPath = blockName.substring(MOLTEN_PREFIX.length());
@@ -516,6 +552,26 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     private @Nullable IoSupplier<InputStream> resolveBlockModelJson(String namespace, String blockName) {
+        if (SmitheryMaterialForms.kindOf(namespace, blockName) == SmitheryMaterialForms.Kind.BLOCK) {
+            // Faces are declared by hand: minecraft:block/cube_all has no tintindex, so a material
+            // colour would never reach the block.
+            return jsonStream(("""
+                    {
+                      "parent": "block/block",
+                      "textures": { "particle": "%s:block/material_block", "all": "%s:block/material_block" },
+                      "elements": [
+                        { "from": [0, 0, 0], "to": [16, 16, 16], "faces": {
+                          "down":  { "texture": "#all", "tintindex": 0, "cullface": "down"  },
+                          "up":    { "texture": "#all", "tintindex": 0, "cullface": "up"    },
+                          "north": { "texture": "#all", "tintindex": 0, "cullface": "north" },
+                          "south": { "texture": "#all", "tintindex": 0, "cullface": "south" },
+                          "west":  { "texture": "#all", "tintindex": 0, "cullface": "west"  },
+                          "east":  { "texture": "#all", "tintindex": 0, "cullface": "east"  }
+                        } }
+                      ]
+                    }
+                    """).formatted(Smithery.MODID, Smithery.MODID));
+        }
         if (!Smithery.MODID.equals(namespace)) return null;
         if (blockName.startsWith(MOLTEN_PREFIX)) {
             String matPath = blockName.substring(MOLTEN_PREFIX.length());
@@ -1452,5 +1508,101 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static IoSupplier<InputStream> jsonStream(String content) {
         return () -> new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Serves the datapack side of a generated storage form: the 9:1 crafting pair and the block's
+     * loot table.
+     *
+     * <p>Emitted from the same {@link SmitheryMaterialForms} registry that minted the items, so the
+     * recipes cannot describe a form that does not exist. Recipes are discovered by directory
+     * listing rather than direct fetch, which is why {@link #listFormData} exists alongside this.</p>
+     */
+    private @Nullable IoSupplier<InputStream> resolveFormData(String namespace, String path) {
+        if (!path.endsWith(JSON_SUFFIX)) return null;
+
+        if (path.startsWith(RECIPES_PREFIX)) {
+            String name = path.substring(RECIPES_PREFIX.length(), path.length() - JSON_SUFFIX.length());
+            if (name.endsWith(FROM_INGOTS_SUFFIX)) {
+                String base = name.substring(0, name.length() - FROM_INGOTS_SUFFIX.length());
+                if (SmitheryMaterialForms.kindOf(namespace, base + "_block") == SmitheryMaterialForms.Kind.BLOCK) {
+                    return jsonStream(blockFromIngotsRecipe(namespace, base));
+                }
+            }
+            if (name.endsWith(FROM_BLOCK_SUFFIX)) {
+                String base = name.substring(0, name.length() - FROM_BLOCK_SUFFIX.length());
+                if (SmitheryMaterialForms.kindOf(namespace, base + "_ingot") == SmitheryMaterialForms.Kind.INGOT) {
+                    return jsonStream(ingotsFromBlockRecipe(namespace, base));
+                }
+            }
+            return null;
+        }
+
+        if (path.startsWith(BLOCK_LOOT_PREFIX)) {
+            String name = path.substring(BLOCK_LOOT_PREFIX.length(), path.length() - JSON_SUFFIX.length());
+            if (SmitheryMaterialForms.kindOf(namespace, name) == SmitheryMaterialForms.Kind.BLOCK) {
+                return jsonStream(blockSelfDropLoot(namespace, name));
+            }
+        }
+        return null;
+    }
+
+    /** Advertises each form's recipes and loot table, since recipes are found by listing. */
+    private void listFormData(String namespace, String dataPrefix, ResourceOutput output) {
+        for (SmitheryMaterialForms.Forms forms : SmitheryMaterialForms.all().values()) {
+            if (!namespace.equals(forms.ingot().getId().getNamespace())) continue;
+            String base = SmitheryMaterialForms.registryBase(forms.materialId());
+
+            emitData(namespace, RECIPES_PREFIX + base + FROM_INGOTS_SUFFIX + JSON_SUFFIX, dataPrefix,
+                    () -> jsonStream(blockFromIngotsRecipe(namespace, base)), output);
+            emitData(namespace, RECIPES_PREFIX + base + FROM_BLOCK_SUFFIX + JSON_SUFFIX, dataPrefix,
+                    () -> jsonStream(ingotsFromBlockRecipe(namespace, base)), output);
+            emitData(namespace, BLOCK_LOOT_PREFIX + base + "_block" + JSON_SUFFIX, dataPrefix,
+                    () -> jsonStream(blockSelfDropLoot(namespace, base + "_block")), output);
+        }
+    }
+
+    private void emitData(String namespace, String fullPath, String prefix,
+                          java.util.function.Supplier<IoSupplier<InputStream>> supplier,
+                          ResourceOutput output) {
+        if (!fullPath.startsWith(prefix)) return;
+        output.accept(ResourceLocation.fromNamespaceAndPath(namespace, fullPath), supplier.get());
+    }
+
+    private static String blockFromIngotsRecipe(String namespace, String base) {
+        return ("""
+                {
+                  "type": "minecraft:crafting_shaped",
+                  "category": "misc",
+                  "pattern": ["III", "III", "III"],
+                  "key": { "I": { "item": "%s:%s_ingot" } },
+                  "result": { "item": "%s:%s_block" }
+                }
+                """).formatted(namespace, base, namespace, base);
+    }
+
+    private static String ingotsFromBlockRecipe(String namespace, String base) {
+        return ("""
+                {
+                  "type": "minecraft:crafting_shapeless",
+                  "category": "misc",
+                  "ingredients": [ { "item": "%s:%s_block" } ],
+                  "result": { "item": "%s:%s_ingot", "count": 9 }
+                }
+                """).formatted(namespace, base, namespace, base);
+    }
+
+    private static String blockSelfDropLoot(String namespace, String blockName) {
+        return ("""
+                {
+                  "type": "minecraft:block",
+                  "pools": [ {
+                    "rolls": 1,
+                    "bonus_rolls": 0,
+                    "entries": [ { "type": "minecraft:item", "name": "%s:%s" } ],
+                    "conditions": [ { "condition": "minecraft:survives_explosion" } ]
+                  } ]
+                }
+                """).formatted(namespace, blockName);
     }
 }

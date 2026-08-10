@@ -51,6 +51,7 @@ public final class MaterialStats {
     private final boolean emissive;
     private final float binderMultiplier;
     private final boolean castOnly;
+    private final boolean storageForms;
     private final FluidBase fluidBase;
     private final Map<ResourceLocation, Integer> modifierSlots;
     private final Map<ResourceLocation, List<ModifierEffect>> modifiers;
@@ -79,6 +80,7 @@ public final class MaterialStats {
         this.emissive = b.emissive;
         this.binderMultiplier = b.binderMultiplier;
         this.castOnly = b.castOnly;
+        this.storageForms = b.storageForms;
         this.fluidBase = b.fluidBase;
         this.modifierSlots = Collections.unmodifiableMap(new HashMap<>(b.modifierSlots));
         this.modifiers = Collections.unmodifiableMap(new HashMap<>(b.modifiers));
@@ -215,6 +217,14 @@ public final class MaterialStats {
      */
     public boolean castOnly() { return castOnly; }
 
+    /**
+     * If true, Smithery generates a storage ingot and block for this material when the owning mod
+     * calls {@code SmitheryItems.registerDeclaredForms}. Intended for materials no mod supplies an
+     * item for — an alloy that only ever exists as a molten fluid otherwise has nowhere to live and
+     * nothing to melt back into itself.
+     */
+    public boolean storageForms() { return storageForms; }
+
     /** Animated base texture used by this material's fluid. */
     public FluidBase fluidBase() { return fluidBase; }
 
@@ -338,6 +348,7 @@ public final class MaterialStats {
         b.emissive = emissive;
         b.binderMultiplier = binderMultiplier;
         b.castOnly = castOnly;
+        b.storageForms = storageForms;
         b.fluidBase = fluidBase;
         b.armorStats = armorStats;
         b.rangedStats = rangedStats;
@@ -389,6 +400,7 @@ public final class MaterialStats {
         private boolean emissive = false;
         private float binderMultiplier = 1.0f;
         private boolean castOnly = false;
+        private boolean storageForms = false;
         private FluidBase fluidBase = FluidBase.MOLTEN;
         private final Map<ResourceLocation, Integer> modifierSlots = new HashMap<>();
         private final Map<ResourceLocation, List<ModifierEffect>> modifiers = new HashMap<>();
@@ -452,6 +464,18 @@ public final class MaterialStats {
 
         /** Mark this material as fluid-only (no auto-generated PartItems for standard parts). */
         public Builder castOnly(boolean v) { this.castOnly = v; return this; }
+
+        /**
+         * Ask Smithery to generate a storage ingot and block for this material.
+         *
+         * <p>Use it when nothing in the pack supplies an item for the material — most often an alloy
+         * that only exists as a fluid. The forms are tinted with {@link #partColor(int)}, craft 9:1
+         * both ways, and melt back at ingot and block volume.</p>
+         */
+        public Builder storageForms() { return storageForms(true); }
+
+        /** Sets whether Smithery generates a storage ingot and block for this material. */
+        public Builder storageForms(boolean v) { this.storageForms = v; return this; }
 
         /** Choose the animated base texture used by this material's fluid. */
         public Builder fluidBase(FluidBase base) { this.fluidBase = Objects.requireNonNull(base); return this; }
