@@ -3,6 +3,7 @@ package com.soul.smithery.content;
 import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.cast.CastResults;
+import com.soul.smithery.api.cast.CastTags;
 import com.soul.smithery.api.cast.CastTemplates;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.registry.SmitheryItems;
@@ -281,6 +282,11 @@ public final class SmitheryPartTypes {
     }
 
     private static void registerBuiltInCastMappings() {
+        // Any material carrying the conventional Forge tag can be cast into these shapes without a
+        // per-material mapping; the explicit ones below still win where they exist.
+        CastResults.registerTagFallback(INGOT.id(),  CastTags.INGOTS);
+        CastResults.registerTagFallback(NUGGET.id(), CastTags.NUGGETS);
+
         ResourceLocation iron   = id("iron");
         ResourceLocation gold   = id("gold");
         ResourceLocation copper = id("copper");

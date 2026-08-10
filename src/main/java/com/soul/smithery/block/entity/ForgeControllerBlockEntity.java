@@ -77,7 +77,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     private static final float MELT_BASE_RATE_MB_PER_TICK = 1.0f;
     private static final float MELT_TEMP_SCALE             = 2.0f;
 
-    private ValidationResult lastValidation = ValidationResult.invalid("not yet validated");
+    private ValidationResult lastValidation = ValidationResult.invalid(ValidationResult.InvalidReason.NOT_VALIDATED);
 
     private float temperatureC = HEAT_AMBIENT_C;
     private float lastSavedTemperatureC = HEAT_AMBIENT_C;
@@ -86,6 +86,12 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     private float fuelConsumptionAccumulator = 0f;
     private int totalFuelMb = 0;
     private int totalFuelCapacityMb = 0;
+    /**
+     * The fuel actually setting the temperature — the hottest profile across all ports that have
+     * something in them. Recorded rather than derived on demand because it is what the GUI names,
+     * and a forge burning both lava and blaze is heating at blaze's temperature, not lava's.
+     */
+    private @Nullable net.minecraft.world.level.material.Fluid activeFuelFluid;
 
     private boolean alloyEnabled = true;
 
@@ -129,6 +135,8 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     public int totalFuelMb()                    { return totalFuelMb; }
     /** Total combined capacity of all fuel ports, in mB. */
     public int totalFuelCapacityMb()            { return totalFuelCapacityMb; }
+    /** The fuel currently setting the temperature, or null when nothing is burning. */
+    public @Nullable net.minecraft.world.level.material.Fluid activeFuelFluid() { return activeFuelFluid; }
     /** Target temperature for the current fuel mix; ambient when unfueled. */
     public float targetTemperatureC()           { return fueledLastTick ? HEAT_TARGET_LAVA_C : HEAT_AMBIENT_C; }
     /** Block positions of all interior slots in deterministic Y/X/Z order. */
@@ -266,6 +274,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         totalFuelMb = 0;
         totalFuelCapacityMb = 0;
         float fuelTarget = HEAT_AMBIENT_C;
+        activeFuelFluid = null;
         for (ForgeFuelPortBlockEntity p : ports) {
             totalFuelMb += p.fuelMb();
             totalFuelCapacityMb += ForgeFuelPortBlockEntity.CAPACITY_MB;
@@ -274,6 +283,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                     com.soul.smithery.api.forge.ForgeFuels.get(p.fuelFluid());
             if (profile != null && profile.targetTemperatureC() > fuelTarget) {
                 fuelTarget = profile.targetTemperatureC();
+                activeFuelFluid = p.fuelFluid();
             }
         }
         fueledLastTick = totalFuelMb > 0;
@@ -536,7 +546,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
      */
     public ValidationResult validateStructure() {
         if (level == null) {
-            return invalidate("no level");
+            return invalidate(ValidationResult.InvalidReason.NOT_VALIDATED);
         }
 
         Set<BlockPos> shellPool = new HashSet<>();
@@ -552,7 +562,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
         if (shellPool.size() < 2) {
-            return invalidate("controller has no adjacent shell — build walls first");
+            return invalidate(ValidationResult.InvalidReason.NO_SHELL);
         }
 
         int xMin = Integer.MAX_VALUE, xMax = Integer.MIN_VALUE;
@@ -583,7 +593,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
         if (interior.isEmpty()) {
-            return invalidate("no interior air adjacent to controller (shell=" + shellPool.size() + " blocks)");
+            return invalidate(ValidationResult.InvalidReason.NO_INTERIOR, shellPool.size());
         }
 
         // Reduce to the enclosed sub-volume: a cell only counts as interior when every
@@ -609,7 +619,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
         if (interior.isEmpty()) {
-            return invalidate("melting chamber leaks — seal the wall gaps around the controller");
+            return invalidate(ValidationResult.InvalidReason.LEAKS, holePositions.size());
         }
 
         Set<BlockPos> shell = new HashSet<>();
@@ -633,13 +643,13 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             else if (bs.is(SmitheryBlocks.FORGE_DRAIN.get())) drainCount++;
         }
         if (controllerCount != 1) {
-            return invalidate("must have exactly 1 controller (found " + controllerCount + ")");
+            return invalidate(ValidationResult.InvalidReason.MULTIPLE_CONTROLLERS, controllerCount);
         }
         if (fuelPortCount < 1) {
-            return invalidate("missing fuel port");
+            return invalidate(ValidationResult.InvalidReason.NO_FUEL_PORT);
         }
         if (drainCount < 1) {
-            return invalidate("missing drain");
+            return invalidate(ValidationResult.InvalidReason.NO_DRAIN);
         }
 
         List<BlockPos> previousPositions = slotPositions;
@@ -674,8 +684,12 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
      * list syncs to clients so contents stop rendering outside a broken or incomplete
      * structure. Stored fluid stays banked (hidden while invalid, shown again on repair).
      */
-    private ValidationResult invalidate(String reason) {
-        lastValidation = ValidationResult.invalid(reason);
+    private ValidationResult invalidate(ValidationResult.InvalidReason reason) {
+        return invalidate(reason, 0);
+    }
+
+    private ValidationResult invalidate(ValidationResult.InvalidReason reason, int detail) {
+        lastValidation = ValidationResult.invalid(reason, detail);
         if (!slotPositions.isEmpty()) {
             if (level instanceof ServerLevel sl) {
                 for (int i = 0; i < slotPositions.size(); i++) {
@@ -1004,10 +1018,38 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
      * {@link #lastValidation()}.
      */
     public static final class ValidationResult {
+
+        /**
+         * Why the last validation pass failed, in a form that survives the trip to the client.
+         *
+         * <p>An ordinal rather than a sentence because {@code ContainerData} carries ints — the
+         * screen turns it back into a translated line, which also keeps the wording out of Java.
+         */
+        public enum InvalidReason {
+            /** Structure passes; nothing to report. */
+            NONE,
+            /** No validation pass has run yet, or the level was unavailable. */
+            NOT_VALIDATED,
+            /** The controller has no shell blocks against it. */
+            NO_SHELL,
+            /** The shell encloses no air for a melting chamber. {@code detail} = shell block count. */
+            NO_INTERIOR,
+            /** The chamber is breached. {@code detail} = number of gaps. */
+            LEAKS,
+            /** More than one controller in the structure. {@code detail} = how many were found. */
+            MULTIPLE_CONTROLLERS,
+            /** No fuel port in the shell. */
+            NO_FUEL_PORT,
+            /** No drain in the shell. */
+            NO_DRAIN,
+        }
+
         /** True iff the structure currently passes all multiblock checks. */
         public final boolean valid;
-        /** Human-readable reason for the most recent validation failure ({@code ""} on success). */
-        public final String reason;
+        /** Why validation failed; {@link InvalidReason#NONE} on success. */
+        public final InvalidReason reason;
+        /** Count that gives the reason its detail — gaps, controllers, shell size; 0 when unused. */
+        public final int reasonDetail;
         /** Interior air positions that form the inventory / fluid volume. */
         public final Set<BlockPos> interior;
         /** Shell positions enclosing the interior. */
@@ -1017,10 +1059,12 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         /** Positions where the shell is breached; flashed to the player for debugging. */
         public final Set<BlockPos> holePositions;
 
-        private ValidationResult(boolean valid, String reason, Set<BlockPos> interior,
+        private ValidationResult(boolean valid, InvalidReason reason, int reasonDetail,
+                                  Set<BlockPos> interior,
                                   Set<BlockPos> shell, boolean openTop, Set<BlockPos> holePositions) {
             this.valid = valid;
             this.reason = reason;
+            this.reasonDetail = reasonDetail;
             this.interior = interior;
             this.shell = shell;
             this.openTop = openTop;
@@ -1036,11 +1080,17 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
         static ValidationResult valid(Set<BlockPos> interior, Set<BlockPos> shell,
                                       boolean openTop, Set<BlockPos> holePositions) {
-            return new ValidationResult(true, "", interior, shell, openTop, holePositions);
+            return new ValidationResult(true, InvalidReason.NONE, 0,
+                    interior, shell, openTop, holePositions);
         }
 
-        static ValidationResult invalid(String reason) {
-            return new ValidationResult(false, reason, Set.of(), Set.of(), false, Set.of());
+        static ValidationResult invalid(InvalidReason reason) {
+            return invalid(reason, 0);
+        }
+
+        static ValidationResult invalid(InvalidReason reason, int detail) {
+            return new ValidationResult(false, reason, detail,
+                    Set.of(), Set.of(), false, Set.of());
         }
     }
 }

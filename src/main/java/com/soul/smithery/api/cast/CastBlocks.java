@@ -124,15 +124,32 @@ public final class CastBlocks {
     }
 
     /**
-     * Looks up the basin cast for a material, data layer first.
+     * Portion assumed for a block found only through {@code forge:storage_blocks} — nine 144 mB
+     * ingots, the near-universal convention. A material whose block is worth something else says so
+     * by registering explicitly, which always wins.
+     */
+    public static final int TAG_BLOCK_MB = 1296;
+
+    /**
+     * Looks up the basin cast for a material: data layer, then code layer, then the conventional
+     * {@code forge:storage_blocks} tag.
+     *
+     * <p>The tag fallback is what lets a basin cast a metal nobody wrote a line for. Most modded
+     * metals ship the tag, so the alternative is a hand-maintained list that is out of date the
+     * moment a pack adds a mod.
      *
      * @param materialId id of a registered Material; may be null
-     * @return the effective {@link Cast}, or null when this material has no block form
+     * @return the effective {@link Cast}, or null when this material has no block form at all
      */
     public static @Nullable Cast resolve(@Nullable ResourceLocation materialId) {
         if (materialId == null || DATA_REMOVALS.contains(materialId)) return null;
         Cast data = DATA_REGISTRY.get(materialId);
-        return data != null ? data : CODE_REGISTRY.get(materialId);
+        if (data != null) return data;
+        Cast code = CODE_REGISTRY.get(materialId);
+        if (code != null) return code;
+
+        Item tagged = CastTags.resolve(materialId, CastTags.STORAGE_BLOCKS);
+        return tagged == null ? null : new Cast(TAG_BLOCK_MB, () -> tagged);
     }
 
     /**

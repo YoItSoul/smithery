@@ -112,11 +112,27 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     /**
-     * True iff this table can currently accept poured fluid (either IMPRESSED, or
-     * partially FILLING with room remaining).
+     * True iff this table is in a state that can take fluid at all — IMPRESSED, or partially
+     * FILLING with room remaining. Says nothing about <em>which</em> fluid; see
+     * {@link #acceptsPour(Fluid)}.
      */
     public boolean acceptsPour() {
         return state == State.IMPRESSED || (state == State.FILLING && filledMb < requiredMb);
+    }
+
+    /**
+     * True iff this table can accept {@code fluid} right now.
+     *
+     * <p>Beyond having room, the metal has to be something this impression can actually produce.
+     * Molten ancient debris has no ingot form, and stone has no sword blade — pouring either used to
+     * be accepted, cooled, and then thrown away at pickup with the player's metal already spent.
+     * Refusing at the spout instead means a mismatched pour never starts, and the drain simply skips
+     * the table and moves on to the next sink.
+     */
+    public boolean acceptsPour(Fluid fluid) {
+        if (!acceptsPour()) return false;
+        if (state == State.FILLING) return pouredFluid == fluid;
+        return resolveCastResult(fluid) != null;
     }
 
     /**
@@ -181,12 +197,10 @@ public class CastingTableBlockEntity extends BlockEntity {
      */
     public int tryPourFluid(Fluid fluid, int mb) {
         if (fluid == null || fluid == Fluids.EMPTY || mb <= 0) return 0;
-        if (!acceptsPour()) return 0;
+        if (!acceptsPour(fluid)) return 0;
         if (state == State.IMPRESSED) {
             pouredFluid = fluid;
             filledMb = 0;
-        } else if (pouredFluid != fluid) {
-            return 0;
         }
 
         int accepted = Math.min(mb, requiredMb - filledMb);
@@ -253,16 +267,28 @@ public class CastingTableBlockEntity extends BlockEntity {
     }
 
     private ItemStack resolvePartItem() {
-        if (impressedPartTypeId == null || pouredFluid == Fluids.EMPTY) return ItemStack.EMPTY;
-        SmitheryFluids.Entry entry = SmitheryFluids.forFluid(pouredFluid);
-        if (entry == null) return ItemStack.EMPTY;
+        Item result = resolveCastResult(pouredFluid);
+        return result == null ? ItemStack.EMPTY : new ItemStack(result);
+    }
+
+    /**
+     * The item this table's impression would produce from {@code fluid}, or null when that pairing
+     * makes nothing.
+     *
+     * <p>Explicit {@link CastResults} mappings win — that is how a shape-only cast like the ingot
+     * yields a vanilla item — and otherwise the material's own part item for this shape is used. A
+     * cast-only material such as ancient debris has no part items at all, so every shape resolves to
+     * null for it, which is exactly the pour that should never be allowed to start.
+     */
+    private @Nullable Item resolveCastResult(@Nullable Fluid fluid) {
+        if (impressedPartTypeId == null || fluid == null || fluid == Fluids.EMPTY) return null;
+        SmitheryFluids.Entry entry = SmitheryFluids.forFluid(fluid);
+        if (entry == null) return null;
 
         Item explicit = CastResults.resolve(entry.materialId, impressedPartTypeId);
-        if (explicit != null) return new ItemStack(explicit);
+        if (explicit != null) return explicit;
 
-        var partItem = SmitheryItems.findPart(entry.materialId, impressedPartTypeId);
-        if (partItem == null) return ItemStack.EMPTY;
-        return new ItemStack(partItem);
+        return SmitheryItems.findPart(entry.materialId, impressedPartTypeId);
     }
 
     /**
@@ -412,14 +438,12 @@ public class CastingTableBlockEntity extends BlockEntity {
 
         @Override
         public boolean isFluidValid(int tank, @NotNull FluidStack stack) {
-            if (!acceptsPour() || stack.isEmpty()) return false;
-            return pouredFluid == Fluids.EMPTY || stack.getFluid() == pouredFluid;
+            return !stack.isEmpty() && acceptsPour(stack.getFluid());
         }
 
         @Override
         public int fill(FluidStack resource, FluidAction action) {
-            if (!acceptsPour() || resource.isEmpty()) return 0;
-            if (pouredFluid != Fluids.EMPTY && resource.getFluid() != pouredFluid) return 0;
+            if (resource.isEmpty() || !acceptsPour(resource.getFluid())) return 0;
             if (action.simulate()) {
                 return Math.min(resource.getAmount(), Math.max(0, requiredMb - filledMb));
             }

@@ -2,7 +2,9 @@ package com.soul.smithery.registry;
 
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.cast.CastBlocks;
+import com.soul.smithery.api.cast.CastResults;
 import com.soul.smithery.api.material.Material;
+import com.soul.smithery.content.SmitheryPartTypes;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -129,6 +131,12 @@ public final class SmitheryMaterialForms {
             // material with nowhere else to live, so it never displaces a hand-registered cast.
             if (CastBlocks.resolve(materialId) == null) {
                 CastBlocks.register(materialId, BLOCK_MB, blockItem::get);
+            }
+            // Same for the ingot on a Casting Table. The ingot shape is a synthetic cast, so it
+            // resolves only through CastResults — without this the minted ingot would melt down but
+            // could never be cast back, leaving the storable form a one-way trip.
+            if (!CastResults.hasResult(materialId, SmitheryPartTypes.INGOT.id())) {
+                CastResults.register(materialId, SmitheryPartTypes.INGOT.id(), ingot::get);
             }
         } else {
             SmitheryAPI.registerPressInput(ingot.getId(), materialId);

@@ -284,16 +284,18 @@ public final class SmitheryJeiRecipes {
      */
     public static List<JeiBasinCasting> buildBasinCastingRecipes() {
         List<JeiBasinCasting> out = new ArrayList<>();
-        for (var e : CastBlocks.all().entrySet()) {
-            ResourceLocation materialId = e.getKey();
+        // Walks materials rather than CastBlocks' own map so tag-derived casts are listed too —
+        // those never appear in the registry, they are resolved on demand.
+        for (Material material : SmitheryAPI.MATERIALS.all()) {
+            ResourceLocation materialId = material.id();
             if (isHiddenFromJei(materialId)) continue;
-            Material material = SmitheryAPI.MATERIALS.get(materialId);
-            if (material == null) continue;
-            // No fluid means nothing could ever be poured, however the cast is registered.
+            // No fluid means nothing could ever be poured, however the cast resolves.
             if (SmitheryFluids.forMaterial(materialId) == null) continue;
-            Item result = e.getValue().result().get();
+            CastBlocks.Cast cast = CastBlocks.resolve(materialId);
+            if (cast == null) continue;
+            Item result = cast.result().get();
             if (result == null || result == Items.AIR) continue;
-            out.add(new JeiBasinCasting(material, e.getValue().mb(), new ItemStack(result)));
+            out.add(new JeiBasinCasting(material, cast.mb(), new ItemStack(result)));
         }
         return out;
     }

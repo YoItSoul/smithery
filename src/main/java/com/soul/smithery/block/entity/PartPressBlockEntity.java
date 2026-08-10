@@ -1,6 +1,5 @@
 package com.soul.smithery.block.entity;
 
-import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.part.PartType;
 import com.soul.smithery.content.SmitheryMaterials;
@@ -37,7 +36,7 @@ import java.util.List;
 /**
  * Part Press internal state: input/output slots, selected part type, redstone-driven
  * open/closed pose, and the Geckolib animation hookup. Open while unpowered (insert
- * input, extract output, cycle template); on the rising power edge, runs one cut from
+ * input, extract output, pick the shape); on the rising power edge, runs one cut from
  * input to output using the selected part type and the input's resolved material.
  */
 public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity {
@@ -79,24 +78,34 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
      * the live registry list. Null if no selectable part types exist.
      */
     public @Nullable PartType selectedPartType() {
-        List<PartType> all = nonSyntheticPartTypes();
+        List<PartType> all = selectablePartTypes();
         if (all.isEmpty()) return null;
         int idx = Math.floorMod(selectedPartIndex, all.size());
         return all.get(idx);
     }
 
     /**
-     * Advances {@link #selectedPartIndex} to the next selectable part type and syncs
-     * to the client.
+     * Points the press at a specific part type and syncs to the client.
+     *
+     * <p>The index rather than the id is what persists, so this resolves one from the other against
+     * the same list {@link #selectablePartTypes()} shows.
+     *
+     * @param partTypeId id of a selectable part type; anything else is ignored
+     * @return true when the selection changed
      */
-    public void cycleSelectedPart() {
-        List<PartType> all = nonSyntheticPartTypes();
-        if (all.isEmpty()) return;
-        selectedPartIndex = Math.floorMod(selectedPartIndex + 1, all.size());
+    public boolean setSelectedPart(ResourceLocation partTypeId) {
+        List<PartType> all = selectablePartTypes();
+        int index = -1;
+        for (int i = 0; i < all.size(); i++) {
+            if (all.get(i).id().equals(partTypeId)) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0 || index == selectedPartIndex) return false;
+        selectedPartIndex = index;
         markDirtyAndSync();
-        Smithery.LOGGER.info("[PartPress @{}] cycled to index {} ({})",
-                worldPosition, selectedPartIndex,
-                selectedPartType() != null ? selectedPartType().id() : "null");
+        return true;
     }
 
     /**
@@ -226,13 +235,7 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
-        int newIndex = tag.getInt("selectedPartIndex");
-        if (newIndex != selectedPartIndex) {
-            Smithery.LOGGER.info("[PartPress @{}] load: index {} -> {} (side={})",
-                    worldPosition, selectedPartIndex, newIndex,
-                    level != null && level.isClientSide() ? "client" : "server");
-        }
-        selectedPartIndex = newIndex;
+        selectedPartIndex = tag.getInt("selectedPartIndex");
         closed = tag.getBoolean("closed");
         input  = tag.contains("input")  ? ItemStack.of(tag.getCompound("input"))  : ItemStack.EMPTY;
         output = tag.contains("output") ? ItemStack.of(tag.getCompound("output")) : ItemStack.EMPTY;
@@ -341,7 +344,15 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
         }
     }
 
-    private static List<PartType> nonSyntheticPartTypes() {
+    /**
+     * Every shape the press can be set to cut, in registry order.
+     *
+     * <p>Public so the selection screen lists exactly what {@link #setSelectedPart} will accept —
+     * one source of truth rather than a second filter that could drift from this one.
+     *
+     * @return the selectable part types; synthetic casts and bowstrings are excluded
+     */
+    public static List<PartType> selectablePartTypes() {
         return SmitheryAPI.PART_TYPES.all().stream()
                 .filter(pt -> !pt.syntheticCast())
                 .filter(pt -> !"bowstring".equals(pt.id().getPath()))

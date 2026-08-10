@@ -5,6 +5,7 @@ import com.soul.smithery.Smithery;
 import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.material.Material;
 import com.soul.smithery.api.material.MaterialStats;
+import com.soul.smithery.api.forge.ForgeFuels;
 import com.soul.smithery.api.melting.MeltingRecipe;
 import com.soul.smithery.network.ForgeSelectOutputFluidPayload;
 import com.soul.smithery.network.SmitheryPayloads;
@@ -20,9 +21,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.material.Fluid;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -30,26 +35,31 @@ import java.util.Optional;
  *
  * <p>The left panel is a scrollable list of forge item slots (click to take, scroll to scroll).
  * The right panel is a stacked molten-fluid tank, with the currently-selected output fluid
- * highlighted at the bottom and click-to-select on each layer. A status strip beneath the
- * panels shows temperature, validity, and a fuel bar; a small toggle in the top-right pauses
- * or resumes the auto-alloy loop.
+ * highlighted at the bottom and click-to-select on each layer, and a narrow fuel column beside it
+ * sharing the tank's recess so the forge's two liquids read as a pair. Both name themselves on
+ * hover rather than on their face.
+ *
+ * <p>The title bar carries what used to sit in a status strip below the panels: the temperature,
+ * right-aligned so a five-digit reading grows away from the title, and a validity lamp that reports
+ * the structural fault on hover. Dropping the strip gave its height back to the panels, which is
+ * where it was worth spending. A small toggle in the top-right pauses or resumes the auto-alloy loop.
  *
  * <p>Forge item slots live off-screen on the menu side and are rendered here manually.
  */
 public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControllerMenu> {
 
     private static final int IMG_W = 248;
-    private static final int IMG_H = 222;
+    private static final int IMG_H = 232;
 
     private static final int PL_X = 7;
     private static final int PL_Y = 18;
     private static final int PL_W = 116;
-    private static final int PL_H = 105;
+    private static final int PL_H = 122;
 
     private static final int PR_X = 127;
     private static final int PR_Y = 18;
     private static final int PR_W = 114;
-    private static final int PR_H = 105;
+    private static final int PR_H = 122;
 
     private static final int PLC_X = PL_X + 2;
     private static final int PLC_Y = PL_Y + 2;
@@ -67,11 +77,32 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     private static final int FLUID_HEADER_H = 20;
 
     private static final int TANK_W       = 40;
-    private static final int TANK_X       = PRC_X + (PRC_W - TANK_W) / 2;
+    /** Fuel column width; narrow because its detail lives on hover, not on the face of it. */
+    private static final int FUEL_COL_W   = 10;
+    private static final int FUEL_GAP     = 8;
+    /**
+     * The fuel column and the molten tank are centred together rather than separately, so the pair
+     * reads as one instrument: the two liquids this forge holds, side by side.
+     */
+    private static final int TANK_GROUP_W = FUEL_COL_W + FUEL_GAP + TANK_W;
+    private static final int TANK_GROUP_X = PRC_X + (PRC_W - TANK_GROUP_W) / 2;
+    private static final int FUEL_COL_X   = TANK_GROUP_X;
+    private static final int TANK_X       = TANK_GROUP_X + FUEL_COL_W + FUEL_GAP;
     private static final int TANK_Y       = PRC_Y + FLUID_HEADER_H + 2;
     private static final int TANK_BOTTOM  = PR_Y + PR_H - 4;
     private static final int TANK_H       = TANK_BOTTOM - TANK_Y;
     private static final int COL_TANK_EMPTY = 0xFF1A1A1A;
+
+    /** Validity lamp, centred over the two panels in the title bar. */
+    private static final int LAMP_R  = 5;
+    private static final int LAMP_CX = (PL_X + PR_X + PR_W) / 2;
+    private static final int LAMP_CY = 11;
+    private static final int COL_LAMP_ON      = 0xFF39D74E;
+    private static final int COL_LAMP_OFF     = 0xFFD93A32;
+    private static final int COL_LAMP_ON_DIM  = 0xFF1F7A2A;
+    private static final int COL_LAMP_OFF_DIM = 0xFF7A1F1A;
+    private static final int COL_LAMP_BEZEL   = 0xFF4A4A4A;
+    private static final int COL_LAMP_GLINT   = 0xAAFFFFFF;
 
     private static final ResourceLocation MOLTEN_FLOW_TEXTURE =
             ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "textures/gui/molten_flow.png");
@@ -120,7 +151,7 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         this.titleLabelX     = PL_X + 2;
         this.titleLabelY     = 6;
         this.inventoryLabelX = 44;
-        this.inventoryLabelY = 134;
+        this.inventoryLabelY = 144;
     }
 
     @Override
@@ -142,8 +173,9 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         drawPlayerInvSlots(g, x, y);
 
         renderForgeSlots(g, x, y, mouseX, mouseY);
+        renderFuelColumn(g, x, y);
         renderFluidTank(g, x, y);
-        renderStatusStrip(g, x, y);
+        renderTitleBar(g, x, y);
         renderAlloyToggleButton(g, x, y);
     }
 
@@ -177,6 +209,8 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         }
 
         renderFluidTankTooltip(g, mouseX, mouseY);
+        renderFuelTooltip(g, mouseX, mouseY);
+        renderLampTooltip(g, mouseX, mouseY);
     }
 
     private static final class MeltState {
@@ -290,7 +324,7 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     }
 
     private void drawPlayerInvSlots(GuiGraphics g, int sx, int sy) {
-        g.blit(INVENTORY_LOCATION, sx + 43, sy + 142, 7, 83, 162, 76);
+        g.blit(INVENTORY_LOCATION, sx + 43, sy + 152, 7, 83, 162, 76);
     }
 
     private void renderForgeSlots(GuiGraphics g, int sx, int sy, int mouseX, int mouseY) {
@@ -513,29 +547,127 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
     }
 
-    private void renderStatusStrip(GuiGraphics g, int sx, int sy) {
-        int stripY = sy + PL_Y + PL_H + 4;
-
+    /**
+     * Title-bar readouts: the temperature, right-aligned so a five-digit reading grows away from
+     * the title instead of into it, and the validity lamp centred over the two panels.
+     */
+    private void renderTitleBar(GuiGraphics g, int sx, int sy) {
         float temp = menu.getTemperatureC();
+        Component tempText = Component.translatable(
+                "gui." + Smithery.MODID + ".forge.temperature", Math.round(temp));
         int tempColor = menu.isForgeValid() && temp > 100f ? COL_TEMP_HOT : COL_TEXT;
-        g.drawString(font, String.format("%.0f°C", temp), sx + PL_X + 2, stripY, tempColor, false);
+        g.drawString(font, tempText,
+                sx + ALLOY_BTN_X - 6 - font.width(tempText), sy + 6, tempColor, false);
 
-        String status = menu.isForgeValid() ? "valid" : "invalid";
-        int statusColor = menu.isForgeValid() ? 0xFF00AA00 : 0xFFAA0000;
-        g.drawString(font, status, sx + PL_X + 48, stripY, statusColor, false);
+        boolean ok = menu.isForgeValid();
+        int cx = sx + LAMP_CX, cy = sy + LAMP_CY;
+        g.fill(cx - LAMP_R, cy - LAMP_R, cx + LAMP_R, cy + LAMP_R, COL_LAMP_BEZEL);
+        g.fill(cx - 4, cy - 4, cx + 4, cy + 4, ok ? COL_LAMP_ON_DIM : COL_LAMP_OFF_DIM);
+        g.fill(cx - 3, cy - 3, cx + 3, cy + 3, ok ? COL_LAMP_ON : COL_LAMP_OFF);
+        // One lit pixel in the corner is what separates a lamp from a coloured square.
+        g.fill(cx - 3, cy - 3, cx - 1, cy - 1, COL_LAMP_GLINT);
+    }
 
-        int fuelMb  = menu.getFuelMb();
-        int fuelCap = menu.getFuelCapacityMb();
-        if (fuelCap > 0) {
-            int bw = 56, bh = 6;
-            int bx = sx + PR_X + PR_W - bw - 2;
-            int by = stripY + 1;
-            g.fill(bx, by, bx + bw, by + bh, COL_BAR_BG);
-            int fw = Math.max(0, (int)((float) fuelMb / fuelCap * bw));
-            g.fill(bx, by, bx + fw, by + bh, COL_FUEL);
-            String fuelStr = fuelMb + " mB";
-            g.drawString(font, fuelStr, bx - font.width(fuelStr) - 3, stripY, COL_GRAY, false);
+    /**
+     * Fuel level as a column beside the molten tank, sharing the tank's recessed treatment so the
+     * two liquids read as a pair. Everything else about the fuel — what it is, how much, how hot it
+     * burns — is on hover, the same bargain the tank already makes.
+     */
+    private void renderFuelColumn(GuiGraphics g, int sx, int sy) {
+        int x = sx + FUEL_COL_X, y = sy + TANK_Y;
+        g.fill(x, y, x + FUEL_COL_W, y + TANK_H, COL_BORDER);
+        g.fill(x + 1, y + 1, x + FUEL_COL_W - 1, y + TANK_H - 1, COL_TANK_EMPTY);
+
+        int cap = menu.getFuelCapacityMb();
+        if (cap <= 0) return;
+        int inner = TANK_H - 2;
+        int filled = Math.max(0, Math.min(inner, (int) ((long) menu.getFuelMb() * inner / cap)));
+        if (filled <= 0) return;
+        int top = y + 1 + inner - filled;
+        int color = fuelColor();
+        g.fill(x + 1, top, x + FUEL_COL_W - 1, y + TANK_H - 1, color);
+        g.fill(x + 1, top, x + FUEL_COL_W - 1, top + 1, brighten(color));
+    }
+
+    /**
+     * Colour for the burning fuel: its own molten colour when Smithery owns the fluid, otherwise
+     * the generic fuel orange, which is where vanilla lava lands.
+     */
+    private int fuelColor() {
+        Fluid fuel = menu.getFuelFluid();
+        if (fuel != null) {
+            SmitheryFluids.Entry entry = SmitheryFluids.forFluid(fuel);
+            if (entry != null) return entry.material.stats().moltenColor() | 0xFF000000;
         }
+        return COL_FUEL;
+    }
+
+    /**
+     * Display name for a fuel fluid.
+     *
+     * <p>Smithery's own molten fluids name themselves through their FluidType. Everything else is
+     * named from its block instead, because Forge ships a translation for exactly one vanilla fluid
+     * type ({@code milk}) — asking lava for its FluidType description yields the raw key.
+     */
+    private static Component fuelName(Fluid fuel) {
+        SmitheryFluids.Entry entry = SmitheryFluids.forFluid(fuel);
+        if (entry != null) return SmitheryFluids.moltenName(entry.materialId);
+        Block block = fuel.defaultFluidState().createLegacyBlock().getBlock();
+        if (block != Blocks.AIR) return block.getName();
+        return fuel.getFluidType().getDescription();
+    }
+
+    /** Hover text for the fuel column: what is burning, how much of it, and how hot it gets. */
+    private void renderFuelTooltip(GuiGraphics g, int mouseX, int mouseY) {
+        int x = leftPos + FUEL_COL_X, y = topPos + TANK_Y;
+        if (mouseX < x || mouseX >= x + FUEL_COL_W || mouseY < y || mouseY >= y + TANK_H) return;
+
+        String base = "gui." + Smithery.MODID + ".forge.";
+        List<Component> lines = new ArrayList<>();
+        Fluid fuel = menu.getFuelFluid();
+        int cap = menu.getFuelCapacityMb();
+        if (fuel == null || menu.getFuelMb() <= 0) {
+            lines.add(Component.translatable(base + "fuel_empty").withStyle(ChatFormatting.GRAY));
+        } else {
+            lines.add(fuelName(fuel).copy().withStyle(ChatFormatting.WHITE));
+            int pct = cap > 0 ? (int) ((long) menu.getFuelMb() * 100 / cap) : 0;
+            lines.add(Component.translatable(base + "fuel_amount", menu.getFuelMb(), cap, pct)
+                    .withStyle(ChatFormatting.GOLD));
+            ForgeFuels.Profile profile = ForgeFuels.get(fuel);
+            if (profile != null) {
+                lines.add(Component.translatable(base + "fuel_burns_at",
+                                Math.round(profile.targetTemperatureC()))
+                        .withStyle(ChatFormatting.GRAY));
+            }
+        }
+        g.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
+    }
+
+    /**
+     * Hover text for the validity lamp. On a whole forge it reports the chamber it built; on a
+     * broken one it names the fault and what to do about it — which until now existed only as a
+     * server-side string no player could ever see.
+     */
+    private void renderLampTooltip(GuiGraphics g, int mouseX, int mouseY) {
+        int cx = leftPos + LAMP_CX, cy = topPos + LAMP_CY;
+        if (mouseX < cx - LAMP_R || mouseX >= cx + LAMP_R
+                || mouseY < cy - LAMP_R || mouseY >= cy + LAMP_R) {
+            return;
+        }
+        String base = "gui." + Smithery.MODID + ".forge.";
+        List<Component> lines = new ArrayList<>();
+        if (menu.isForgeValid()) {
+            lines.add(Component.translatable(base + "ready").withStyle(ChatFormatting.GREEN));
+            lines.add(Component.translatable(base + "ready_detail", menu.getFluidCapacityMb())
+                    .withStyle(ChatFormatting.GRAY));
+        } else {
+            lines.add(Component.translatable(base + "incomplete").withStyle(ChatFormatting.RED));
+            String key = base + "invalid." + menu.getInvalidReason().name().toLowerCase(Locale.ROOT);
+            lines.add(Component.translatable(key, menu.getReasonDetail())
+                    .withStyle(ChatFormatting.WHITE));
+            lines.add(Component.translatable(key + ".hint").withStyle(ChatFormatting.GRAY));
+        }
+        g.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
     }
 
     @Override

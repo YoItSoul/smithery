@@ -62,8 +62,20 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     public static final int DATA_FLUID_CAP       = 9;
     /** Wide container data index: total stored fluid across all materials in mB. */
     public static final int DATA_FLUID_TOTAL     = 11;
+    /**
+     * Container data index: registry id of the fuel currently setting the temperature, or -1.
+     *
+     * <p>A registry id rather than an index into {@code ForgeFuels} because fluid ids are
+     * synchronised to the client at login, whereas the fuel registry's iteration order is only as
+     * stable as the order addons happen to register in.
+     */
+    public static final int DATA_FUEL_FLUID      = 13;
+    /** Container data index: ordinal of {@link ValidationResult.InvalidReason}. */
+    public static final int DATA_REASON          = 14;
+    /** Container data index: the count that gives the invalid reason its detail. */
+    public static final int DATA_REASON_DETAIL   = 15;
     /** Container data index where the wide per-material fluid amounts begin. */
-    public static final int DATA_FLUID_BASE      = 13;
+    public static final int DATA_FLUID_BASE      = 16;
 
     private static final int OFFSCREEN = -9999;
     private static final int FORGE_SLOT_MAX_STACK = 1;
@@ -133,11 +145,11 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
 
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInv, col + row * 9 + 9, 44 + col * 18, 143 + row * 18));
+                addSlot(new Slot(playerInv, col + row * 9 + 9, 44 + col * 18, 153 + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInv, col, 44 + col * 18, 201));
+            addSlot(new Slot(playerInv, col, 44 + col * 18, 211));
         }
 
         addDataSlots(new ContainerData() {
@@ -160,6 +172,11 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
             syncData[DATA_HOLES] = blockEntity.lastValidation().holes();
             syncData[DATA_OUTPUT_FLUID_IX] = computeOutputFluidIndex(blockEntity);
             syncData[DATA_ALLOY_ENABLED]   = blockEntity.isAlloyEnabled() ? 1 : 0;
+            syncData[DATA_REASON]          = blockEntity.lastValidation().reason.ordinal();
+            syncData[DATA_REASON_DETAIL]   = blockEntity.lastValidation().reasonDetail;
+            net.minecraft.world.level.material.Fluid fuel = blockEntity.activeFuelFluid();
+            syncData[DATA_FUEL_FLUID] = fuel == null
+                    ? -1 : net.minecraft.core.registries.BuiltInRegistries.FLUID.getId(fuel);
             setWide(DATA_FUEL,        blockEntity.totalFuelMb());
             setWide(DATA_FUEL_CAP,    blockEntity.totalFuelCapacityMb());
             setWide(DATA_FLUID_CAP,   blockEntity.fluidCapacityMb());
@@ -230,6 +247,34 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
      * @return number of holes
      */
     public int getHoles()               { return syncData[DATA_HOLES]; }
+
+    /**
+     * Why the structure last failed validation.
+     *
+     * @return the synced reason, or {@code NONE} when the forge is whole
+     */
+    public ForgeControllerBlockEntity.ValidationResult.InvalidReason getInvalidReason() {
+        var values = ForgeControllerBlockEntity.ValidationResult.InvalidReason.values();
+        int ord = syncData[DATA_REASON];
+        return (ord >= 0 && ord < values.length)
+                ? values[ord]
+                : ForgeControllerBlockEntity.ValidationResult.InvalidReason.NONE;
+    }
+
+    /** The count that gives {@link #getInvalidReason()} its detail — gaps, controllers, shell size. */
+    public int getReasonDetail()        { return syncData[DATA_REASON_DETAIL]; }
+
+    /**
+     * The fuel currently setting the temperature.
+     *
+     * @return the fuel fluid, or null when nothing is burning
+     */
+    public @Nullable net.minecraft.world.level.material.Fluid getFuelFluid() {
+        int id = syncData[DATA_FUEL_FLUID];
+        if (id < 0) return null;
+        var fluid = net.minecraft.core.registries.BuiltInRegistries.FLUID.byId(id);
+        return fluid == net.minecraft.world.level.material.Fluids.EMPTY ? null : fluid;
+    }
 
     /**
      * Returns the synced combined fluid capacity.

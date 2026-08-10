@@ -1,7 +1,9 @@
 package com.soul.smithery.network;
 
 import com.soul.smithery.Smithery;
+import com.soul.smithery.block.PartPressBlock;
 import com.soul.smithery.block.entity.ForgeControllerBlockEntity;
+import com.soul.smithery.block.entity.PartPressBlockEntity;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
@@ -52,6 +54,12 @@ public final class SmitheryPayloads {
                 .consumerMainThread(SmitheryPayloads::onSelectOutputFluidServer)
                 .add();
 
+        CHANNEL.messageBuilder(PartPressSelectPartPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(PartPressSelectPartPayload::encode)
+                .decoder(PartPressSelectPartPayload::decode)
+                .consumerMainThread(SmitheryPayloads::onSelectPressPartServer)
+                .add();
+
         CHANNEL.messageBuilder(SmitheryDataSyncPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SmitheryDataSyncPayload::encode)
                 .decoder(SmitheryDataSyncPayload::decode)
@@ -74,6 +82,26 @@ public final class SmitheryPayloads {
         // on a dedicated server.
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                 () -> () -> ClientPayloadHandler.handleLeakDebug(payload));
+        ctx.get().setPacketHandled(true);
+    }
+
+    private static void onSelectPressPartServer(PartPressSelectPartPayload payload,
+                                                Supplier<NetworkEvent.Context> ctx) {
+        ServerPlayer player = ctx.get().getSender();
+        if (player != null) {
+            var level = player.serverLevel();
+            // Distance-check before the block-entity lookup: getBlockEntity can force-load
+            // chunks, so an arbitrary far-away position must be rejected first.
+            double dx = payload.pressPos().getX() + 0.5 - player.getX();
+            double dy = payload.pressPos().getY() + 0.5 - player.getY();
+            double dz = payload.pressPos().getZ() + 0.5 - player.getZ();
+            if (dx * dx + dy * dy + dz * dz <= 64.0
+                    && level.getBlockEntity(payload.pressPos()) instanceof PartPressBlockEntity press
+                    // A press mid-cut keeps the shape it started with.
+                    && !level.getBlockState(payload.pressPos()).getValue(PartPressBlock.POWERED)) {
+                press.setSelectedPart(payload.partTypeId());
+            }
+        }
         ctx.get().setPacketHandled(true);
     }
 

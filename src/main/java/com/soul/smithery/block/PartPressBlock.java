@@ -1,10 +1,8 @@
 package com.soul.smithery.block;
 
 import com.soul.smithery.block.entity.PartPressBlockEntity;
+import com.soul.smithery.client.PartPressScreenOpener;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -19,12 +17,14 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * In-world part cutting workbench. Redstone-driven: powered means closed (cutting),
  * unpowered means open (player or hopper can swap input/output). Right-click with an
- * empty hand cycles the selected part type; right-click with a held item inserts it
+ * empty hand opens the shape picker; right-click with a held item inserts it
  * as the press's input while open. All slot semantics and the cut state machine live
  * on {@link PartPressBlockEntity}.
  */
@@ -59,12 +59,20 @@ public class PartPressBlock extends Block implements EntityBlock {
     public InteractionResult use(BlockState state, Level level, BlockPos pos,
                                  Player player, InteractionHand hand, BlockHitResult hit) {
         ItemStack stack = player.getItemInHand(hand);
-        if (level.isClientSide()) return InteractionResult.SUCCESS;
-        if (!(level.getBlockEntity(pos) instanceof PartPressBlockEntity pp)) return InteractionResult.PASS;
+
+        // Shape selection opens a picker rather than cycling blind through a dozen part types.
+        // Handled before the client bail-out because the screen is client-only: the server has
+        // nothing to do here and hears back only if the player actually picks something.
         if (player.isShiftKeyDown()) {
             if (state.getValue(POWERED)) return InteractionResult.PASS;
-            return cycleAndAnnounce(pp, player);
+            if (level.isClientSide()) {
+                DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> PartPressScreenOpener.open(pos));
+            }
+            return InteractionResult.SUCCESS;
         }
+
+        if (level.isClientSide()) return InteractionResult.SUCCESS;
+        if (!(level.getBlockEntity(pos) instanceof PartPressBlockEntity pp)) return InteractionResult.PASS;
 
         // Held pressable material: swap it into the input slot while open.
         if (!stack.isEmpty() && !state.getValue(POWERED)
@@ -101,16 +109,6 @@ public class PartPressBlock extends Block implements EntityBlock {
         return InteractionResult.PASS;
     }
 
-    private static InteractionResult cycleAndAnnounce(PartPressBlockEntity pp, Player player) {
-        pp.cycleSelectedPart();
-        var pt = pp.selectedPartType();
-        if (pt != null && player instanceof ServerPlayer sp) {
-            Component label = Component.translatable(
-                    "smithery.part." + pt.id().getNamespace() + "." + pt.id().getPath());
-            sp.connection.send(new ClientboundSetActionBarTextPacket(label));
-        }
-        return InteractionResult.SUCCESS;
-    }
 
     @Override
     public void neighborChanged(BlockState state, Level level, BlockPos pos, Block neighborBlock,

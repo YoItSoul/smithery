@@ -1,5 +1,6 @@
 package com.soul.smithery.block;
 
+import com.soul.smithery.Smithery;
 import com.soul.smithery.api.cast.CastTemplates;
 import com.soul.smithery.block.entity.CastingTableBlockEntity;
 import com.soul.smithery.item.PartItem;
@@ -106,8 +107,12 @@ public class CastingTableBlock extends Block implements EntityBlock {
             if (level.isClientSide()) return InteractionResult.SUCCESS;
             ItemStack result = be.tryRetrievePart();
             if (result.isEmpty()) {
-                player.sendSystemMessage(Component.literal("Cast discarded — no matching part for the poured material")
-                        .withStyle(ChatFormatting.YELLOW));
+                // The table refuses metal it cannot cast at the spout now, so reaching this means
+                // the pairing stopped resolving between the pour and the pickup — a mod or data
+                // pack withdrew the mapping mid-cast. Rare, but the cast still has to go somewhere.
+                player.sendSystemMessage(
+                        Component.translatable("message." + Smithery.MODID + ".cast_discarded")
+                                .withStyle(ChatFormatting.YELLOW));
             } else {
                 if (!player.getInventory().add(result)) player.drop(result, false);
                 level.playSound(null, pos, SoundEvents.ITEM_PICKUP, SoundSource.BLOCKS, 0.6f, 1.2f);
