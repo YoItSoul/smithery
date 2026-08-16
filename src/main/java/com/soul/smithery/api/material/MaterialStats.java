@@ -52,6 +52,7 @@ public final class MaterialStats {
     private final float binderMultiplier;
     private final boolean castOnly;
     private final boolean storageForms;
+    private final ResourceLocation boundFluid;
     private final FluidBase fluidBase;
     private final Map<ResourceLocation, Integer> modifierSlots;
     private final Map<ResourceLocation, List<ModifierEffect>> modifiers;
@@ -81,6 +82,7 @@ public final class MaterialStats {
         this.binderMultiplier = b.binderMultiplier;
         this.castOnly = b.castOnly;
         this.storageForms = b.storageForms;
+        this.boundFluid = b.boundFluid;
         this.fluidBase = b.fluidBase;
         this.modifierSlots = Collections.unmodifiableMap(new HashMap<>(b.modifierSlots));
         this.modifiers = Collections.unmodifiableMap(new HashMap<>(b.modifiers));
@@ -225,6 +227,12 @@ public final class MaterialStats {
      */
     public boolean storageForms() { return storageForms; }
 
+    /**
+     * Id of an already-registered fluid this material pours as, or null when Smithery should mint
+     * it a molten fluid of its own. See {@link Builder#boundFluid(ResourceLocation)}.
+     */
+    public ResourceLocation boundFluid() { return boundFluid; }
+
     /** Animated base texture used by this material's fluid. */
     public FluidBase fluidBase() { return fluidBase; }
 
@@ -349,6 +357,7 @@ public final class MaterialStats {
         b.binderMultiplier = binderMultiplier;
         b.castOnly = castOnly;
         b.storageForms = storageForms;
+        b.boundFluid = boundFluid;
         b.fluidBase = fluidBase;
         b.armorStats = armorStats;
         b.rangedStats = rangedStats;
@@ -401,6 +410,7 @@ public final class MaterialStats {
         private float binderMultiplier = 1.0f;
         private boolean castOnly = false;
         private boolean storageForms = false;
+        private ResourceLocation boundFluid = null;
         private FluidBase fluidBase = FluidBase.MOLTEN;
         private final Map<ResourceLocation, Integer> modifierSlots = new HashMap<>();
         private final Map<ResourceLocation, List<ModifierEffect>> modifiers = new HashMap<>();
@@ -464,6 +474,26 @@ public final class MaterialStats {
 
         /** Mark this material as fluid-only (no auto-generated PartItems for standard parts). */
         public Builder castOnly(boolean v) { this.castOnly = v; return this; }
+
+        /**
+         * Pour this material as an existing fluid instead of minting it a molten one.
+         *
+         * <p>For materials whose fluid the game already has. Melting, alloying and the forge tank
+         * stay material-keyed exactly as before — only the fluid the forge hands out changes, so
+         * what the forge drains is the real thing and works wherever that fluid works. Molten lava
+         * is the motivating case: bound to {@code minecraft:lava} it pours back into a fuel port,
+         * which a separate Smithery-minted lava never could.
+         *
+         * <p>The flowing variant, block and bucket are read off the bound fluid, so it must be a
+         * {@link net.minecraft.world.level.material.FlowingFluid} with a bucket — a source fluid,
+         * not a flowing one. Smithery mints no fluid, block or bucket for the material, and the
+         * bound fluid's own texture and behaviour apply, so {@code moltenColor}, {@code fluidBase}
+         * and the colour-cycle sprites are all ignored. A melting temperature is still required:
+         * it gates when the forge will melt into this material.
+         *
+         * @param fluidId registry id of the source fluid to pour, or null to mint one as usual
+         */
+        public Builder boundFluid(ResourceLocation fluidId) { this.boundFluid = fluidId; return this; }
 
         /**
          * Ask Smithery to generate a storage ingot and block for this material.

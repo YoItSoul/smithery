@@ -92,6 +92,13 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     private static final int TANK_BOTTOM  = PR_Y + PR_H - 4;
     private static final int TANK_H       = TANK_BOTTOM - TANK_Y;
     private static final int COL_TANK_EMPTY = 0xFF1A1A1A;
+    /**
+     * Floor height for a molten layer. The bands are the click targets as well as the picture, so
+     * a trace amount rendered at its true scale would be a sliver nobody can aim at — and a forge
+     * holding several traces at once turns into a run of slivers. Four pixels stays hittable at
+     * every GUI scale while costing the layers above it almost nothing.
+     */
+    private static final int MIN_LAYER_PX = 4;
 
     /** Validity lamp, centred over the two panels in the title bar. */
     private static final int LAMP_R  = 5;
@@ -451,7 +458,8 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
                 || mouseY < innerY || mouseY >= innerY + innerH) {
             return;
         }
-        for (FluidLayer layer : computeFluidLayers(innerY, innerH, capacity)) {
+        List<FluidLayer> layers = computeFluidLayers(innerY, innerH, capacity);
+        for (FluidLayer layer : layers) {
             if (mouseY >= layer.topY && mouseY < layer.bottomY) {
                 String matName = layer.material.id().getPath();
                 if (!matName.isEmpty()) {
@@ -466,6 +474,10 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
                                 ? "Active drain output — click to clear"
                                 : "Click to set as drain output")
                         .withStyle(layer.selected ? ChatFormatting.YELLOW : ChatFormatting.GRAY));
+                if (layers.size() > 1) {
+                    lines.add(Component.literal("Scroll to step through layers")
+                            .withStyle(ChatFormatting.DARK_GRAY));
+                }
                 g.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
                 return;
             }
@@ -477,26 +489,96 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
 
     private List<FluidLayer> computeFluidLayers(int innerY, int innerH, int capacity) {
         List<FluidLayer> out = new ArrayList<>();
-        if (capacity <= 0) return out;
-        int bottomY = innerY + innerH;
-        int cumPx = 0;
+        if (capacity <= 0 || innerH <= 0) return out;
         List<Material> materials = menu.getMaterials();
         int selectedIdx = menu.getOutputFluidMaterialIndex();
 
-        int[] order = buildLayerOrder(materials.size(), selectedIdx);
+        // Nothing under a pixel apiece can be drawn at all, so the arrays cap there; the ordering
+        // puts the selected material first, which means it survives the cap as well as the stack.
+        int[] order    = buildLayerOrder(materials.size(), selectedIdx);
+        int[] matIdx   = new int[Math.min(order.length, innerH)];
+        int[] storedMb = new int[matIdx.length];
+        int count = 0;
+        long totalStored = 0;
         for (int idx : order) {
+            if (count == matIdx.length) break;
             int stored = menu.getStoredMbForMaterial(idx);
             if (stored <= 0) continue;
-            int layerPx = Math.max(1, (int)((long) stored * innerH / capacity));
-            if (cumPx + layerPx > innerH) layerPx = innerH - cumPx;
-            if (layerPx <= 0) break;
+            matIdx[count]   = idx;
+            storedMb[count] = stored;
+            count++;
+            totalStored += stored;
+        }
+        if (count == 0) return out;
+
+        int[] heights = allocateLayerHeights(storedMb, count, totalStored, innerH, capacity);
+        int bottomY = innerY + innerH;
+        int cumPx = 0;
+        for (int i = 0; i < count; i++) {
             int layerBottom = bottomY - cumPx;
-            int layerTop    = layerBottom - layerPx;
-            out.add(new FluidLayer(materials.get(idx), idx, stored, layerTop, layerBottom,
-                    idx == selectedIdx));
-            cumPx += layerPx;
+            int layerTop    = layerBottom - heights[i];
+            out.add(new FluidLayer(materials.get(matIdx[i]), matIdx[i], storedMb[i],
+                    layerTop, layerBottom, matIdx[i] == selectedIdx));
+            cumPx += heights[i];
         }
         return out;
+    }
+
+    /**
+     * Splits the tank's inner height between the stacked layers.
+     *
+     * <p>Heights follow each layer's share of tank capacity, so the top of the stack still reads as
+     * the fill level, except that every layer is guaranteed {@link #MIN_LAYER_PX}. The pixels those
+     * floors borrow are taken back from the tallest layers, which can spare one apiece without the
+     * stack visibly shifting. Should the tank hold more materials than it has room to floor, the
+     * floor shrinks to an even split rather than letting the last layers fall out of the picture.
+     *
+     * @param storedMb    per-layer contents, in draw order, indices {@code [0, count)}
+     * @param count       number of layers to lay out
+     * @param totalStored sum of {@code storedMb} over those layers; must be positive
+     * @param innerH      height available inside the tank border
+     * @param capacity    tank capacity, against which the fill level is measured
+     * @return per-layer heights in pixels, summing to at most {@code innerH}
+     */
+    private static int[] allocateLayerHeights(int[] storedMb, int count, long totalStored,
+                                              int innerH, int capacity) {
+        int floor  = Math.max(1, Math.min(MIN_LAYER_PX, innerH / count));
+        int fillPx = (int)(totalStored * innerH / capacity);
+        int budget = Math.max(count * floor, Math.min(innerH, fillPx));
+
+        int[] px = new int[count];
+        int used = 0;
+        for (int i = 0; i < count; i++) {
+            px[i] = Math.max(floor, (int)((long) storedMb[i] * budget / totalStored));
+            used += px[i];
+        }
+        // Reconcile against the budget a pixel at a time: the floors push the stack over it and
+        // integer division leaves it short. Either correction lands on the tallest layer, whose
+        // proportion suffers least from one pixel.
+        while (used > budget) {
+            int victim = tallestLayerAbove(px, count, floor);
+            if (victim < 0) break;
+            px[victim]--;
+            used--;
+        }
+        while (used < budget) {
+            px[tallestLayerAbove(px, count, -1)]++;
+            used++;
+        }
+        return px;
+    }
+
+    /**
+     * Finds the tallest layer with height strictly greater than {@code floor}.
+     *
+     * @return that layer's index, or {@code -1} if every layer is already at the floor
+     */
+    private static int tallestLayerAbove(int[] px, int count, int floor) {
+        int best = -1;
+        for (int i = 0; i < count; i++) {
+            if (px[i] > floor && (best < 0 || px[i] > px[best])) best = i;
+        }
+        return best;
     }
 
     private static int[] buildLayerOrder(int total, int selectedIdx) {
@@ -605,7 +687,7 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         Fluid fuel = menu.getFuelFluid();
         if (fuel != null) {
             SmitheryFluids.Entry entry = SmitheryFluids.forFluid(fuel);
-            if (entry != null) return entry.material.stats().moltenColor() | 0xFF000000;
+            if (entry != null && !entry.bound) return entry.material.stats().moltenColor() | 0xFF000000;
         }
         return COL_FUEL;
     }
@@ -615,11 +697,13 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
      *
      * <p>Smithery's own molten fluids name themselves through their FluidType. Everything else is
      * named from its block instead, because Forge ships a translation for exactly one vanilla fluid
-     * type ({@code milk}) — asking lava for its FluidType description yields the raw key.
+     * type ({@code milk}) — asking lava for its FluidType description yields the raw key. A fluid a
+     * material is merely bound to counts as everything else: lava melted from magma is still lava,
+     * and should read as the name the rest of the game gives it.
      */
     private static Component fuelName(Fluid fuel) {
         SmitheryFluids.Entry entry = SmitheryFluids.forFluid(fuel);
-        if (entry != null) return SmitheryFluids.moltenName(entry.materialId);
+        if (entry != null && !entry.bound) return SmitheryFluids.moltenName(entry.materialId);
         Block block = fuel.defaultFluidState().createLegacyBlock().getBlock();
         if (block != Blocks.AIR) return block.getName();
         return fuel.getFluidType().getDescription();
@@ -693,7 +777,42 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             scrollOffset  = (int) Math.max(0, Math.min(maxScroll, scrollOffset - delta));
             return true;
         }
+
+        int innerX = leftPos + TANK_X + 1;
+        int innerY = topPos  + TANK_Y + 1;
+        if (delta != 0 && mouseX >= innerX && mouseX < innerX + TANK_W - 2
+                && mouseY >= innerY && mouseY < innerY + TANK_H - 2) {
+            return cycleOutputSelection(delta > 0 ? -1 : 1);
+        }
         return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    /**
+     * Steps the drain output to the neighbouring molten material, wrapping at both ends.
+     *
+     * <p>This is the escape hatch for a crowded tank: floored layers are hittable, but stepping
+     * beats aiming once there are a dozen of them. Cycling runs in material order rather than by
+     * where the layers sit, because the selected layer is hoisted to the bottom of the stack —
+     * ordering by position would reshuffle it under the cursor between notches. With a single
+     * material present the step lands back on it, which the server reads as clearing it, the same
+     * as clicking the selected layer.
+     *
+     * @param dir {@code -1} for the previous material, {@code +1} for the next
+     * @return whether a selection was sent
+     */
+    private boolean cycleOutputSelection(int dir) {
+        List<Material> materials = menu.getMaterials();
+        List<Integer> present = new ArrayList<>();
+        for (int i = 0; i < materials.size(); i++) {
+            if (menu.getStoredMbForMaterial(i) > 0) present.add(i);
+        }
+        if (present.isEmpty()) return false;
+        int pos  = present.indexOf(menu.getOutputFluidMaterialIndex());
+        int next = pos < 0
+                ? (dir > 0 ? 0 : present.size() - 1)
+                : Math.floorMod(pos + dir, present.size());
+        sendOutputFluidSelection(materials.get(present.get(next)));
+        return true;
     }
 
     @Override
@@ -730,7 +849,7 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
             List<FluidLayer> layers = computeFluidLayers(innerY, innerH, capacity);
             for (FluidLayer layer : layers) {
                 if (mouseY >= layer.topY && mouseY < layer.bottomY) {
-                    sendOutputFluidSelection(layer);
+                    sendOutputFluidSelection(layer.material);
                     return true;
                 }
             }
@@ -738,8 +857,8 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    private void sendOutputFluidSelection(FluidLayer layer) {
-        SmitheryFluids.Entry entry = SmitheryFluids.forMaterial(layer.material.id());
+    private void sendOutputFluidSelection(Material material) {
+        SmitheryFluids.Entry entry = SmitheryFluids.forMaterial(material.id());
         if (entry == null) return;
         ResourceLocation fluidId = BuiltInRegistries.FLUID.getKey(entry.source.get());
         if (fluidId == null) return;

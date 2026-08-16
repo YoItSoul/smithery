@@ -2,6 +2,17 @@
 
 All notable changes to Smithery are recorded here. Versions follow [semver](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Ponder scenes**, as an optional integration with KubeJS and PonderJS. Three animated
+  walkthroughs — cutting a part on the Part Press, the conditions a Forge has to meet
+  before its controller lamp goes green, and pouring a cast from the Drain through a pipe
+  into a Casting Table. The scenes ship inside the jar as client scripts, so a pack that
+  already has both mods gets them with nothing to install; without them the file is never
+  read.
+
 ## [1.18.0] — 2026-08-15
 
 Forge glazing, an electric heat source, and the forge as a village building.

@@ -110,6 +110,24 @@ config="${mod_id}.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# KubeJS loads the ponder scenes at assets/smithery/kubejs/ponder_scenes.js as client
+# scripts; without it that file is simply never read.
+[[dependencies.${mod_id}]]
+    modId="kubejs"
+    mandatory=false
+    versionRange="[2001.6,)"
+    ordering="AFTER"
+    side="CLIENT"
+
+# PonderJS supplies the scene API those scripts call. The script's "requires" header
+# skips the file when this is absent, so the pair is optional together.
+[[dependencies.${mod_id}]]
+    modId="ponderjs"
+    mandatory=false
+    versionRange="[2.1,)"
+    ordering="AFTER"
+    side="CLIENT"
+
 # Better Combat picks up data/smithery/weapon_attributes/ for animated combos; optional.
 [[dependencies.${mod_id}]]
     modId="bettercombat"

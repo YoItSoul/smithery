@@ -130,6 +130,9 @@ public class Smithery {
                     })
                     .displayItems((params, output) -> {
                         for (var entry : SmitheryFluids.entries().values()) {
+                            // A bound material pours someone else's fluid, so its bucket is already
+                            // in that mod's tab — listing it here would show a second lava bucket.
+                            if (entry.bound) continue;
                             output.accept(entry.bucket.get());
                         }
                     })

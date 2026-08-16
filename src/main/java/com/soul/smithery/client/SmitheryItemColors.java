@@ -56,7 +56,11 @@ public final class SmitheryItemColors {
         event.register(SmitheryItemColors::slotColor, composedItems.toArray(new Item[0]));
 
         List<Item> buckets = new ArrayList<>();
-        SmitheryFluids.entries().values().forEach(entry -> buckets.add(entry.bucket.get()));
+        // Bound materials are skipped: their bucket belongs to another mod and already has the
+        // colour it should have, so tinting it would repaint an item Smithery does not own.
+        SmitheryFluids.entries().values().stream()
+                .filter(entry -> !entry.bound)
+                .forEach(entry -> buckets.add(entry.bucket.get()));
         if (!buckets.isEmpty()) {
             event.register(SmitheryItemColors::bucketColor, buckets.toArray(new Item[0]));
         }

@@ -380,5 +380,36 @@
   "tooltip.smithery.modifier_source.target.both": "tools & armor",
   "smithery.modifier.smithery.fortify": "Fortified",
   "smithery.modifier.smithery.fortify.description": "Mining level raised to the sharpening stone's material",
-  "message.smithery.rf_coil.target": "Target %s°C — %s RF/t"
+  "message.smithery.rf_coil.target": "Target %s°C — %s RF/t",
+
+  "smithery.ponder.tag.machines": "Smithery Machinery",
+  "smithery.ponder.tag.machines.description": "The Forge multiblock and the machines that feed off it.",
+
+  "smithery.ponder.part_press.header": "Cutting Parts",
+  "smithery.ponder.part_press.text_0": "The Part Press cuts solid stock into tool parts.",
+  "smithery.ponder.part_press.text_1": "Sneak and right-click to open the picker and choose which part to cut.",
+  "smithery.ponder.part_press.text_2": "Right-click with the stock. The Press handles what the Forge cannot melt: logs, flint, slime balls, coral and Red Slime.",
+  "smithery.ponder.part_press.text_3": "Any redstone signal closes the Press and cuts one part.",
+  "smithery.ponder.part_press.text_4": "Right-click to take the part out. Hoppers can load and empty the Press while it is open.",
+
+  "smithery.ponder.forge_structure.header": "Building a Forge",
+  "smithery.ponder.forge_structure.text_0": "A Forge is a hollow shell of Furnace Bricks wrapped around an air pocket.",
+  "smithery.ponder.forge_structure.text_1": "Every block beside and below that pocket has to be shell. One gap anywhere and the Forge will not form.",
+  "smithery.ponder.forge_structure.text_2": "The top is the exception. Leave it open, or close it and the Forge heats 20% faster.",
+  "smithery.ponder.forge_structure.text_3": "Exactly one Controller. It is the only block with a screen.",
+  "smithery.ponder.forge_structure.text_4": "At least one Fuel Port.",
+  "smithery.ponder.forge_structure.text_5": "At least one Drain.",
+  "smithery.ponder.forge_structure.text_6": "An RF Coil may take the place of a shell block to heat without fuel — but never more than one.",
+  "smithery.ponder.forge_structure.text_7": "Pass all of that and the Controller's lamp turns amber: built, but cold.",
+  "smithery.ponder.forge_structure.text_8": "Bucket fuel into a port and the lamp goes green. Every interior block adds one melting slot and 1,000 mB of molten storage.",
+
+  "smithery.ponder.casting.header": "Casting Metal",
+  "smithery.ponder.casting.text_0": "A Casting Table turns the Forge's molten metal back into parts.",
+  "smithery.ponder.casting.text_1": "Right-click with Casting Sand to lay a bed.",
+  "smithery.ponder.casting.text_2": "Press a part into the sand to shape it. The part is only a template — it is not used up.",
+  "smithery.ponder.casting.text_3": "Run Fluid Pipe from the Drain to directly above the table. Tables only take metal poured in from the top.",
+  "smithery.ponder.casting.text_4": "In the Controller, click the metal's layer in the tank to make it the output. The Drain pumps that one metal and nothing else.",
+  "smithery.ponder.casting.text_5": "A button pours one job: the Drain pumps 5 mB a tick until the table is full, then stops.",
+  "smithery.ponder.casting.text_6": "Once it cools, right-click to take the part. The impression stays behind, ready for the next pour.",
+  "smithery.ponder.casting.text_7": "Hold the signal with a lever instead and the Drain keeps re-arming — pour after pour, as fast as the Forge can melt."
 }

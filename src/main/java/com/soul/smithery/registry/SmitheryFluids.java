@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Per-{@link Material} molten fluid registry.
@@ -56,30 +57,42 @@ public final class SmitheryFluids {
 
     /**
      * Holder bundle for one material's molten-fluid set (type, source, flowing, block, bucket).
+     *
+     * <p>Every member resolves lazily, because the set is assembled during mod construction while
+     * the registries it names are still filling. Members are {@link Supplier} rather than
+     * {@code RegistryObject} so a {@link MaterialStats.Builder#boundFluid bound} material can point
+     * the same bundle at a fluid Smithery never registered.
      */
     public static final class Entry {
         /** ResourceLocation of the {@link Material} this fluid set was derived from. */
         public final ResourceLocation materialId;
         /** The {@link Material} this fluid set was derived from. */
         public final Material material;
-        /** Registry object for this material's {@link FluidType}. */
-        public final RegistryObject<FluidType> type;
-        /** Registry object for the source (still) {@link FlowingFluid} variant. */
-        public final RegistryObject<FlowingFluid> source;
-        /** Registry object for the flowing {@link FlowingFluid} variant. */
-        public final RegistryObject<FlowingFluid> flowing;
-        /** Registry object for the in-world {@link LiquidBlock} backing this fluid. */
-        public final RegistryObject<LiquidBlock> block;
-        /** Registry object for the bucket item that picks up this fluid. */
-        public final RegistryObject<BucketItem> bucket;
+        /** This material's {@link FluidType}. */
+        public final Supplier<FluidType> type;
+        /** The source (still) {@link FlowingFluid} variant. */
+        public final Supplier<FlowingFluid> source;
+        /** The flowing {@link FlowingFluid} variant. */
+        public final Supplier<FlowingFluid> flowing;
+        /** The in-world {@link LiquidBlock} backing this fluid. */
+        public final Supplier<LiquidBlock> block;
+        /** The bucket item that picks up this fluid. */
+        public final Supplier<BucketItem> bucket;
+        /**
+         * True when this set points at a fluid registered elsewhere rather than one Smithery minted.
+         * Callers that act on every Smithery fluid — tinting its bucket, listing it in the creative
+         * tab — must skip these, or they reach out and change something another mod owns.
+         */
+        public final boolean bound;
 
         Entry(ResourceLocation materialId,
               Material material,
-              RegistryObject<FluidType> type,
-              RegistryObject<FlowingFluid> source,
-              RegistryObject<FlowingFluid> flowing,
-              RegistryObject<LiquidBlock> block,
-              RegistryObject<BucketItem> bucket) {
+              Supplier<FluidType> type,
+              Supplier<FlowingFluid> source,
+              Supplier<FlowingFluid> flowing,
+              Supplier<LiquidBlock> block,
+              Supplier<BucketItem> bucket,
+              boolean bound) {
             this.materialId = materialId;
             this.material   = material;
             this.type       = type;
@@ -87,6 +100,7 @@ public final class SmitheryFluids {
             this.flowing    = flowing;
             this.block      = block;
             this.bucket     = bucket;
+            this.bound      = bound;
         }
     }
 
@@ -338,6 +352,12 @@ public final class SmitheryFluids {
         ResourceLocation matId = material.id();
         String name = "molten_" + matId.getPath();
         MaterialStats stats = material.stats();
+        // Checked here rather than in bootstrap() so it also covers mods that mint fluids for their
+        // own materials directly, which is the path a bound material is most likely to arrive by.
+        if (stats.boundFluid() != null) {
+            bindOne(material);
+            return;
+        }
         int tempCelsius = (int) stats.meltingTemp();
         boolean waterBase = stats.fluidBase() == MaterialStats.FluidBase.WATER;
 
@@ -422,9 +442,71 @@ public final class SmitheryFluids {
                     }
                 });
 
-        Entry entry = new Entry(matId, material, type, sourceRef[0], flowingRef[0], blockRef[0], bucketRef[0]);
+        Entry entry = new Entry(matId, material, type, sourceRef[0], flowingRef[0], blockRef[0],
+                bucketRef[0], false);
         ENTRIES.put(matId, entry);
         ENTRIES_BY_BUCKET_ID.put(ResourceLocation.fromNamespaceAndPath(Smithery.MODID, name + "_bucket"), entry);
+    }
+
+    /**
+     * Points a material at a fluid that already exists instead of minting it one — see
+     * {@link MaterialStats.Builder#boundFluid(ResourceLocation)}.
+     *
+     * <p>Only the source fluid is named; its flowing variant, block and bucket are read back off it,
+     * so the set cannot disagree with the fluid it borrows. Nothing is registered here and no bucket
+     * id is recorded, because the bucket belongs to whoever registered the fluid: a bound entry must
+     * not answer {@link #forBucketItemId}, or picking up vanilla lava would read as picking up a
+     * Smithery molten metal.
+     *
+     * <p>Resolution stays lazy throughout. Binding runs during mod construction, when a modded
+     * target may not be registered yet, so the fluid is only looked up — and only checked — when
+     * something first asks for it.
+     */
+    private static void bindOne(Material material) {
+        ResourceLocation matId   = material.id();
+        ResourceLocation fluidId = material.stats().boundFluid();
+
+        Supplier<FlowingFluid> source = () -> {
+            Fluid fluid = ForgeRegistries.FLUIDS.getValue(fluidId);
+            if (!(fluid instanceof FlowingFluid flowing)) {
+                throw new IllegalStateException("Material " + matId + " is bound to fluid " + fluidId
+                        + ", which is " + (fluid == null ? "not registered" : "not a FlowingFluid"));
+            }
+            return flowing;
+        };
+        Supplier<BucketItem> bucket = () -> {
+            Item item = source.get().getBucket();
+            if (!(item instanceof BucketItem bucketItem)) {
+                throw new IllegalStateException("Material " + matId + " is bound to fluid " + fluidId
+                        + ", which has no bucket item");
+            }
+            return bucketItem;
+        };
+        Supplier<LiquidBlock> block = () -> {
+            Block b = source.get().defaultFluidState().createLegacyBlock().getBlock();
+            if (!(b instanceof LiquidBlock liquidBlock)) {
+                throw new IllegalStateException("Material " + matId + " is bound to fluid " + fluidId
+                        + ", whose block is not a LiquidBlock");
+            }
+            return liquidBlock;
+        };
+
+        Supplier<FlowingFluid> flowing = () -> {
+            Fluid fluid = source.get().getFlowing();
+            if (!(fluid instanceof FlowingFluid flowingFluid)) {
+                throw new IllegalStateException("Material " + matId + " is bound to fluid " + fluidId
+                        + ", whose flowing variant is not a FlowingFluid");
+            }
+            return flowingFluid;
+        };
+
+        ENTRIES.put(matId, new Entry(matId, material,
+                () -> source.get().getFluidType(),
+                source,
+                flowing,
+                block,
+                bucket,
+                true));
     }
 
     /**

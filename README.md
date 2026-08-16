@@ -52,9 +52,15 @@ on 1.20.1 where the older APIs have no equivalent.
 | **Required** | [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) 5+ | [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) 4.8+ |
 | **Optional** — in-game field guide | [Modonomicon](https://www.curseforge.com/minecraft/mc-mods/modonomicon) | [Patchouli](https://www.curseforge.com/minecraft/mc-mods/patchouli) |
 | **Optional** — recipe browsing | [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) | [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) 15+ |
+| **Optional** — animated Ponder scenes | — | [KubeJS](https://www.curseforge.com/minecraft/mc-mods/kubejs) 2001.6+ and [PonderJS](https://www.curseforge.com/minecraft/mc-mods/ponderjs) 2.1+ |
 
-Without the optional mods Smithery runs normally — you just lose the field guide book or the
-in-game recipe browser.
+Without the optional mods Smithery runs normally — you just lose the field guide book, the
+in-game recipe browser, or the Ponder scenes.
+
+Install KubeJS and PonderJS together and Smithery contributes three scenes of its own — the
+Part Press, the Forge multiblock, and the Casting Table pour — reachable with `W` over the
+Forge Controller, Part Press or Casting Table. The scenes ship inside the jar at
+`assets/smithery/kubejs/ponder_scenes.js`, so there is nothing to copy into a pack.
 
 ---
 

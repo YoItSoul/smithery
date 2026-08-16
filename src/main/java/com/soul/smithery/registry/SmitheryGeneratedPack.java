@@ -112,11 +112,23 @@ public class SmitheryGeneratedPack implements PackResources {
      * keys off {@code FluidTags.LAVA} in vanilla entity/block code. Water-base materials
      * (blood etc.) are excluded.
      */
+    /**
+     * True when Smithery mints this material a molten fluid of its own, which is the precondition
+     * for generating any molten asset for it.
+     *
+     * <p>A material bound to an existing fluid has no {@code molten_<path>} names registered at all,
+     * so describing them would list unknown fluids in the lava tag and hand models to items that do
+     * not exist. The fluid it does pour is already described by whoever registered it.
+     */
+    private static boolean mintsMoltenFluid(Material m) {
+        return m.stats().meltingTemp() > 0f && m.stats().boundFluid() == null;
+    }
+
     private static InputStream lavaTagJson() {
         StringBuilder sb = new StringBuilder("{\"replace\":false,\"values\":[");
         boolean first = true;
         for (Material m : SmitheryAPI.MATERIALS.all()) {
-            if (m.stats().meltingTemp() <= 0f) continue;
+            if (!mintsMoltenFluid(m)) continue;
             if (m.stats().fluidBase() != com.soul.smithery.api.material.MaterialStats.FluidBase.MOLTEN) continue;
             String base = Smithery.MODID + ":molten_" + m.id().getPath();
             if (!first) sb.append(',');
@@ -282,7 +294,7 @@ public class SmitheryGeneratedPack implements PackResources {
 
         if (Smithery.MODID.equals(namespace)) {
             for (Material m : SmitheryAPI.MATERIALS.all()) {
-                if (m.stats().meltingTemp() <= 0f) continue;
+                if (!mintsMoltenFluid(m)) continue;
                 String matPath  = m.id().getPath();
                 String fluidId  = MOLTEN_PREFIX + matPath;
                 String bucketId = fluidId + MOLTEN_BUCKET_SUFFIX;
@@ -1419,8 +1431,7 @@ public class SmitheryGeneratedPack implements PackResources {
 
     private static boolean isMeltableMaterialPath(String matPath) {
         for (Material m : SmitheryAPI.MATERIALS.all()) {
-            if (m.id().getPath().equals(matPath)
-                    && m.stats().meltingTemp() > 0f) {
+            if (m.id().getPath().equals(matPath) && mintsMoltenFluid(m)) {
                 return true;
             }
         }
