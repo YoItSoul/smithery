@@ -33,28 +33,6 @@ recipe-grid tools with a smithing craft:
 Everything is driven by a clean Java API with runtime asset generation, so modders can add
 materials, parts, tool types, and modifiers without writing a single JSON model.
 
-Smithery ships for two loaders from this repository:
-
-| Branch | Loader | Minecraft | Java |
-|---|---|---|---|
-| [`main`](../../tree/main) | NeoForge 26.1.2.61-beta | 26.1.2 | 21+ |
-| [`forge-1.20.1`](../../tree/forge-1.20.1) | Forge 47.4.10 | 1.20.1 | 17+ |
-
-Gameplay and balance are identical across both, with a handful of platform approximations
-on 1.20.1 where the older APIs have no equivalent.
-
----
-
-## Dependencies
-
-| | NeoForge (26.1.2) | Forge (1.20.1) |
-|---|---|---|
-| **Required** | [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) 5+ | [GeckoLib](https://www.curseforge.com/minecraft/mc-mods/geckolib) 4.8+ |
-| **Optional** — in-game field guide | [Modonomicon](https://www.curseforge.com/minecraft/mc-mods/modonomicon) | [Patchouli](https://www.curseforge.com/minecraft/mc-mods/patchouli) |
-| **Optional** — recipe browsing | [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) | [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) 15+ |
-
-Without the optional mods Smithery runs normally — you just lose the field guide book or the
-in-game recipe browser.
 
 ---
 
@@ -63,40 +41,6 @@ in-game recipe browser.
 Smithery is in active development — the core loop (forge, melting, alloying, casting,
 pressing, tool assembly, modifiers, JEI) is playable today, with armor assembly, the
 in-game field guide, and broader datapack support still in progress.
-
----
-
-## Building from source
-
-Check out the branch for the loader you want — **JDK 21+** for `main` (NeoForge), **JDK 17+** for `forge-1.20.1`.
-
-```sh
-./gradlew build         # compile + jar the mod
-./gradlew runClient     # launch a dev client with Smithery loaded
-./gradlew runServer     # launch a dev server
-```
-
-Finished jars are named `smithery-<loader>-<mcversion>-<modversion>.jar` and collected into
-`dist/`, which always holds the latest build per loader (raw outputs stay in `build/libs/`).
-
----
-
-## Contributing
-
-Contributions, ideas, and bug reports are welcome — the workflow is the usual "fork, branch, PR." The license is intentionally fork- and PR-friendly; see below.
-
----
-
-## License
-
-Smithery is distributed under the **Smithery Source-Available License** (see [`LICENSE`](LICENSE)). At a glance:
-
-- ✅ View the source freely
-- ✅ Fork on GitHub (or anywhere else) for contribution, experimentation, or learning
-- ✅ Submit pull requests
-- ❌ Redistribute compiled builds to end users
-- ❌ Bundle into modpacks or launchers
-- ❌ Release a competing fork as a standalone product
 
 ---
 
@@ -111,13 +55,6 @@ If you'd like to support continued work on Smithery:
 </div>
 
 ---
-
-## Acknowledgements
-
-- Built on the [NeoForge](https://neoforged.net/) and [Forge](https://minecraftforge.net/) mod loaders.
-- Project scaffold derived from the [NeoForge MDK](https://github.com/NeoForged/MDK) template.
-- In-game field guide powered by [Modonomicon](https://github.com/klikli-dev/modonomicon) (NeoForge) and [Patchouli](https://github.com/VazkiiMods/Patchouli) (Forge 1.20.1).
-- Texture style inspired by vanilla Minecraft.
 
 [mc-badge]: https://img.shields.io/badge/Minecraft-26.1.2_%7C_1.20.1-62B47A?logo=minecraft&logoColor=white
 [mc-link]: https://www.minecraft.net/
