@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    " B ",
+    "BGB",
+    " B "
+  ],
+  "key": {
+    "B": {"item": "smithery:furnace_brick"},
+    "G": {"item": "minecraft:glass"}
+  },
+  "result": {
+    "item": "smithery:furnace_glass"
+  }
+}

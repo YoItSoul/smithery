@@ -9,6 +9,25 @@
     "smithery:casting_table",
     "smithery:casting_basin",
     "smithery:fluid_pipe",
-    "smithery:part_press"
+    "smithery:part_press",
+    "smithery:furnace_glass",
+    "smithery:white_furnace_glass",
+    "smithery:orange_furnace_glass",
+    "smithery:magenta_furnace_glass",
+    "smithery:light_blue_furnace_glass",
+    "smithery:yellow_furnace_glass",
+    "smithery:lime_furnace_glass",
+    "smithery:pink_furnace_glass",
+    "smithery:gray_furnace_glass",
+    "smithery:light_gray_furnace_glass",
+    "smithery:cyan_furnace_glass",
+    "smithery:purple_furnace_glass",
+    "smithery:blue_furnace_glass",
+    "smithery:brown_furnace_glass",
+    "smithery:green_furnace_glass",
+    "smithery:red_furnace_glass",
+    "smithery:black_furnace_glass",
+    "smithery:furnace_brick_slab",
+    "smithery:forge_rf_coil"
   ]
 }

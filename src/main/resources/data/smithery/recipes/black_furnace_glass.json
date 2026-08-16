@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "group": "dyed_furnace_glass",
+  "pattern": [
+    "GGG",
+    "GDG",
+    "GGG"
+  ],
+  "key": {
+    "G": {"item": "smithery:furnace_glass"},
+    "D": {"item": "minecraft:black_dye"}
+  },
+  "result": {
+    "item": "smithery:black_furnace_glass",
+    "count": 8
+  }
+}

@@ -94,6 +94,7 @@ public final class SmitheryBlocks {
                 .mapColor(MapColor.NONE)
                 .strength(0.3f)
                 .sound(SoundType.GLASS)
+                .requiresCorrectToolForDrops()
                 .noOcclusion()
                 .isValidSpawn((s, l, p, e) -> false)
                 .isRedstoneConductor((s, l, p) -> false)

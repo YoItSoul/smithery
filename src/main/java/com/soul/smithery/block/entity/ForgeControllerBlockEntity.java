@@ -34,6 +34,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import com.soul.smithery.block.ForgeControllerBlock;
 import com.soul.smithery.block.ForgeControllerStatus;
+import com.soul.smithery.block.FurnaceGlassBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -863,10 +864,16 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     /**
      * True iff {@code state} is one of the shell blocks the multiblock recognises:
-     * furnace bricks, the controller itself, fuel ports, drains, item ports, or an RF coil.
+     * furnace bricks, furnace glass of any colour, the controller itself, fuel ports,
+     * drains, item ports, or an RF coil.
+     *
+     * <p>The glass is matched by type rather than by listing all seventeen registry
+     * entries, the same way the block decides its own connections. Dye is only a texture
+     * here -- a window is a window whatever colour it was stained.
      */
     public static boolean isShellBlock(BlockState state) {
         return state.is(SmitheryBlocks.FURNACE_BRICKS.get())
+                || state.getBlock() instanceof FurnaceGlassBlock
                 || state.is(SmitheryBlocks.FORGE_CONTROLLER.get())
                 || state.is(SmitheryBlocks.FORGE_FUEL_PORT.get())
                 || state.is(SmitheryBlocks.FORGE_RF_COIL.get())
