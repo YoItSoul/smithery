@@ -32,6 +32,9 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import com.soul.smithery.block.ForgeControllerBlock;
+import com.soul.smithery.block.ForgeControllerStatus;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -93,6 +96,11 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
      */
     private @Nullable net.minecraft.world.level.material.Fluid activeFuelFluid;
 
+    /** Shell position of the single RF coil, or null when the forge has none. */
+    private @Nullable BlockPos coilPos;
+    /** True while the coil is paying its way and driving temperature instead of fuel. */
+    private boolean coilDrivingLastTick = false;
+
     private boolean alloyEnabled = true;
 
     private final Map<ResourceLocation, Integer> fluidStorage = new LinkedHashMap<>();
@@ -123,6 +131,13 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     public float temperatureC()                 { return temperatureC; }
     /** True iff the forge had any fuel available on the previous tick. */
     public boolean isFueled()                   { return fueledLastTick; }
+    /** True iff an RF coil drove the forge on the previous tick. */
+    public boolean isCoilDriving()              { return coilDrivingLastTick; }
+    /**
+     * True iff the forge is being heated at all, by fuel or by coil. What the controller
+     * face and the GUI lamp mean by "running" -- a coil-fed forge burns no fuel.
+     */
+    public boolean isHeating()                  { return fueledLastTick || coilDrivingLastTick; }
     /** True iff auto-alloying is enabled via the GUI toggle. */
     public boolean isAlloyEnabled()             { return alloyEnabled; }
     /** Sets the auto-alloy GUI toggle and marks the BE dirty on change. */
@@ -253,6 +268,26 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     }
 
     /**
+     * Keeps {@link ForgeControllerBlock#STATUS} in step with the forge, so the controller
+     * face reports both that the multiblock assembled and that it is burning. Cosmetic
+     * only, so it writes with {@link Block#UPDATE_CLIENTS} — no neighbour updates, which
+     * would otherwise kick off a revalidation every time the forge ran out of fuel and
+     * refilled. Re-reads the state rather than trusting the one passed into the tick,
+     * which may be stale by the time validation has run.
+     */
+    private void syncStatus(ServerLevel level, BlockPos pos) {
+        BlockState current = level.getBlockState(pos);
+        if (!current.hasProperty(ForgeControllerBlock.STATUS)) return;
+        ForgeControllerStatus want = !lastValidation.valid ? ForgeControllerStatus.IDLE
+                : isHeating() ? ForgeControllerStatus.BURNING
+                : ForgeControllerStatus.FORMED;
+        if (current.getValue(ForgeControllerBlock.STATUS) != want) {
+            level.setBlock(pos, current.setValue(ForgeControllerBlock.STATUS, want),
+                    Block.UPDATE_CLIENTS);
+        }
+    }
+
+    /**
      * Drives the full server-side tick: periodic structure revalidation, fuel tally and
      * consumption, temperature simulation, item entity absorption, mob scalding, in-place
      * melting, and the alloy pipeline.
@@ -266,6 +301,8 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
         if (!lastValidation.valid) {
             fueledLastTick = false;
+            coilDrivingLastTick = false;
+            syncStatus(level, pos);
             decayTemperature(false);
             return;
         }
@@ -287,8 +324,16 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
         fueledLastTick = totalFuelMb > 0;
+        syncStatus(level, pos);
 
-        if (fueledLastTick) {
+        // The coil takes priority: while it can pay, fuel is held in reserve and not burnt.
+        float coilTarget = -1f;
+        if (coilPos != null && level.getBlockEntity(coilPos) instanceof ForgeRfCoilBlockEntity coil) {
+            coilTarget = coil.consumeForTick(totalStoredFluidMb());
+        }
+        coilDrivingLastTick = coilTarget > 0f;
+
+        if (fueledLastTick && !coilDrivingLastTick) {
             fuelConsumptionAccumulator += FUEL_CONSUMPTION_PER_TICK;
             while (fuelConsumptionAccumulator >= 1f && !ports.isEmpty()) {
                 fuelConsumptionAccumulator -= 1f;
@@ -309,7 +354,8 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
 
-        float target = fueledLastTick ? fuelTarget : HEAT_AMBIENT_C;
+        float target = coilDrivingLastTick ? coilTarget
+                : (fueledLastTick ? fuelTarget : HEAT_AMBIENT_C);
         boolean heating = target > temperatureC;
         float rate = heating ? HEAT_RATE_PER_TICK : COOL_RATE_PER_TICK;
         if (!lastValidation.openTop) {
@@ -635,13 +681,19 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
         }
 
-        int controllerCount = 0, fuelPortCount = 0, drainCount = 0;
+        int controllerCount = 0, fuelPortCount = 0, drainCount = 0, coilCount = 0;
+        BlockPos foundCoil = null;
         for (BlockPos s : shell) {
             BlockState bs = level.getBlockState(s);
             if (bs.is(SmitheryBlocks.FORGE_CONTROLLER.get())) controllerCount++;
             else if (bs.is(SmitheryBlocks.FORGE_FUEL_PORT.get())) fuelPortCount++;
             else if (bs.is(SmitheryBlocks.FORGE_DRAIN.get())) drainCount++;
+            else if (bs.is(SmitheryBlocks.FORGE_RF_COIL.get())) { coilCount++; foundCoil = s; }
         }
+        if (coilCount > 1) {
+            return invalidate(ValidationResult.InvalidReason.MULTIPLE_COILS, coilCount);
+        }
+        coilPos = foundCoil;
         if (controllerCount != 1) {
             return invalidate(ValidationResult.InvalidReason.MULTIPLE_CONTROLLERS, controllerCount);
         }
@@ -811,12 +863,13 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
     /**
      * True iff {@code state} is one of the shell blocks the multiblock recognises:
-     * furnace bricks, the controller itself, fuel ports, drains, or item ports.
+     * furnace bricks, the controller itself, fuel ports, drains, item ports, or an RF coil.
      */
     public static boolean isShellBlock(BlockState state) {
         return state.is(SmitheryBlocks.FURNACE_BRICKS.get())
                 || state.is(SmitheryBlocks.FORGE_CONTROLLER.get())
                 || state.is(SmitheryBlocks.FORGE_FUEL_PORT.get())
+                || state.is(SmitheryBlocks.FORGE_RF_COIL.get())
                 || state.is(SmitheryBlocks.FORGE_DRAIN.get())
                 || state.is(SmitheryBlocks.FORGE_ITEM_PORT.get());
     }
@@ -1042,6 +1095,8 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             NO_FUEL_PORT,
             /** No drain in the shell. */
             NO_DRAIN,
+            /** More than one RF coil in the structure. {@code detail} = how many were found. */
+            MULTIPLE_COILS,
         }
 
         /** True iff the structure currently passes all multiblock checks. */

@@ -10,6 +10,8 @@ import com.soul.smithery.block.ForgeControllerBlock;
 import com.soul.smithery.block.ForgeDrainBlock;
 import com.soul.smithery.block.ForgeFuelPortBlock;
 import com.soul.smithery.block.ForgeItemPortBlock;
+import com.soul.smithery.block.ForgeRfCoilBlock;
+import com.soul.smithery.block.FurnaceGlassBlock;
 import com.soul.smithery.block.PartPressBlock;
 import com.soul.smithery.block.RedSlimeBlock;
 import com.soul.smithery.item.PartItem;
@@ -18,11 +20,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.FallingBlock;
+import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
@@ -67,6 +71,68 @@ public final class SmitheryBlocks {
                     .sound(SoundType.STONE)
                     .requiresCorrectToolForDrops()
                     .pushReaction(PushReaction.BLOCK)));
+
+    /**
+     * Half-height furnace bricks. Exists because the village forge's roof and steps are
+     * built from seared slabs, which have no counterpart here; a plain vanilla SlabBlock
+     * with the furnace brick texture covers it.
+     */
+    public static final RegistryObject<SlabBlock> FURNACE_BRICK_SLAB =
+            BLOCKS.register("furnace_brick_slab", () -> new SlabBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.STONE)
+                    .strength(STONE_BRICK_HARDNESS, 9.0f)
+                    .sound(SoundType.STONE)
+                    .requiresCorrectToolForDrops()
+                    .pushReaction(PushReaction.BLOCK)));
+
+    /**
+     * Shared behaviour for every furnace glass variant: vanilla glass in every respect that
+     * matters to the game, so it breaks, spawns and occludes like players expect.
+     */
+    private static BlockBehaviour.Properties furnaceGlassProperties() {
+        return BlockBehaviour.Properties.of()
+                .mapColor(MapColor.NONE)
+                .strength(0.3f)
+                .sound(SoundType.GLASS)
+                .noOcclusion()
+                .isValidSpawn((s, l, p, e) -> false)
+                .isRedstoneConductor((s, l, p) -> false)
+                .isSuffocating((s, l, p) -> false)
+                .isViewBlocking((s, l, p) -> false);
+    }
+
+    /** Undyed glazing for the forge shell. */
+    public static final RegistryObject<FurnaceGlassBlock> FURNACE_GLASS =
+            BLOCKS.register("furnace_glass", () -> new FurnaceGlassBlock(furnaceGlassProperties()));
+
+    /**
+     * One furnace glass per vanilla dye colour, so a pane can be coloured the same way
+     * stained glass is. Registered in {@link DyeColor} order and keyed by colour, which is
+     * what the dyeing recipe will look up.
+     */
+    public static final Map<DyeColor, RegistryObject<FurnaceGlassBlock>> DYED_FURNACE_GLASS =
+            new LinkedHashMap<>();
+
+    static {
+        for (DyeColor colour : DyeColor.values()) {
+            DYED_FURNACE_GLASS.put(colour, BLOCKS.register(
+                    colour.getName() + "_furnace_glass",
+                    () -> new FurnaceGlassBlock(furnaceGlassProperties())));
+        }
+    }
+
+    /**
+     * Electric heat source. Ships without a recipe on purpose -- what an RF heater should
+     * cost is a pack-balance question, so packs define it.
+     */
+    public static final RegistryObject<ForgeRfCoilBlock> FORGE_RF_COIL =
+            BLOCKS.register("forge_rf_coil",
+                    () -> new ForgeRfCoilBlock(BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.METAL)
+                            .strength(STONE_BRICK_HARDNESS, 1200.0f)
+                            .sound(SoundType.METAL)
+                            .requiresCorrectToolForDrops()
+                            .lightLevel(s -> s.getValue(ForgeRfCoilBlock.LIT) ? 10 : 0)));
 
     /** Forge controller block; the multiblock's master block and only GUI entry point. */
     public static final RegistryObject<ForgeControllerBlock> FORGE_CONTROLLER =
@@ -184,6 +250,26 @@ public final class SmitheryBlocks {
     /** BlockItem for {@link #FURNACE_BRICKS}. */
     public static final RegistryObject<BlockItem> FURNACE_BRICKS_ITEM =
             registerBlockItem("furnace_bricks", FURNACE_BRICKS);
+    /** BlockItem for {@link #FORGE_RF_COIL}. */
+    public static final RegistryObject<BlockItem> FORGE_RF_COIL_ITEM =
+            registerBlockItem("forge_rf_coil", FORGE_RF_COIL);
+    /** BlockItem for {@link #FURNACE_BRICK_SLAB}. */
+    public static final RegistryObject<BlockItem> FURNACE_BRICK_SLAB_ITEM =
+            registerBlockItem("furnace_brick_slab", FURNACE_BRICK_SLAB);
+    /** BlockItem for {@link #FURNACE_GLASS}. */
+    public static final RegistryObject<BlockItem> FURNACE_GLASS_ITEM =
+            registerBlockItem("furnace_glass", FURNACE_GLASS);
+    /** BlockItems for every dyed furnace glass, keyed by colour. */
+    public static final Map<DyeColor, RegistryObject<BlockItem>> DYED_FURNACE_GLASS_ITEMS =
+            new LinkedHashMap<>();
+
+    static {
+        for (Map.Entry<DyeColor, RegistryObject<FurnaceGlassBlock>> e : DYED_FURNACE_GLASS.entrySet()) {
+            DYED_FURNACE_GLASS_ITEMS.put(e.getKey(),
+                    registerBlockItem(e.getKey().getName() + "_furnace_glass", e.getValue()));
+        }
+    }
+
     /** BlockItem for {@link #FORGE_CONTROLLER}. */
     public static final RegistryObject<BlockItem> FORGE_CONTROLLER_ITEM =
             registerBlockItem("forge_controller", FORGE_CONTROLLER);

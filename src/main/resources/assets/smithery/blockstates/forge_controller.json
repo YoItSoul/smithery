@@ -1,5 +1,7 @@
 {
   "variants": {
-    "": { "model": "smithery:block/forge_controller" }
+    "status=idle":    { "model": "smithery:block/forge_controller" },
+    "status=formed":  { "model": "smithery:block/forge_controller_formed" },
+    "status=burning": { "model": "smithery:block/forge_controller_burning" }
   }
 }

@@ -2,7 +2,15 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
     id 'idea'
+}
+
+// One mixin, on the jigsaw placer, so the village forge can be capped at one per village.
+// See com.soul.smithery.mixin.JigsawPlacerMixin for why nothing short of a mixin reaches it.
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "${mod_id}.mixins.json"
 }
 
 tasks.named('wrapper', Wrapper).configure {
@@ -48,6 +56,14 @@ repositories {
         url = "https://api.modrinth.com/maven"
         content {
             includeGroup "maven.modrinth"
+        }
+    }
+    // The Mixin annotation processor. Forge's userdev supplies the mixin library itself,
+    // but not the :processor artifact that writes the refmap.
+    maven {
+        url = "https://repo.spongepowered.org/repository/maven-public/"
+        content {
+            includeGroup "org.spongepowered"
         }
     }
     // Draconic Evolution, BrandonsCore, and CodeChickenLib. covers1624's maven
@@ -152,6 +168,11 @@ dependencies {
     // Any artifact can be supplied so long as it has a "userdev" classifier artifact and is a compatible patcher artifact.
     // The "userdev" classifier will be requested and setup by ForgeGradle.
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Mixin's annotation processor. Without it no refmap is written, and the one mixin we
+    // have silently fails to apply in a shipped jar while working fine in development --
+    // the same mapped-versus-SRG trap the village forge injector documents.
+    annotationProcessor "org.spongepowered:mixin:${mixin_version}:processor"
 
     // Patchouli — in-game documentation. The Smithery book is pure JSON under
     // assets/smithery/patchouli_books/, so we only need the API at compile time

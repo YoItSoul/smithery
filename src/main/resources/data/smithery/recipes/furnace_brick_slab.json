@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "smithery:furnace_bricks"
+    }
+  },
+  "result": {
+    "item": "smithery:furnace_brick_slab",
+    "count": 6
+  }
+}

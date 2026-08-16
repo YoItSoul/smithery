@@ -32,6 +32,11 @@ public final class SmitheryBlockEntities {
             FORGE_CONTROLLER = BLOCK_ENTITIES.register("forge_controller",
                     () -> BlockEntityType.Builder.of(ForgeControllerBlockEntity::new, SmitheryBlocks.FORGE_CONTROLLER.get()).build(null));
 
+    /** Block entity type for the Forge RF coil; holds the energy buffer and target temperature. */
+    public static final RegistryObject<BlockEntityType<com.soul.smithery.block.entity.ForgeRfCoilBlockEntity>>
+            FORGE_RF_COIL = BLOCK_ENTITIES.register("forge_rf_coil",
+                    () -> BlockEntityType.Builder.of(com.soul.smithery.block.entity.ForgeRfCoilBlockEntity::new, SmitheryBlocks.FORGE_RF_COIL.get()).build(null));
+
     /** Block entity type for the Forge fuel port; holds molten fuel and forms vertical stack groups. */
     public static final RegistryObject<BlockEntityType<ForgeFuelPortBlockEntity>>
             FORGE_FUEL_PORT = BLOCK_ENTITIES.register("forge_fuel_port",

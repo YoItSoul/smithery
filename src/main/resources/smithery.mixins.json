@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "com.soul.smithery.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "smithery.refmap.json",
+  "mixins": [
+    "JigsawPlacerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

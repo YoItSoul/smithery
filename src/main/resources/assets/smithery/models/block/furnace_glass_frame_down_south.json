@@ -1,0 +1,76 @@
+{
+  "textures": {
+    "frame": "smithery:block/furnace_glass_frame",
+    "particle": "smithery:block/furnace_glass_frame"
+  },
+  "elements": [
+    {
+      "from": [
+        0,
+        -0.01,
+        15.0
+      ],
+      "to": [
+        16,
+        -0.01,
+        16
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ],
+          "texture": "#frame"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ],
+          "texture": "#frame"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ],
+          "texture": "#frame"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ],
+          "texture": "#frame"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ],
+          "texture": "#frame"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ],
+          "texture": "#frame"
+        }
+      }
+    }
+  ]
+}

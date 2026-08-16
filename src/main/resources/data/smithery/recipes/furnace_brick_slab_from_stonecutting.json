@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "smithery:furnace_bricks"
+  },
+  "result": "smithery:furnace_brick_slab",
+  "count": 2
+}

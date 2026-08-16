@@ -96,8 +96,13 @@ public class Smithery {
                     .icon(() -> SmitheryBlocks.FORGE_CONTROLLER_ITEM.get().getDefaultInstance())
                     .displayItems((params, output) -> {
                         output.accept(SmitheryBlocks.FURNACE_BRICKS_ITEM.get());
+                        output.accept(SmitheryBlocks.FURNACE_BRICK_SLAB_ITEM.get());
+                        output.accept(SmitheryBlocks.FURNACE_GLASS_ITEM.get());
+                        SmitheryBlocks.DYED_FURNACE_GLASS_ITEMS.values()
+                                .forEach(i -> output.accept(i.get()));
                         output.accept(SmitheryBlocks.FORGE_CONTROLLER_ITEM.get());
                         output.accept(SmitheryBlocks.FORGE_FUEL_PORT_ITEM.get());
+                        output.accept(SmitheryBlocks.FORGE_RF_COIL_ITEM.get());
                         output.accept(SmitheryBlocks.FORGE_DRAIN_ITEM.get());
                         output.accept(SmitheryBlocks.FORGE_ITEM_PORT_ITEM.get());
                         output.accept(SmitheryBlocks.CASTING_TABLE_ITEM.get());
@@ -233,6 +238,8 @@ public class Smithery {
         CREATIVE_MODE_TABS.register(modEventBus);
 
         modEventBus.addListener(this::commonSetup);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.addListener(
+                com.soul.smithery.worldgen.VillageForgeInjector::onServerAboutToStart);
 
         SmitheryPayloads.register();
 

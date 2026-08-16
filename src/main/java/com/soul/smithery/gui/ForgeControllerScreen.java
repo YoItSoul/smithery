@@ -97,12 +97,14 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
     private static final int LAMP_R  = 5;
     private static final int LAMP_CX = (PL_X + PR_X + PR_W) / 2;
     private static final int LAMP_CY = 11;
-    private static final int COL_LAMP_ON      = 0xFF39D74E;
-    private static final int COL_LAMP_OFF     = 0xFFD93A32;
-    private static final int COL_LAMP_ON_DIM  = 0xFF1F7A2A;
-    private static final int COL_LAMP_OFF_DIM = 0xFF7A1F1A;
-    private static final int COL_LAMP_BEZEL   = 0xFF4A4A4A;
-    private static final int COL_LAMP_GLINT   = 0xAAFFFFFF;
+    private static final int COL_LAMP_ON       = 0xFF39D74E;
+    private static final int COL_LAMP_OFF      = 0xFFD93A32;
+    private static final int COL_LAMP_WARN     = 0xFFE0B32E;
+    private static final int COL_LAMP_ON_DIM   = 0xFF1F7A2A;
+    private static final int COL_LAMP_OFF_DIM  = 0xFF7A1F1A;
+    private static final int COL_LAMP_WARN_DIM = 0xFF7A6018;
+    private static final int COL_LAMP_BEZEL    = 0xFF4A4A4A;
+    private static final int COL_LAMP_GLINT    = 0xAAFFFFFF;
 
     private static final ResourceLocation MOLTEN_FLOW_TEXTURE =
             ResourceLocation.fromNamespaceAndPath(Smithery.MODID, "textures/gui/molten_flow.png");
@@ -559,11 +561,17 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         g.drawString(font, tempText,
                 sx + ALLOY_BTN_X - 6 - font.width(tempText), sy + 6, tempColor, false);
 
+        // Red / amber / green, matching the controller block's own three states: no
+        // structure, structure but no fuel, running. Amber is the one that tells a
+        // player their build was right and only the fuel is missing.
         boolean ok = menu.isForgeValid();
+        boolean fuelled = menu.getFuelMb() > 0;
+        int lamp = !ok ? COL_LAMP_OFF : fuelled ? COL_LAMP_ON : COL_LAMP_WARN;
+        int lampDim = !ok ? COL_LAMP_OFF_DIM : fuelled ? COL_LAMP_ON_DIM : COL_LAMP_WARN_DIM;
         int cx = sx + LAMP_CX, cy = sy + LAMP_CY;
         g.fill(cx - LAMP_R, cy - LAMP_R, cx + LAMP_R, cy + LAMP_R, COL_LAMP_BEZEL);
-        g.fill(cx - 4, cy - 4, cx + 4, cy + 4, ok ? COL_LAMP_ON_DIM : COL_LAMP_OFF_DIM);
-        g.fill(cx - 3, cy - 3, cx + 3, cy + 3, ok ? COL_LAMP_ON : COL_LAMP_OFF);
+        g.fill(cx - 4, cy - 4, cx + 4, cy + 4, lampDim);
+        g.fill(cx - 3, cy - 3, cx + 3, cy + 3, lamp);
         // One lit pixel in the corner is what separates a lamp from a coloured square.
         g.fill(cx - 3, cy - 3, cx - 1, cy - 1, COL_LAMP_GLINT);
     }
@@ -657,9 +665,16 @@ public class ForgeControllerScreen extends AbstractContainerScreen<ForgeControll
         String base = "gui." + Smithery.MODID + ".forge.";
         List<Component> lines = new ArrayList<>();
         if (menu.isForgeValid()) {
-            lines.add(Component.translatable(base + "ready").withStyle(ChatFormatting.GREEN));
+            boolean fuelled = menu.getFuelMb() > 0;
+            // An amber lamp has to say why it is amber, or it just reads as a fault.
+            lines.add(Component.translatable(base + (fuelled ? "ready" : "unfuelled"))
+                    .withStyle(fuelled ? ChatFormatting.GREEN : ChatFormatting.YELLOW));
             lines.add(Component.translatable(base + "ready_detail", menu.getFluidCapacityMb())
                     .withStyle(ChatFormatting.GRAY));
+            if (!fuelled) {
+                lines.add(Component.translatable(base + "unfuelled.hint")
+                        .withStyle(ChatFormatting.GRAY));
+            }
         } else {
             lines.add(Component.translatable(base + "incomplete").withStyle(ChatFormatting.RED));
             String key = base + "invalid." + menu.getInvalidReason().name().toLowerCase(Locale.ROOT);

@@ -49,6 +49,11 @@ description='''
 Example mod description.
 '''
 
+# Mixin configs to load. One entry, capping the village forge at one per village; the
+# jigsaw placer keeps the only view of a village's in-progress piece list to itself.
+[[mixins]]
+config="${mod_id}.mixins.json"
+
 # A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
 [[dependencies.${mod_id}]] #optional
     # the modid of the dependency

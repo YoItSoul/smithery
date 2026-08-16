@@ -12,6 +12,8 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -24,6 +26,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.function.UnaryOperator;
 
 /**
  * Dumb fluid-channel block. Pipes auto-connect to other pipes and to fluid containers
@@ -85,6 +89,31 @@ public class FluidPipeBlock extends Block implements EntityBlock {
     @Override
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
         return SHAPE;
+    }
+
+    @Override
+    public BlockState rotate(BlockState state, Rotation rotation) {
+        return turned(state, rotation::rotate);
+    }
+
+    @Override
+    public BlockState mirror(BlockState state, Mirror mirror) {
+        return turned(state, mirror::mirror);
+    }
+
+    /**
+     * Carries each face's visual over to the face that face turns into.
+     *
+     * <p>Structure placement rotates the state but leaves properties it is not told
+     * about pointing where they were, which would aim a run of arms at thin air on
+     * three of the four jigsaw rotations.
+     */
+    private static BlockState turned(BlockState state, UnaryOperator<Direction> moved) {
+        BlockState out = state;
+        for (Direction dir : Direction.values()) {
+            out = out.setValue(propertyFor(moved.apply(dir)), state.getValue(propertyFor(dir)));
+        }
+        return out;
     }
 
     @Override

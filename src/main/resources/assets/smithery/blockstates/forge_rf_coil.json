@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "lit=false": {
+      "model": "smithery:block/forge_rf_coil"
+    },
+    "lit=true": {
+      "model": "smithery:block/forge_rf_coil_lit"
+    }
+  }
+}

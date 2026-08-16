@@ -6,6 +6,13 @@ pluginManagement {
             name = 'MinecraftForge'
             url = 'https://maven.minecraftforge.net/'
         }
+        // MixinGradle, which wires the Mixin annotation processor up to ForgeGradle's
+        // reobfuscation so the refmap maps our mapped names onto the SRG names a shipped
+        // jar actually runs against.
+        maven {
+            name = 'Sponge'
+            url = 'https://repo.spongepowered.org/repository/maven-public/'
+        }
     }
 }
 

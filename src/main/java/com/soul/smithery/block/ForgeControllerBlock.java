@@ -17,6 +17,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
@@ -31,10 +33,23 @@ import java.util.ArrayList;
  */
 public class ForgeControllerBlock extends Block implements EntityBlock {
     /**
+     * What the controller face is showing. Purely cosmetic; driven from
+     * {@link ForgeControllerBlockEntity#serverTick}, never set by the player.
+     */
+    public static final EnumProperty<ForgeControllerStatus> STATUS =
+            EnumProperty.create("status", ForgeControllerStatus.class);
+
+    /**
      * Constructs the forge controller with the given block properties.
      */
     public ForgeControllerBlock(Properties properties) {
         super(properties);
+        registerDefaultState(stateDefinition.any().setValue(STATUS, ForgeControllerStatus.IDLE));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(STATUS);
     }
 
     @Override

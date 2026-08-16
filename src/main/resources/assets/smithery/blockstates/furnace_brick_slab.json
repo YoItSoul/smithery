@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "type=bottom": {
+      "model": "smithery:block/furnace_brick_slab"
+    },
+    "type=top": {
+      "model": "smithery:block/furnace_brick_slab_top"
+    },
+    "type=double": {
+      "model": "smithery:block/furnace_bricks"
+    }
+  }
+}
