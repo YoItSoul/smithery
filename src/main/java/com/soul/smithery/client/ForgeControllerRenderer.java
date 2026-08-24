@@ -53,6 +53,18 @@ public class ForgeControllerRenderer implements BlockEntityRenderer<ForgeControl
 
     private static final float POOL_LERP_FACTOR = 0.10f;
 
+    /**
+     * {@link #POOL_LERP_FACTOR} rescaled to however long this frame actually was.
+     *
+     * <p>Applying a fixed fraction once per {@code render} call tied the animation speed to frame
+     * rate, and a shader pack's shadow pass calls the renderer again in the same frame, so the
+     * pool drained visibly faster under Iris/Oculus. Clamped so a stall cannot jump the whole way.
+     */
+    private static float frameLerp(float perTickFactor) {
+        float delta = Math.min(net.minecraft.client.Minecraft.getInstance().getDeltaFrameTime(), 5f);
+        return 1f - (float) Math.pow(1f - perTickFactor, delta);
+    }
+
     private final Map<Long, Map<ResourceLocation, Float>> displayedFluidByCtrl = new HashMap<>();
 
     /**
@@ -136,7 +148,7 @@ public class ForgeControllerRenderer implements BlockEntityRenderer<ForgeControl
             if (cached == null || cached.isEmpty()) return cubes;
             Map<ResourceLocation, Integer> phantom = new LinkedHashMap<>();
             for (Map.Entry<ResourceLocation, Float> e : cached.entrySet()) {
-                int dec = (int) (e.getValue() * (1f - POOL_LERP_FACTOR));
+                int dec = (int) (e.getValue() * (1f - frameLerp(POOL_LERP_FACTOR)));
                 if (dec > 0) phantom.put(e.getKey(), dec);
             }
             stored = phantom;
@@ -153,19 +165,17 @@ public class ForgeControllerRenderer implements BlockEntityRenderer<ForgeControl
         for (Map.Entry<ResourceLocation, Integer> e : stored.entrySet()) {
             float target = e.getValue();
             float prev = displayed.getOrDefault(e.getKey(), target);
-            float lerped = prev + (target - prev) * POOL_LERP_FACTOR;
+            float lerped = prev + (target - prev) * frameLerp(POOL_LERP_FACTOR);
             displayed.put(e.getKey(), lerped);
             displayedMb.put(e.getKey(), Math.max(0, Math.round(lerped)));
         }
 
-        List<BlockPos> orderedInterior = new ArrayList<>(slotPositions);
-        orderedInterior.sort((a, b) -> {
-            int c = Integer.compare(a.getY(), b.getY());
-            if (c != 0) return c;
-            c = Integer.compare(a.getX(), b.getX());
-            if (c != 0) return c;
-            return Integer.compare(a.getZ(), b.getZ());
-        });
+        // Already ordered by Y, then X, then Z: both producers of slotPositions sort with this
+        // exact comparator (ForgeControllerBlockEntity.rebuildSlots and the client-side load),
+        // and the field is otherwise only List.of(). Re-sorting a copy here ran every frame, for
+        // every filled forge, including ones behind the player — shouldRenderOffScreen is true.
+        // If either producer's ordering ever changes, this must change with it.
+        List<BlockPos> orderedInterior = slotPositions;
 
         int cursor = 0;
         for (Map.Entry<ResourceLocation, Integer> e : displayedMb.entrySet()) {

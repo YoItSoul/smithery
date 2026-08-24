@@ -15,9 +15,11 @@ import java.util.function.Predicate;
 /**
  * Shared effect resolution for the tool and armor modifier event routers.
  *
- * <p>Stats are recomputed per event via {@link ToolStats#compute}; the path is allocation-light
- * so caching is unnecessary at typical event frequencies. High-frequency callers (armor tick)
- * should pre-check {@link #hasComposition} before resolving.
+ * <p>Stats are recomputed per event via {@link ToolStats#compute}. High-frequency callers — the
+ * armor and tool tick routers, which reach here for six equipment slots per player per tick —
+ * should pre-check {@link #hasComposition} before resolving; that check is tag-presence only and
+ * does not decode, while {@link #effectsFor} decodes through the memo in
+ * {@code SmitheryToolData.getComposition}.
  */
 final class ModifierDispatch {
     private ModifierDispatch() {}
@@ -25,9 +27,14 @@ final class ModifierDispatch {
     /** A modifier resolved against the effect instance that granted it. */
     record ResolvedEffect(Modifier modifier, ModifierEffect effect) {}
 
-    /** Cheap component-presence check for early-outs before {@link #effectsFor}. */
+    /**
+     * Cheap component-presence check for early-outs before {@link #effectsFor}.
+     *
+     * <p>Tests only that the tag is there. Decoding it to answer a yes/no question threw the
+     * result away, and the caller decodes it again immediately afterwards anyway.
+     */
     static boolean hasComposition(ItemStack stack) {
-        return SmitheryToolData.hasComposition(stack);
+        return SmitheryToolData.hasCompositionTag(stack);
     }
 
     /**

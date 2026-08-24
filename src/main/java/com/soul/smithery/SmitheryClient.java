@@ -16,12 +16,14 @@ import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.entity.ThrownItemRenderer;
 import net.minecraft.client.renderer.entity.TippableArrowRenderer;
 import net.minecraft.client.renderer.item.ItemProperties;
+import com.soul.smithery.client.PartSilhouetteCache;
 import com.soul.smithery.item.tool.SmitheryBowItem;
 import com.soul.smithery.item.tool.SmitheryCrossbowItem;
 import com.soul.smithery.item.tool.ToolStats;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -31,13 +33,30 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
  * Client-only bootstrap.
  *
  * <p>Registers block-entity renderers, the controller menu screen, item color handlers that
- * apply per-material color to grayscale textures, and the bow's pull model predicates. Every
- * handler here runs on the mod bus, restricted to {@link Dist#CLIENT}.
+ * apply per-material color to grayscale textures, the bow's pull model predicates, and the
+ * resource-reload hook that drops cached texture samples. Every handler here runs on the mod
+ * bus, restricted to {@link Dist#CLIENT}.
  */
 @Mod.EventBusSubscriber(modid = Smithery.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
 public final class SmitheryClient {
 
     private SmitheryClient() {}
+
+    /**
+     * Drops texture-derived caches when resources reload.
+     *
+     * <p>{@link PartSilhouetteCache} samples part template PNGs and keeps the result forever;
+     * without this a resource-pack swap or F3+T left the press drawing teeth from the previous
+     * pack's textures. Registered as a reload listener rather than hung off model baking, because
+     * the cache is a plain map read from the render thread and baking runs on its own thread.
+     */
+    @SubscribeEvent
+    public static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(
+                (net.minecraft.server.packs.resources.ResourceManagerReloadListener)
+                        manager -> PartSilhouetteCache.invalidate());
+    }
+
 
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {

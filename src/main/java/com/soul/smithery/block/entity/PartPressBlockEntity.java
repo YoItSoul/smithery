@@ -130,16 +130,21 @@ public class PartPressBlockEntity extends BlockEntity implements GeoBlockEntity 
      * branch.
      */
     public static @Nullable ResourceLocation resolveMaterialFor(ItemStack stack) {
+        // Addon-registered inputs are checked FIRST: each names one exact item, while the built-ins
+        // below match a tag. Botania's livingwood and dreamwood and Aether's skyroot log all sit in
+        // minecraft:logs, so a tag-first order pressed them into generic Wood parts and left their
+        // own registered material with no route into a part at all.
+        ResourceLocation itemId =
+                net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem());
+        ResourceLocation registered = itemId == null ? null : SmitheryAPI.PRESS_INPUTS.get(itemId);
+        if (registered != null) return registered;
+
         if (stack.is(ItemTags.LOGS))        return SmitheryMaterials.WOOD;
         if (stack.is(Items.FLINT))          return SmitheryMaterials.FLINT;
         if (stack.is(Items.SLIME_BALL))     return SmitheryMaterials.SLIME;
         if (isCoralBlockItem(stack))        return SmitheryMaterials.CORAL;
         if (stack.is(SmitheryItems.RED_SLIME.get())) return SmitheryMaterials.RED_SLIME;
-        // Addon-registered inputs, checked last so the built-ins above always win. Without this a
-        // craftable-but-not-castable material has no route into a part at all.
-        net.minecraft.resources.ResourceLocation itemId =
-                net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem());
-        return itemId == null ? null : com.soul.smithery.api.SmitheryAPI.PRESS_INPUTS.get(itemId);
+        return null;
     }
 
     private static boolean isCoralBlockItem(ItemStack stack) {

@@ -5,7 +5,6 @@ import com.soul.smithery.item.tool.SmitheryToolItem;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.common.MinecraftForge;
 
 /**
  * DE-classloading side of {@link DraconicCompat}. Only ever loaded when Draconic Evolution is
@@ -23,7 +22,16 @@ final class DraconicItemFactory {
         return new DraconicSmitheryArmorItem(type, props, id);
     }
 
+    /**
+     * No DE-side Forge listeners are needed.
+     *
+     * <p>There was a JUMP_BOOST bridge here. DE's own {@code ModularArmorEventHandler} already
+     * resolves the chest slot through {@code IModularArmor.getArmor}, which returns any item
+     * implementing that interface — Smithery's chestplate included — so the bridge applied a
+     * second boost on top of DE's, and DE's fall-damage credit is sized for one. Kept as the
+     * hook point for future bridges that DE genuinely does not cover.
+     */
     static void initEvents() {
-        MinecraftForge.EVENT_BUS.register(new DraconicEvents());
+        // intentionally empty
     }
 }

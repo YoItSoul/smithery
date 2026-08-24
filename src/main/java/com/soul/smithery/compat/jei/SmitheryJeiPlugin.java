@@ -77,7 +77,8 @@ public class SmitheryJeiPlugin implements IModPlugin {
 
     /**
      * The live runtime, held so {@link #refreshDataDrivenRecipes()} can reach the recipe manager
-     * after startup. Null until JEI finishes loading, and reset when it reloads.
+     * after startup. Null until JEI finishes loading, and cleared again by
+     * {@link #onRuntimeUnavailable()} when it tears down.
      */
     private static @Nullable IJeiRuntime runtime;
 
@@ -119,6 +120,24 @@ public class SmitheryJeiPlugin implements IModPlugin {
         if (!pushedAlloys.isEmpty()) recipes.addRecipes(SmitheryJeiTypes.ALLOYING, pushedAlloys);
         if (!pushedBasinCasts.isEmpty()) recipes.addRecipes(SmitheryJeiTypes.BASIN_CASTING, pushedBasinCasts);
         if (!pushedModifiers.isEmpty()) recipes.addRecipes(SmitheryJeiTypes.MODIFIER, pushedModifiers);
+    }
+
+    /**
+     * Drops the torn-down runtime.
+     *
+     * <p>Without this the reference outlived the session it belonged to: returning to the main
+     * menu and joining a second server left {@code runtime} pointing at the dead session, and
+     * {@code SmitheryDataSyncHandler.onDatapackSync} fires during {@code placeNewPlayer} — before
+     * the new runtime is published — so the refresh passed its null guard and mutated the
+     * previous session's recipe manager. Clearing the pushed lists too keeps the
+     * "what we have outstanding" bookkeeping honest for the next runtime.
+     */
+    @Override
+    public void onRuntimeUnavailable() {
+        runtime = null;
+        pushedAlloys = List.of();
+        pushedBasinCasts = List.of();
+        pushedModifiers = List.of();
     }
 
     @Override

@@ -11,10 +11,10 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.soul.smithery.item.tool.SmitheryToolItem;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
@@ -23,7 +23,8 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.common.capabilities.ICapabilityProvider;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
@@ -112,6 +113,18 @@ public class DraconicSmitheryToolItem extends SmitheryToolItem implements IModul
         return super.damageItem(stack, remaining, entity, onBroken);
     }
 
+    /**
+     * The block face the player is looking at, which fixes the plane the AOE break spreads in.
+     *
+     * @param player the breaking player
+     * @return the targeted face, defaulting to {@link Direction#UP} when nothing is picked
+     */
+    private static Direction minedFace(ServerPlayer player) {
+        double reach = player.getAttributeValue(net.minecraftforge.common.ForgeMod.BLOCK_REACH.get());
+        HitResult hit = player.pick(reach, 0f, false);
+        return hit instanceof BlockHitResult block ? block.getDirection() : Direction.UP;
+    }
+
     @Override
     public boolean mineBlock(ItemStack stack, Level level, BlockState state, BlockPos pos, LivingEntity owner) {
         boolean result = super.mineBlock(stack, level, state, pos, owner);
@@ -122,10 +135,19 @@ public class DraconicSmitheryToolItem extends SmitheryToolItem implements IModul
         int radius = ModularSupport.moduleAoe(stack);
         if (radius <= 0 || !isCorrectToolForDrops(stack, state)) return result;
 
+        // A slab in the plane of the mined face, not a cube. DE's own getMiningArea zeroes the
+        // face-axis extent, so a radius-2 module breaks 24 extra blocks there against 124 here,
+        // and radius 3 is 48 against 342 — each one a full server break with its own BreakEvent,
+        // loot roll, neighbour updates and chunk dirtying.
+        Direction face = minedFace(player);
+        int dx = face.getAxis() == Direction.Axis.X ? 0 : radius;
+        int dy = face.getAxis() == Direction.Axis.Y ? 0 : radius;
+        int dz = face.getAxis() == Direction.Axis.Z ? 0 : radius;
+
         AOE_BREAKING.set(true);
         try {
-            for (BlockPos target : BlockPos.betweenClosed(pos.offset(-radius, -radius, -radius),
-                                                          pos.offset(radius, radius, radius))) {
+            for (BlockPos target : BlockPos.betweenClosed(pos.offset(-dx, -dy, -dz),
+                                                          pos.offset(dx, dy, dz))) {
                 if (target.equals(pos)) continue;
                 BlockState targetState = level.getBlockState(target);
                 if (targetState.isAir()) continue;
@@ -153,12 +175,4 @@ public class DraconicSmitheryToolItem extends SmitheryToolItem implements IModul
         IModularItem.super.handleTick(stack, entity, slot, equipped);
     }
 
-    @Override
-    public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean selected) {
-        super.inventoryTick(stack, level, entity, slotId, selected);
-        if (level.isClientSide() || !(entity instanceof LivingEntity living)) return;
-        if (!stack.getCapability(DECapabilities.MODULE_HOST_CAPABILITY).isPresent()) return;
-        boolean equipped = living.getMainHandItem() == stack || living.getOffhandItem() == stack;
-        handleTick(stack, living, equipped ? EquipmentSlot.MAINHAND : null, equipped);
-    }
 }

@@ -13,6 +13,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraftforge.event.TickEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Entity;
@@ -68,8 +69,32 @@ public final class ToolModifierEventRouter {
 
     private static final List<BreakCapture> RECENT_BREAKS = new ArrayList<>();
 
+    /**
+     * Re-entrancy guard for {@link #onDropSpawn}. Spawning a bonus drop fires
+     * {@code EntityJoinLevelEvent} synchronously, which re-enters this handler while the
+     * capture is still live and the new entity sits on the broken block — so without this
+     * the bonus pass runs on its own output, compounding every time. Mirrors
+     * {@code AoeMiningHandler.SPREADING}.
+     */
+    private static final ThreadLocal<Boolean> SPAWNING_EXTRAS = ThreadLocal.withInitial(() -> false);
+
     /** Entity NBT key holding the composed stack a thrown vanilla trident came from. */
     private static final String KEY_THROWN_TRIDENT = "smithery:thrown_trident";
+
+    /**
+     * True when {@code source} is a melee blow struck by {@code attacker} itself, rather than
+     * something merely caused by them.
+     *
+     * @param source the damage source under consideration
+     * @param attacker the entity credited as the cause
+     * @return true if the attacker's held weapon is what dealt this damage
+     */
+    private static boolean isDirectMeleeFrom(DamageSource source, LivingEntity attacker) {
+        if (source == null || source.getDirectEntity() != attacker) return false;
+        return source.is(DamageTypes.PLAYER_ATTACK)
+                || source.is(DamageTypes.MOB_ATTACK)
+                || source.is(DamageTypes.MOB_ATTACK_NO_AGGRO);
+    }
 
     /**
      * The composed stack behind a projectile hit, or an empty stack when the hit came from
@@ -193,6 +218,13 @@ public final class ToolModifierEventRouter {
 
         ItemStack tool = projectileStack(event.getSource());
         if (tool.isEmpty()) {
+            // Only credit the main hand when the main hand actually landed the blow. The attacker
+            // is the causing entity for a splash potion, their own lit TNT, or an offhand vanilla
+            // bow, and crediting those made armour *increase* potion damage through the rapier
+            // bonus and fired every onDealDamage hook on kills the tool had no part in.
+            // Deliberately not source.isIndirect(): that is causingEntity != directEntity, so
+            // thorns passes it and still triggers the bonus.
+            if (!isDirectMeleeFrom(event.getSource(), attacker)) return;
             tool = attacker.getMainHandItem();
             if (!(tool.getItem() instanceof SmitheryToolItem toolItem)) return;
 
@@ -285,6 +317,7 @@ public final class ToolModifierEventRouter {
      */
     @SubscribeEvent
     public static void onDropSpawn(EntityJoinLevelEvent event) {
+        if (SPAWNING_EXTRAS.get()) return;
         if (event.getLevel().isClientSide()) return;
         if (!(event.getEntity() instanceof ItemEntity drop)) return;
         if (!(event.getLevel() instanceof ServerLevel level)) return;
@@ -299,7 +332,12 @@ public final class ToolModifierEventRouter {
                 it.remove();
                 continue;
             }
-            if (drop.blockPosition().distSqr(c.pos()) <= 4.0) {
+            // Exact position, not a radius: popResource and dropContents both place drops on
+            // the broken block itself, and AoE-broken neighbours each record their own capture.
+            // A radius match would also claim unrelated entities born this tick nearby — a
+            // player-thrown stack, mob death drops, a broken chest's contents.
+            if (drop.blockPosition().equals(c.pos()) && drop.getOwner() == null
+                    && !drop.getItem().isEmpty()) {
                 match = c;
                 break;
             }
@@ -328,10 +366,15 @@ public final class ToolModifierEventRouter {
         if (!drops.contains(drop)) {
             event.setCanceled(true);
         }
-        for (ItemEntity extra : drops) {
-            if (extra != drop) {
-                level.addFreshEntity(extra);
+        SPAWNING_EXTRAS.set(true);
+        try {
+            for (ItemEntity extra : drops) {
+                if (extra != drop) {
+                    level.addFreshEntity(extra);
+                }
             }
+        } finally {
+            SPAWNING_EXTRAS.set(false);
         }
     }
 
@@ -364,6 +407,9 @@ public final class ToolModifierEventRouter {
         if (player.level().isClientSide()) return;
         ItemStack tool = projectileStack(event.getSource());
         if (tool.isEmpty()) {
+            // Same guard as onDealDamage: the cleaver head roll must not fire on a kill the
+            // held tool had no part in, such as a splash potion or the player's own TNT.
+            if (!isDirectMeleeFrom(event.getSource(), player)) return;
             tool = player.getMainHandItem();
             if (!(tool.getItem() instanceof SmitheryToolItem toolItem)) return;
 
@@ -419,6 +465,7 @@ public final class ToolModifierEventRouter {
         // This event carries no damage source, so the killing blow is read back off the victim.
         ItemStack tool = projectileStack(event.getEntity().getLastDamageSource());
         if (tool.isEmpty()) {
+            if (!isDirectMeleeFrom(event.getEntity().getLastDamageSource(), killer)) return;
             tool = killer.getMainHandItem();
             if (!(tool.getItem() instanceof SmitheryToolItem)) return;
         }

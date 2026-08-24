@@ -29,6 +29,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -302,8 +303,14 @@ public final class SmitheryJeiRecipes {
 
     /**
      * Builds the snapshot list of part-press recipes. Mirrors the input-acceptance set of
-     * {@code PartPressBlockEntity} (logs, flint, slime, coral); each accepted input is
-     * paired with every non-synthetic part type.
+     * {@link com.soul.smithery.block.entity.PartPressBlockEntity#resolveMaterialFor} — the
+     * addon-registered {@link SmitheryAPI#PRESS_INPUTS} first, then the built-in tag matches
+     * (logs, flint, slime, coral) — with each accepted input paired against every non-synthetic
+     * part type.
+     *
+     * <p>Precedence matters here as much as in the press: a log that also carries its own press
+     * registration (Botania's livingwood, Aether's skyroot) must show its own material's parts and
+     * <em>not</em> a generic Wood row, or JEI advertises a cut the block never performs.</p>
      *
      * @return list of part-press category rows
      */
@@ -321,11 +328,26 @@ public final class SmitheryJeiRecipes {
                 Items.DEAD_HORN_CORAL_BLOCK,
         };
 
+        // Sorted by item id so the category's row order is stable between launches — PRESS_INPUTS
+        // is a plain HashMap.
+        Map<Item, ResourceLocation> registeredInputs = new LinkedHashMap<>();
+        SmitheryAPI.PRESS_INPUTS.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(Comparator.comparing(ResourceLocation::toString)))
+                .forEach(e -> {
+                    Item item = BuiltInRegistries.ITEM.get(e.getKey());
+                    if (item != Items.AIR) registeredInputs.put(item, e.getValue());
+                });
+
         List<Item> logItems = new ArrayList<>();
         BuiltInRegistries.ITEM.getTagOrEmpty(ItemTags.LOGS).forEach(holder -> logItems.add(holder.value()));
+        logItems.removeIf(registeredInputs::containsKey);
+        simpleInputs.keySet().removeIf(registeredInputs::containsKey);
 
         for (PartType pt : SmitheryAPI.PART_TYPES.all()) {
             if (pt.syntheticCast()) continue;
+            for (var entry : registeredInputs.entrySet()) {
+                addPressEntry(out, new ItemStack(entry.getKey()), entry.getValue(), pt);
+            }
             for (Item log : logItems) {
                 addPressEntry(out, new ItemStack(log), SmitheryMaterials.WOOD, pt);
             }
@@ -333,6 +355,7 @@ public final class SmitheryJeiRecipes {
                 addPressEntry(out, new ItemStack(entry.getKey()), entry.getValue(), pt);
             }
             for (Item coral : coralBlocks) {
+                if (registeredInputs.containsKey(coral)) continue;
                 addPressEntry(out, new ItemStack(coral), SmitheryMaterials.CORAL, pt);
             }
         }

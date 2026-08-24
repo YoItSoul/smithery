@@ -4,6 +4,7 @@ import com.soul.smithery.api.SmitheryAPI;
 import com.soul.smithery.api.part.PartType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
 import net.minecraft.server.packs.resources.Resource;
 
 import javax.imageio.ImageIO;
@@ -41,7 +42,15 @@ public final class PartSilhouetteCache {
         if (pt == null) return EMPTY;
         ResourceLocation tmpl = pt.textureTemplate();
         if (tmpl == null) return EMPTY;
-        return CACHE.computeIfAbsent(pt.id(), id -> readAlphaGrid(tmpl));
+        // Deliberately not computeIfAbsent: a read that fails must not be cached. Resource
+        // lookups can legitimately fail while a resource reload is in flight, and caching the
+        // all-zero fallback drew a full slab of maximum press teeth for the rest of the session.
+        float[][] cached = CACHE.get(pt.id());
+        if (cached != null) return cached;
+        float[][] grid = readAlphaGrid(tmpl);
+        if (grid == null) return EMPTY;
+        CACHE.put(pt.id(), grid);
+        return grid;
     }
 
     /**
@@ -64,18 +73,23 @@ public final class PartSilhouetteCache {
         CACHE.clear();
     }
 
-    private static float[][] readAlphaGrid(ResourceLocation tmpl) {
+    /**
+     * Samples the template texture into a normalized alpha grid, or null when it could not be
+     * read. Null rather than {@link #EMPTY} so the caller can tell "transparent" from "failed"
+     * and decline to cache the latter.
+     */
+    private static float @Nullable [][] readAlphaGrid(ResourceLocation tmpl) {
         ResourceLocation resourceLoc = ResourceLocation.fromNamespaceAndPath(
                 tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
         try {
             Optional<Resource> resource =
                     Minecraft.getInstance().getResourceManager().getResource(resourceLoc);
-            if (resource.isEmpty()) return EMPTY;
+            if (resource.isEmpty()) return null;
             BufferedImage raw;
             try (InputStream in = resource.get().open()) {
                 raw = ImageIO.read(in);
             }
-            if (raw == null) return EMPTY;
+            if (raw == null) return null;
             BufferedImage rgba = new BufferedImage(raw.getWidth(), raw.getHeight(),
                     BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = rgba.createGraphics();
@@ -105,7 +119,7 @@ public final class PartSilhouetteCache {
             }
             return grid;
         } catch (Exception e) {
-            return EMPTY;
+            return null;
         }
     }
 }

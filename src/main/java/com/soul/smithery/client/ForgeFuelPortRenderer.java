@@ -44,12 +44,20 @@ public class ForgeFuelPortRenderer implements BlockEntityRenderer<ForgeFuelPortB
     private static final float LERP_FAST_THRESHOLD = 0.05f;
     private static final float LERP_SNAP_THRESHOLD = 0.30f;
 
+    /**
+     * Eases {@code prev} toward {@code target} at a rate independent of frame rate.
+     *
+     * <p>The factors are per-tick; applying them once per {@code render} call made the fill
+     * animation run at whatever speed the client happened to be drawing at, and doubled under a
+     * shader pack's extra shadow pass. The snap threshold stays a plain distance test.
+     */
     private static float lerpStep(float prev, float target) {
         float diff = target - prev;
         float absD = Math.abs(diff);
         if (absD > LERP_SNAP_THRESHOLD) return target;
         float factor = absD > LERP_FAST_THRESHOLD ? LERP_FACTOR_FAST : LERP_FACTOR;
-        return prev + diff * factor;
+        float delta = Math.min(net.minecraft.client.Minecraft.getInstance().getDeltaFrameTime(), 5f);
+        return prev + diff * (1f - (float) Math.pow(1f - factor, delta));
     }
 
     private final Map<Long, Float> displayedByPos = new HashMap<>();

@@ -114,8 +114,8 @@ public class SmitheryToolItem extends Item {
         }
 
         // Preserve wear across recomposition (anvil modifiers, stat recomputes) — resetting to
-        // 0 here made every modifier application a free full repair. Written straight to NBT so
-        // the durability-scaled recompose in setDamage cannot recurse.
+        // 0 here made every modifier application a free full repair. Written straight to NBT
+        // rather than through setDamageValue so recomposition cannot re-enter item damage hooks.
         int priorDamage = stack.getDamageValue();
         SmitheryToolData.setMaxDurability(stack, stats.maxDurability);
         stack.getOrCreateTag().putInt("Damage", Math.min(priorDamage, stats.maxDurability - 1));
@@ -188,19 +188,16 @@ public class SmitheryToolItem extends Item {
             java.util.UUID.fromString("d3f7c1d4-0f2f-4c1a-8f5e-6a2b9c4e7d10");
 
     /**
-     * Re-stamps stats whenever durability changes IF a durability-scaled modifier
-     * (Stonebound-style) is present — their mining/damage contributions depend on wear.
-     * Safe against recursion: applyComposition writes the damage NBT directly and
-     * never routes back through here.
+     * Wear fraction of {@code stack}, 0 when undamaged and 1 when spent.
+     *
+     * <p>Durability-scaled modifiers (Stonebound) read this, so any stat path serving a real
+     * stack must pass it or the modifier's reward silently evaluates to zero. Guarded on
+     * {@code maxDamage > 0} because it resolves through the composition, which an unstamped
+     * stack does not have yet.
      */
-    @Override
-    public void setDamage(ItemStack stack, int damage) {
-        super.setDamage(stack, damage);
-        ToolComposition comp = SmitheryToolData.getComposition(stack);
-        if (comp == null || !comp.isValid()) return;
-        List<ModifierEffect> applied = SmitheryToolData.getAppliedModifiers(stack);
-        if (!ToolStats.compute(comp, applied).hasDurabilityScaled) return;
-        ToolCompositions.apply(stack, comp);
+    private static float wearOf(ItemStack stack) {
+        int max = stack.getMaxDamage();
+        return max > 0 ? Math.min(1f, (float) stack.getDamageValue() / max) : 0f;
     }
 
     /**
@@ -493,7 +490,8 @@ public class SmitheryToolItem extends Item {
         if (comp == null || tt == null) return super.getDestroySpeed(stack, state);
         for (MiningRule rule : miningRulesFor(tt.id().getPath())) {
             if (state.is(rule.tag())) {
-                ToolStats stats = ToolStats.compute(comp, SmitheryToolData.getAppliedModifiers(stack));
+                ToolStats stats = ToolStats.compute(comp,
+                        SmitheryToolData.getAppliedModifiers(stack), wearOf(stack));
                 return Math.max(1.0f, stats.miningSpeed * rule.speedFactor());
             }
         }
@@ -515,7 +513,8 @@ public class SmitheryToolItem extends Item {
         for (MiningRule rule : miningRulesFor(path)) {
             if (!state.is(rule.tag())) continue;
             if (!usesHarvestTier(path)) return true;
-            ToolStats stats = ToolStats.compute(comp, SmitheryToolData.getAppliedModifiers(stack));
+            ToolStats stats = ToolStats.compute(comp,
+                    SmitheryToolData.getAppliedModifiers(stack), wearOf(stack));
             return TierSortingRegistry.isCorrectTierForDrops(tierFor(stats.harvestLevel), state);
         }
         return super.isCorrectToolForDrops(stack, state);
@@ -661,7 +660,7 @@ public class SmitheryToolItem extends Item {
         }
 
         List<ModifierEffect> applied = SmitheryToolData.getAppliedModifiers(stack);
-        ToolStats stats = ToolStats.compute(comp, applied);
+        ToolStats stats = ToolStats.compute(comp, applied, wearOf(stack));
         SmitheryTooltips.Tier tier = SmitheryTooltips.currentTier();
 
         tooltip.accept(Component.translatable("tooltip." + Smithery.MODID + ".section.summary")
@@ -706,8 +705,11 @@ public class SmitheryToolItem extends Item {
                     Component.empty().append(matName).append(Component.literal(" ")).append(partName)));
         }
 
-        int totalSlots = totalModifierSlots(comp);
-        int usedSlots = applied.size();
+        // Must agree with freeModifierSlots, which is what the anvil actually gates on: bonus
+        // slots count toward the total, and a level-N modifier consumes N slots, not one. Using
+        // applied.size() showed "1 / 3" for a level-2 Excavating that had really taken 2 of 3.
+        int totalSlots = totalModifierSlots(comp) + bonusModifierSlots(stack);
+        int usedSlots = appliedModifierCount(stack);
 
         if (!stats.allEffects.isEmpty() || totalSlots > 0) {
             tooltip.accept(SmitheryTooltips.sectionHeader(

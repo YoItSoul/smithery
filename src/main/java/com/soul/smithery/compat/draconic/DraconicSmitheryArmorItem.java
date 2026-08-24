@@ -7,41 +7,37 @@ import com.brandon3055.draconicevolution.api.modules.lib.ModuleHostImpl;
 import com.brandon3055.draconicevolution.init.EquipCfg;
 import com.brandon3055.draconicevolution.init.ModuleCfg;
 import com.brandon3055.draconicevolution.items.equipment.IModularArmor;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.soul.smithery.item.tool.SmitheryArmorItem;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.Attribute;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
  * DE-aware Smithery armor. Same integration contract as {@link DraconicSmitheryToolItem}:
  * draconic-tier compositions expose DE's {@code ModuleHost} (chest pieces use DE's chestpiece
- * grid dimensions, other slots the tool dimensions), tick their modules while worn, gain a
- * movement-speed bridge for SPEED modules, and use module energy to absorb durability damage
- * before Smithery's own never-shatter clamp applies.
+ * grid dimensions, other slots the tool dimensions) and use module energy to absorb durability
+ * damage before Smithery's own never-shatter clamp applies.
+ *
+ * <p>Deliberately thin: DE's own handlers already drive module ticking, jump boost and
+ * movement speed through any item implementing its interfaces, so bridging those here
+ * applied every effect twice.
+ *
+ * <p><b>Known trade-off, chest slot.</b> DE's {@code IModularArmor.getArmor} short-circuits on
+ * {@code getItemBySlot(CHEST).getItem() instanceof IModularArmor} <em>without</em> testing for the
+ * module-host capability, and returns immediately. So while any Smithery chestplate is worn — even
+ * a plain iron one with no host — DE's equipment-manager fallback is never reached, and a DE
+ * Modular Chestpiece sitting in a Curios slot silently loses shield, undying, flight and hill-step.
+ * There is no fix on this side: that same {@code instanceof} short-circuit is exactly what lets DE
+ * find a draconic-tier Smithery chestplate, so narrowing it would break the integration it enables.
+ * Resolving it properly needs a mixin on {@code getArmor} to fall through when the chest stack has
+ * no {@code MODULE_HOST}.
  */
 public class DraconicSmitheryArmorItem extends SmitheryArmorItem implements IModularArmor {
-
-    /** Distinct per-slot UUIDs so speed bonuses from multiple worn pieces stack. */
-    private static final UUID[] MODULE_SPEED_UUIDS = {
-            UUID.fromString("b1d3f7c2-8a4e-4f6b-9c2d-0e5a7b391418"), // FEET
-            UUID.fromString("c2e4a8d3-9b5f-4a7c-8d3e-1f6b8c4a2529"), // LEGS
-            UUID.fromString("d3f5b9e4-ac6a-4b8d-9e4f-2a7c9d5b363a"), // CHEST
-            UUID.fromString("e4a6caf5-bd7b-4c9e-8f5a-3b8dae6c474b"), // HEAD
-    };
 
     public DraconicSmitheryArmorItem(Type type, Properties properties, ResourceLocation toolTypeId) {
         super(type, properties, toolTypeId);
@@ -105,22 +101,36 @@ public class DraconicSmitheryArmorItem extends SmitheryArmorItem implements IMod
     // ------------------------------------------------------------------ module effect bridges
 
     @Override
-    public Multimap<Attribute, AttributeModifier> getAttributeModifiers(EquipmentSlot slot, ItemStack stack) {
-        Multimap<Attribute, AttributeModifier> base = super.getAttributeModifiers(slot, stack);
-        if (slot != getType().getSlot()) return base;
-        double speed = ModularSupport.moduleSpeed(stack);
-        if (speed <= 0) return base;
-        Multimap<Attribute, AttributeModifier> merged = HashMultimap.create(base);
-        merged.put(Attributes.MOVEMENT_SPEED, new AttributeModifier(
-                MODULE_SPEED_UUIDS[getType().getSlot().getIndex()],
-                "smithery_de_module_speed", speed, AttributeModifier.Operation.MULTIPLY_TOTAL));
-        return merged;
-    }
-
-    @Override
     public <T extends LivingEntity> int damageItem(ItemStack stack, int amount, T entity, Consumer<T> onBroken) {
         int remaining = ModularSupport.absorbDamageWithEnergy(stack, amount);
         return super.damageItem(stack, remaining, entity, onBroken);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Guarded override: BrandonsCore queries every equipped {@code ElytraEnabledItem} — from
+     * {@code LivingEntity#updateFallFlying}, {@code Player#tryToStartFallFlying} and DE's elytra
+     * render layer, so once per frame while worn — and the interface default {@code orElseThrow}s
+     * on the module-host capability, which is legitimately absent on non-draconic-tier
+     * compositions. No host means no FLIGHT module, so no elytra.
+     */
+    @Override
+    public boolean canElytraFlyBC(ItemStack stack, LivingEntity entity) {
+        if (!stack.getCapability(DECapabilities.MODULE_HOST_CAPABILITY).isPresent()) return false;
+        return IModularArmor.super.canElytraFlyBC(stack, entity);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Guarded for the same reason as {@link #canElytraFlyBC}: BrandonsCore's fall-flying hook
+     * reaches this for equipment-slot items without re-checking. False leaves the tick to vanilla.
+     */
+    @Override
+    public boolean elytraFlightTickBC(ItemStack stack, LivingEntity entity, int flightTicks) {
+        if (!stack.getCapability(DECapabilities.MODULE_HOST_CAPABILITY).isPresent()) return false;
+        return IModularArmor.super.elytraFlightTickBC(stack, entity, flightTicks);
     }
 
     /**
@@ -136,13 +146,4 @@ public class DraconicSmitheryArmorItem extends SmitheryArmorItem implements IMod
         IModularArmor.super.handleTick(stack, entity, slot, equipped);
     }
 
-    @Override
-    public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean selected) {
-        super.inventoryTick(stack, level, entity, slotId, selected);
-        if (level.isClientSide() || !(entity instanceof LivingEntity living)) return;
-        if (!stack.getCapability(DECapabilities.MODULE_HOST_CAPABILITY).isPresent()) return;
-        EquipmentSlot armorSlot = getType().getSlot();
-        boolean worn = living.getItemBySlot(armorSlot) == stack;
-        handleTick(stack, living, worn ? armorSlot : null, worn);
-    }
 }

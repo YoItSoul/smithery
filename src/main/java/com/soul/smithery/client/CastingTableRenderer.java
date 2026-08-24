@@ -10,12 +10,12 @@ import com.soul.smithery.item.PartItem;
 import com.soul.smithery.registry.SmitheryBlocks;
 import com.soul.smithery.registry.SmitheryFluids;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
@@ -80,14 +80,25 @@ public class CastingTableRenderer implements BlockEntityRenderer<CastingTableBlo
 
         ResourceLocation texLoc;
         int baseColor;
+        // Sprite UVs; a standalone PNG is sampled whole, an atlas sprite by its sub-rect.
+        float u0 = 0f, v0 = 0f, u1 = 1f, v1 = 1f;
         if (isPartItem) {
             ResourceLocation tmpl = pt.textureTemplate();
             texLoc = ResourceLocation.fromNamespaceAndPath(tmpl.getNamespace(), "textures/" + tmpl.getPath() + ".png");
             baseColor = entry.material.stats().partColor() | 0xFF000000;
         } else {
-            ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(resultStack.getItem());
-            if (itemId == null) return;
-            texLoc = ResourceLocation.fromNamespaceAndPath(itemId.getNamespace(), "textures/item/" + itemId.getPath() + ".png");
+            // Never build a texture path from the item id. Storage-form ingots share one
+            // template texture and have no per-material PNG of their own, and foreign ingots
+            // pulled in through forge:ingots/<material> routinely nest their textures in
+            // subfolders — both produced a missing-texture checkerboard on the sand. The baked
+            // model's particle icon is the item's real sprite, wherever it actually lives.
+            TextureAtlasSprite sprite = Minecraft.getInstance().getItemRenderer()
+                    .getModel(resultStack, be.getLevel(), null, 0)
+                    .getParticleIcon();
+            if (sprite == null) return;
+            texLoc = sprite.atlasLocation();
+            u0 = sprite.getU0(); v0 = sprite.getV0();
+            u1 = sprite.getU1(); v1 = sprite.getV1();
             baseColor = 0xFFFFFFFF;
         }
 
@@ -104,7 +115,7 @@ public class CastingTableRenderer implements BlockEntityRenderer<CastingTableBlo
 
         int color = (alpha << 24) | rgb;
         VertexConsumer buffer = bufferSource.getBuffer(RenderType.entityTranslucent(texLoc));
-        drawPartQuad(poseStack.last(), buffer, color);
+        drawPartQuad(poseStack.last(), buffer, color, u0, v0, u1, v1);
     }
 
     private static int lerpArgb(int from, int to, float t) {
@@ -128,17 +139,18 @@ public class CastingTableRenderer implements BlockEntityRenderer<CastingTableBlo
                 : new ItemStack(impressedItem.get());
     }
 
-    private static void drawPartQuad(PoseStack.Pose pose, VertexConsumer buf, int color) {
+    private static void drawPartQuad(PoseStack.Pose pose, VertexConsumer buf, int color,
+                                     float u0, float v0, float u1, float v1) {
         int r = (color >>> 16) & 0xFF;
         int g = (color >>> 8)  & 0xFF;
         int b = (color)        & 0xFF;
         int a = (color >>> 24) & 0xFF;
         Matrix4f m = pose.pose();
         final float y = 16.0f / 16f + 1.0f / 256f;
-        addVertex(m, pose, buf,  1f / 16f, y,  1f / 16f, r, g, b, a, 0f, 0f);
-        addVertex(m, pose, buf,  1f / 16f, y, 15f / 16f, r, g, b, a, 0f, 1f);
-        addVertex(m, pose, buf, 15f / 16f, y, 15f / 16f, r, g, b, a, 1f, 1f);
-        addVertex(m, pose, buf, 15f / 16f, y,  1f / 16f, r, g, b, a, 1f, 0f);
+        addVertex(m, pose, buf,  1f / 16f, y,  1f / 16f, r, g, b, a, u0, v0);
+        addVertex(m, pose, buf,  1f / 16f, y, 15f / 16f, r, g, b, a, u0, v1);
+        addVertex(m, pose, buf, 15f / 16f, y, 15f / 16f, r, g, b, a, u1, v1);
+        addVertex(m, pose, buf, 15f / 16f, y,  1f / 16f, r, g, b, a, u1, v0);
     }
 
     private static void addVertex(Matrix4f m, PoseStack.Pose pose, VertexConsumer buf,

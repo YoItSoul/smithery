@@ -57,6 +57,12 @@ public final class MaterialSourceTooltipHandler {
     }
 
     private static @Nullable ResourceLocation resolveMaterialForTooltip(ItemStack stack) {
+        // Same precedence as the press itself: an exact item registration beats the tag catch-all.
+        // Otherwise a livingwood log's tooltip promises Wood parts the press will never hand back,
+        // and the addon material it really presses into goes unmentioned.
+        ResourceLocation registered = SmitheryAPI.PRESS_INPUTS.get(BuiltInRegistries.ITEM.getKey(stack.getItem()));
+        if (registered != null) return registered;
+
         if (stack.is(ItemTags.LOGS))         return SmitheryMaterials.WOOD;
         if (stack.is(Items.FLINT))           return SmitheryMaterials.FLINT;
         if (stack.is(Items.SLIME_BALL))      return SmitheryMaterials.SLIME;

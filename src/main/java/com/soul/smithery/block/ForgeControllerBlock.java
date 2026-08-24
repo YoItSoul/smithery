@@ -7,9 +7,11 @@ import com.soul.smithery.registry.SmitheryBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -24,6 +26,7 @@ import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Brain block of the Forge multiblock. Exactly one is required per valid structure;
@@ -70,6 +73,33 @@ public class ForgeControllerBlock extends Block implements EntityBlock {
         if (!level.isClientSide() && level.getBlockEntity(pos) instanceof ForgeControllerBlockEntity fc) {
             fc.validateStructure();
         }
+    }
+
+    /**
+     * Returns the forge's contents when the controller itself is removed.
+     *
+     * <p>Interior items live only in the controller's block entity, and
+     * {@link ForgeControllerBlockEntity#invalidate} — which exists so a broken forge gives
+     * them back — only runs while that block entity is still alive. Breaking a wall brick
+     * therefore returns your items, but breaking the controller, the natural way to dismantle
+     * or move a forge, would eat them. Covers explosions and {@code Level#destroyBlock} too,
+     * which {@code playerWillDestroy} would miss.
+     */
+    @Override
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState,
+                         boolean movedByPiston) {
+        if (!state.is(newState.getBlock()) && !level.isClientSide()
+                && level.getBlockEntity(pos) instanceof ForgeControllerBlockEntity fc) {
+            List<BlockPos> positions = fc.slotPositions();
+            for (int i = 0; i < fc.slots().size(); i++) {
+                ItemStack stack = fc.slots().get(i);
+                if (stack.isEmpty()) continue;
+                // Drop at the cell the item occupied when there is one, else at the controller.
+                BlockPos at = i < positions.size() ? positions.get(i) : pos;
+                Containers.dropItemStack(level, at.getX() + 0.5, at.getY() + 0.5, at.getZ() + 0.5, stack);
+            }
+        }
+        super.onRemove(state, level, pos, newState, movedByPiston);
     }
 
     @Override

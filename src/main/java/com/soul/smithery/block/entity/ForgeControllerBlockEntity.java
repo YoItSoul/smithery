@@ -111,6 +111,18 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
     private NonNullList<ItemStack> slots = NonNullList.create();
     private float[] meltProgressPerSlot = new float[0];
 
+    /**
+     * Set by any change the client renders but that has no immediate sync of its own, and
+     * flushed once per tick from {@link #serverTick}.
+     *
+     * <p>Two reasons it is coalesced rather than synced inline. The fluid mutators only called
+     * {@code setChanged()}, so a forge pumped empty through the drain kept rendering a full pool
+     * on the client indefinitely. And the update tag carries the whole interior array plus a
+     * compound per occupied slot, so syncing on every single-item shrink re-encodes and
+     * broadcasts the entire forge — kilobytes per tick on a large build.
+     */
+    private boolean syncDirty = false;
+
     private final Map<BlockPos, ItemStack> pendingSlotItems = new HashMap<>();
     private final Map<BlockPos, Float>     pendingProgress  = new HashMap<>();
 
@@ -241,6 +253,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         if (toAdd <= 0) return 0;
         fluidStorage.merge(id, toAdd, Integer::sum);
         setChanged();
+        syncDirty = true;
         return toAdd;
     }
 
@@ -265,6 +278,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         if (remaining <= 0) fluidStorage.remove(id);
         else                 fluidStorage.put(id, remaining);
         setChanged();
+        syncDirty = true;
         return toDrain;
     }
 
@@ -306,6 +320,12 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             syncStatus(level, pos);
             decayTemperature(false);
             return;
+        }
+
+        if (syncDirty) {
+            syncDirty = false;
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
 
         List<ForgeFuelPortBlockEntity> ports = collectFuelPorts(level);
@@ -410,6 +430,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             }
             fluidStorage.merge(outputFluidId, recipe.result().mb(), Integer::sum);
             setChanged();
+            syncDirty = true;
         }
     }
 
@@ -448,7 +469,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
         if (changed) {
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            syncDirty = true;
         }
     }
 
@@ -568,6 +589,12 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
             meltProgressPerSlot[i] += meltRate;
 
             while (meltProgressPerSlot[i] >= recipe.outputMb()) {
+                // Room for the WHOLE unit or nothing: addFluid clamps to the space left and
+                // reports the partial amount, so accepting a short fill here would charge full
+                // progress and consume the item for part of its metal. Capacity is
+                // interiorCount * 1000 against unit sizes like 144, so a sub-unit remainder is
+                // the normal end state of filling a forge, not an edge case.
+                if (remainingFluidCapacityMb() < recipe.outputMb()) break;
                 int added = addFluid(outputFluid, recipe.outputMb());
                 if (added <= 0) break;
                 meltProgressPerSlot[i] -= recipe.outputMb();
@@ -582,7 +609,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
 
         if (changed) {
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            syncDirty = true;
         }
     }
 
@@ -813,7 +840,25 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         meltProgressPerSlot = newProgress;
     }
 
-    private AABB computeInteriorAabb() {
+    /**
+     * Bounding box of the interior cells, memoized per validation result.
+     *
+     * <p>Called twice every tick (entity absorption and the mob-fluid pass) and walks the whole
+     * interior set, which cannot change between validations — those run every
+     * {@link #VALIDATION_TICK_INTERVAL} ticks and replace {@code lastValidation} wholesale, so
+     * caching against its identity invalidates exactly when the interior really changed.
+     */
+    private @Nullable AABB computeInteriorAabb() {
+        if (cachedAabbFor == lastValidation) return cachedInteriorAabb;
+        cachedAabbFor = lastValidation;
+        cachedInteriorAabb = buildInteriorAabb();
+        return cachedInteriorAabb;
+    }
+
+    private @Nullable ValidationResult cachedAabbFor;
+    private @Nullable AABB cachedInteriorAabb;
+
+    private @Nullable AABB buildInteriorAabb() {
         if (lastValidation.interior.isEmpty()) return null;
         int xMin = Integer.MAX_VALUE, xMax = Integer.MIN_VALUE;
         int yMin = Integer.MAX_VALUE, yMax = Integer.MIN_VALUE;
@@ -906,8 +951,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                 ItemStack result = ContainerHelper.removeItem(slots, i, count);
                 if (!result.isEmpty()) {
                     setChanged();
-                    if (level instanceof ServerLevel sl)
-                        sl.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                    syncDirty = true;
                 }
                 return result;
             }
@@ -918,8 +962,7 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
                 if (i >= slots.size()) return;
                 slots.set(i, stack);
                 setChanged();
-                if (level instanceof ServerLevel sl)
-                    sl.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                syncDirty = true;
             }
             @Override public void setChanged() { ForgeControllerBlockEntity.this.setChanged(); }
             @Override public boolean stillValid(Player player) {
@@ -970,15 +1013,23 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         ListTag slotsIn = tag.getList("slots", Tag.TAG_COMPOUND);
         for (int i = 0; i < slotsIn.size(); i++) {
             CompoundTag entry = slotsIn.getCompound(i);
-            if (!entry.contains("item")) continue;
-            int count = entry.contains("count") ? entry.getInt("count") : 1;
             float progress = entry.getFloat("progress");
-            ResourceLocation itemId = ResourceLocation.tryParse(entry.getString("item"));
-            if (itemId == null) continue;
-            Item item = BuiltInRegistries.ITEM.get(itemId);
-            if (item == Items.AIR) continue;
+            ItemStack stack;
+            if (entry.contains("stack", Tag.TAG_COMPOUND)) {
+                stack = ItemStack.of(entry.getCompound("stack"));
+            } else {
+                // Legacy id+count entries written before slots persisted their full stack tag.
+                if (!entry.contains("item")) continue;
+                ResourceLocation itemId = ResourceLocation.tryParse(entry.getString("item"));
+                if (itemId == null) continue;
+                Item item = BuiltInRegistries.ITEM.get(itemId);
+                if (item == Items.AIR) continue;
+                int count = entry.contains("count") ? entry.getInt("count") : 1;
+                stack = new ItemStack(item, Math.max(1, count));
+            }
+            if (stack.isEmpty()) continue;
             BlockPos pos = new BlockPos(entry.getInt("x"), entry.getInt("y"), entry.getInt("z"));
-            pendingSlotItems.put(pos, new ItemStack(item, Math.max(1, count)));
+            pendingSlotItems.put(pos, stack);
             if (progress > 0f) pendingProgress.put(pos, progress);
         }
 
@@ -1042,15 +1093,16 @@ public class ForgeControllerBlockEntity extends BlockEntity implements MenuProvi
         for (int i = 0; i < slotPositions.size(); i++) {
             ItemStack stack = slots.get(i);
             if (stack.isEmpty()) continue;
-            ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
-            if (key == null) continue;
             BlockPos pos = slotPositions.get(i);
             CompoundTag entry = new CompoundTag();
             entry.putInt("x", pos.getX());
             entry.putInt("y", pos.getY());
             entry.putInt("z", pos.getZ());
-            entry.putString("item", key.toString());
-            entry.putInt("count", stack.getCount());
+            // Full stack tag, not id+count: a slot can legitimately hold an enchanted, renamed,
+            // damaged or composition-bearing stack (absorbItemEntities vacuums any item entity
+            // in the chamber and non-meltables simply sit there), and id+count strips all of it.
+            // The legacy "item"/"count" pair is still read on load for existing worlds.
+            entry.put("stack", stack.save(new CompoundTag()));
             if (i < meltProgressPerSlot.length && meltProgressPerSlot[i] > 0f) {
                 entry.putFloat("progress", meltProgressPerSlot[i]);
             }

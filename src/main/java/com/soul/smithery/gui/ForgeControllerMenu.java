@@ -39,29 +39,36 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
      * client truncated. Each mB quantity here can exceed that — fluid capacity is 1,000 mB
      * per interior block and fuel capacity 6,000 mB per port — so those values occupy two
      * consecutive indices, low half then high half, packed and unpacked by {@link #setWide}
-     * and {@link #getWide}. Narrow fields (flags, indices, counts, tenths of a degree) stay
-     * on a single index.
+     * and {@link #getWide}. Narrow fields (flags, indices, counts) stay on a single index.
      */
     private static final int WIDE_SLOTS = 2;
 
-    /** Container data index: forge temperature in tenths of degrees Celsius. */
+    /**
+     * Wide container data index: forge temperature in tenths of degrees Celsius.
+     *
+     * <p>Wide rather than narrow because tenths of a degree overflow a signed short well inside
+     * the mod's own range — molten blaze targets 3500&nbsp;C (35000 tenths) and
+     * {@code Config.RF_COIL_MAX_TEMPERATURE_C} allows up to 100000&nbsp;C. Truncated, the client
+     * read a large negative temperature and every slot tooltip claimed the forge was too cool
+     * while the server was actively melting.
+     */
     public static final int DATA_TEMP            = 0;
     /** Container data index: 1 if the multiblock validated, 0 otherwise. */
-    public static final int DATA_VALID           = 1;
+    public static final int DATA_VALID           = 2;
     /** Container data index: number of leak (hole) positions on the last validation. */
-    public static final int DATA_HOLES           = 2;
+    public static final int DATA_HOLES           = 3;
     /** Container data index of the player-selected output fluid material; -1 if none. */
-    public static final int DATA_OUTPUT_FLUID_IX = 3;
+    public static final int DATA_OUTPUT_FLUID_IX = 4;
     /** Container data index: 1 if the auto-alloy loop is enabled, 0 if paused. */
-    public static final int DATA_ALLOY_ENABLED   = 4;
+    public static final int DATA_ALLOY_ENABLED   = 5;
     /** Wide container data index: total fuel stored across all ports, in mB. */
-    public static final int DATA_FUEL            = 5;
+    public static final int DATA_FUEL            = 6;
     /** Wide container data index: combined fuel capacity in mB. */
-    public static final int DATA_FUEL_CAP        = 7;
+    public static final int DATA_FUEL_CAP        = 8;
     /** Wide container data index: combined fluid capacity in mB. */
-    public static final int DATA_FLUID_CAP       = 9;
+    public static final int DATA_FLUID_CAP       = 10;
     /** Wide container data index: total stored fluid across all materials in mB. */
-    public static final int DATA_FLUID_TOTAL     = 11;
+    public static final int DATA_FLUID_TOTAL     = 12;
     /**
      * Container data index: registry id of the fuel currently setting the temperature, or -1.
      *
@@ -69,13 +76,13 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
      * synchronised to the client at login, whereas the fuel registry's iteration order is only as
      * stable as the order addons happen to register in.
      */
-    public static final int DATA_FUEL_FLUID      = 13;
+    public static final int DATA_FUEL_FLUID      = 14;
     /** Container data index: ordinal of {@link ValidationResult.InvalidReason}. */
-    public static final int DATA_REASON          = 14;
+    public static final int DATA_REASON          = 15;
     /** Container data index: the count that gives the invalid reason its detail. */
-    public static final int DATA_REASON_DETAIL   = 15;
+    public static final int DATA_REASON_DETAIL   = 16;
     /** Container data index where the wide per-material fluid amounts begin. */
-    public static final int DATA_FLUID_BASE      = 16;
+    public static final int DATA_FLUID_BASE      = 17;
 
     private static final int OFFSCREEN = -9999;
     private static final int FORGE_SLOT_MAX_STACK = 1;
@@ -140,6 +147,17 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
             addSlot(new Slot(slotContainer, i, OFFSCREEN, OFFSCREEN) {
                 @Override public int getMaxStackSize()                  { return FORGE_SLOT_MAX_STACK; }
                 @Override public int getMaxStackSize(ItemStack stack)   { return FORGE_SLOT_MAX_STACK; }
+
+                /**
+                 * The screen draws the visible rows itself, so vanilla must not draw these too.
+                 *
+                 * <p>{@code AbstractContainerScreen.render} renders every active slot without
+                 * culling by position, so the off-screen coordinates alone did not stop the work:
+                 * a filled 5x5x5 forge cost 27 redundant item renders per frame, a 7x7x7 cost 125.
+                 * Slot interaction is unaffected — the server addresses slots by index and the
+                 * screen's own click path resolves them the same way.
+                 */
+                @Override public boolean isActive() { return false; }
             });
         }
 
@@ -167,7 +185,7 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
     @Override
     public void broadcastChanges() {
         if (blockEntity != null) {
-            syncData[DATA_TEMP]  = (int)(blockEntity.temperatureC() * 10f);
+            setWide(DATA_TEMP, Math.round(blockEntity.temperatureC() * 10f));
             syncData[DATA_VALID] = blockEntity.lastValidation().valid ? 1 : 0;
             syncData[DATA_HOLES] = blockEntity.lastValidation().holes();
             syncData[DATA_OUTPUT_FLUID_IX] = computeOutputFluidIndex(blockEntity);
@@ -218,7 +236,7 @@ public class ForgeControllerMenu extends AbstractContainerMenu {
      *
      * @return current temperature in degrees Celsius
      */
-    public float getTemperatureC()      { return syncData[DATA_TEMP] / 10f; }
+    public float getTemperatureC()      { return getWide(DATA_TEMP) / 10f; }
 
     /**
      * Returns the synced total fuel mB.

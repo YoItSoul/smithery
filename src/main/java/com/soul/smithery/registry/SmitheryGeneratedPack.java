@@ -145,6 +145,11 @@ public class SmitheryGeneratedPack implements PackResources {
             if ("minecraft".equals(location.getNamespace()) && LAVA_TAG_PATH.equals(location.getPath())) {
                 return SmitheryGeneratedPack::lavaTagJson;
             }
+            if ("minecraft".equals(location.getNamespace())
+                    && MINEABLE_PICKAXE_PATH.equals(location.getPath())
+                    && !SmitheryMaterialForms.all().isEmpty()) {
+                return jsonStream(mineablePickaxeTag());
+            }
             return resolveFormData(location.getNamespace(), location.getPath());
         }
         if (type != PackType.CLIENT_RESOURCES) return null;
@@ -231,6 +236,10 @@ public class SmitheryGeneratedPack implements PackResources {
                     output.accept(ResourceLocation.fromNamespaceAndPath("minecraft", LAVA_TAG_PATH),
                             SmitheryGeneratedPack::lavaTagJson);
                 }
+            }
+            if ("minecraft".equals(namespace) && !SmitheryMaterialForms.all().isEmpty()) {
+                emitData("minecraft", MINEABLE_PICKAXE_PATH, dataPrefix,
+                        () -> jsonStream(mineablePickaxeTag()), output);
             }
             listFormData(namespace, dataPrefix, output);
             return;
@@ -393,7 +402,20 @@ public class SmitheryGeneratedPack implements PackResources {
      */
     @Override
     public Set<String> getNamespaces(PackType type) {
-        if (type == PackType.SERVER_DATA) return Set.of("minecraft");
+        if (type == PackType.SERVER_DATA) {
+            // MultiPackResourceManager only pushes a pack into the FallbackResourceManager for
+            // the namespaces it reports here. resolveFormData answers under the *material
+            // owner's* namespace, so declaring only "minecraft" left every generated storage-form
+            // recipe and loot table unreachable — the feature produced blocks with no recipes and
+            // no drops. Forms are minted during mod construction, before the pack is opened, and
+            // RegistryObject.getId is safe pre-registration.
+            Set<String> data = new HashSet<>();
+            data.add("minecraft");
+            for (SmitheryMaterialForms.Forms forms : SmitheryMaterialForms.all().values()) {
+                data.add(forms.ingot().getId().getNamespace());
+            }
+            return data;
+        }
         if (type != PackType.CLIENT_RESOURCES) return Set.of();
         Set<String> ns = new HashSet<>();
         ns.add(Smithery.MODID);
@@ -1559,6 +1581,36 @@ public class SmitheryGeneratedPack implements PackResources {
     }
 
     /** Advertises each form's recipes and loot table, since recipes are found by listing. */
+    /** Vanilla tag path the generated storage blocks must join to be mineable. */
+    private static final String MINEABLE_PICKAXE_PATH = "tags/blocks/mineable/pickaxe.json";
+
+    /**
+     * The {@code minecraft:mineable/pickaxe} entries for every generated storage block.
+     *
+     * <p>{@code BLOCK_PROPS} sets {@code requiresCorrectToolForDrops}, and
+     * {@code DiggerItem.isCorrectToolForDrops} gates on the vanilla tag — but blocks minted at
+     * construction time can never appear in a hand-authored tag file, so without this no tool
+     * mines them correctly and they drop nothing. {@code "replace": false} so this merges with
+     * the jar's static file rather than displacing it.
+     */
+    private static String mineablePickaxeTag() {
+        StringBuilder values = new StringBuilder();
+        boolean first = true;
+        for (SmitheryMaterialForms.Forms forms : SmitheryMaterialForms.all().values()) {
+            if (!first) values.append(",\n");
+            first = false;
+            values.append("    \"").append(forms.block().getId()).append('"');
+        }
+        return ("""
+                {
+                  "replace": false,
+                  "values": [
+                %s
+                  ]
+                }
+                """).formatted(values);
+    }
+
     private void listFormData(String namespace, String dataPrefix, ResourceOutput output) {
         for (SmitheryMaterialForms.Forms forms : SmitheryMaterialForms.all().values()) {
             if (!namespace.equals(forms.ingot().getId().getNamespace())) continue;

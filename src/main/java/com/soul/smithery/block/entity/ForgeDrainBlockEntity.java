@@ -130,19 +130,24 @@ public class ForgeDrainBlockEntity extends BlockEntity {
 
         int wavefront = (int) (currentTick - pumpStartTick) + 1;
 
-        List<SinkRef> activeSinks = new ArrayList<>();
+        // Re-resolve every tick: a sink whose block entity is gone simply drops out, and a
+        // different one that appeared at the same position is picked up correctly.
+        record ActiveSink(SinkRef ref, IFluidHandler handler) {}
+        List<ActiveSink> activeSinks = new ArrayList<>();
         for (SinkRef sink : sinks) {
             if (sink.distance > wavefront) continue;
+            IFluidHandler handler = fluidSinkAt(level, sink.pos, sink.side);
+            if (handler == null) continue;
             FluidStack probe = new FluidStack(outputFluid, PUMP_RATE_MB);
-            if (sink.handler.fill(probe, IFluidHandler.FluidAction.SIMULATE) > 0) {
-                activeSinks.add(sink);
+            if (handler.fill(probe, IFluidHandler.FluidAction.SIMULATE) > 0) {
+                activeSinks.add(new ActiveSink(sink, handler));
             }
         }
 
         Set<BlockPos> activePipes = new HashSet<>();
-        for (SinkRef sink : activeSinks) {
-            if (sink.entryPipe == null) continue;
-            BlockPos node = sink.entryPipe;
+        for (ActiveSink active : activeSinks) {
+            if (active.ref().entryPipe == null) continue;
+            BlockPos node = active.ref().entryPipe;
             while (node != null) {
                 if (!activePipes.add(node)) break;
                 node = pipeParents.get(node);
@@ -173,11 +178,11 @@ public class ForgeDrainBlockEntity extends BlockEntity {
             return;
         }
 
-        for (SinkRef sink : activeSinks) {
+        for (ActiveSink active : activeSinks) {
             int available = controller.outputFluidMb();
             if (available <= 0) break;
             int budget = Math.min(PUMP_RATE_MB, available);
-            int pushed = sink.handler.fill(new FluidStack(outputFluid, budget),
+            int pushed = active.handler().fill(new FluidStack(outputFluid, budget),
                     IFluidHandler.FluidAction.EXECUTE);
             if (pushed > 0) {
                 controller.drainFluid(outputFluid, pushed);
@@ -222,8 +227,9 @@ public class ForgeDrainBlockEntity extends BlockEntity {
                     queue.add(seed);
                 }
             } else {
-                IFluidHandler h = fluidSinkAt(level, seed, d.getOpposite());
-                if (h != null) sinkList.add(new SinkRef(seed, h, 1, null));
+                if (fluidSinkAt(level, seed, d.getOpposite()) != null) {
+                    sinkList.add(new SinkRef(seed, d.getOpposite(), 1, null));
+                }
             }
         }
 
@@ -240,8 +246,9 @@ public class ForgeDrainBlockEntity extends BlockEntity {
                     parents.put(neighbor, current);
                     queue.add(neighbor);
                 } else {
-                    IFluidHandler h = fluidSinkAt(level, neighbor, d.getOpposite());
-                    if (h != null) sinkList.add(new SinkRef(neighbor, h, dist + 1, current));
+                    if (fluidSinkAt(level, neighbor, d.getOpposite()) != null) {
+                        sinkList.add(new SinkRef(neighbor, d.getOpposite(), dist + 1, current));
+                    }
                 }
             }
         }
@@ -268,7 +275,14 @@ public class ForgeDrainBlockEntity extends BlockEntity {
         return (h != null && h.getTanks() > 0) ? h : null;
     }
 
-    private record SinkRef(BlockPos pos, IFluidHandler handler,
+    /**
+     * A pour target, addressed by position and approach face rather than by a captured
+     * {@link IFluidHandler}. A pour runs for tens of ticks (a table cast is 144+ mB at
+     * {@code PUMP_RATE_MB}), so the target can be broken or replaced part-way through; a cached
+     * handler would keep accepting fluid on behalf of a block entity that no longer exists while
+     * {@code controller.drainFluid} really removed the metal. Re-resolved every tick.
+     */
+    private record SinkRef(BlockPos pos, Direction side,
                            int distance, @Nullable BlockPos entryPipe) {}
 
     @Override
